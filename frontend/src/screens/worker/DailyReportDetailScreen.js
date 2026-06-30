@@ -214,10 +214,19 @@ export default function DailyReportDetailScreen({ navigation, route }) {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+          testID="dailyReportDetail.backButton"
+          accessibilityLabel="dailyReportDetail.backButton"
+        >
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('dailyReportDetail.title')}</Text>
+        <Text
+          style={[styles.headerTitle, { color: Colors.primaryText }]}
+          testID="dailyReportDetail.headerTitle"
+          accessibilityLabel="dailyReportDetail.headerTitle"
+        >{t('dailyReportDetail.title')}</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -229,11 +238,23 @@ export default function DailyReportDetailScreen({ navigation, route }) {
       >
 
         {/* Date & Project */}
-        <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
-          <Text style={[styles.reportDate, { color: Colors.primaryText }]}>{formatDate(report.report_date)}</Text>
+        <View
+          style={[styles.section, { backgroundColor: Colors.cardBackground }]}
+          testID="dailyReportDetail.summaryCard"
+          accessibilityLabel="dailyReportDetail.summaryCard"
+        >
+          <Text
+            style={[styles.reportDate, { color: Colors.primaryText }]}
+            testID="dailyReportDetail.reportDate"
+            accessibilityLabel="dailyReportDetail.reportDate"
+          >{formatDate(report.report_date)}</Text>
           <View style={styles.infoRow}>
             <Ionicons name="briefcase-outline" size={16} color={Colors.secondaryText} />
-            <Text style={[styles.infoText, { color: Colors.secondaryText }]}>{report.projects?.name || report._planName || (report.service_plan_id ? t('dailyReportDetail.servicePlan') : t('dailyReportDetail.unknownProject'))}</Text>
+            <Text
+              style={[styles.infoText, { color: Colors.secondaryText }]}
+              testID="dailyReportDetail.projectName"
+              accessibilityLabel="dailyReportDetail.projectName"
+            >{report.projects?.name || report._planName || (report.service_plan_id ? t('dailyReportDetail.servicePlan') : t('dailyReportDetail.unknownProject'))}</Text>
           </View>
           {report.workers?.full_name && (
             <View style={styles.infoRow}>
@@ -314,7 +335,13 @@ export default function DailyReportDetailScreen({ navigation, route }) {
           <Section icon="images-outline" title={t('dailyReportDetail.sectionPhotos', { count: photos.length })}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {photos.map((url, i) => (
-                <TouchableOpacity key={i} onPress={() => { setSelectedPhotoIndex(i); setPhotoModalVisible(true); }} activeOpacity={0.8}>
+                <TouchableOpacity
+                  key={i}
+                  onPress={() => { setSelectedPhotoIndex(i); setPhotoModalVisible(true); }}
+                  activeOpacity={0.8}
+                  testID={i === 0 ? 'dailyReportDetail.viewPhotoButton' : undefined}
+                  accessibilityLabel={i === 0 ? 'dailyReportDetail.viewPhotoButton' : undefined}
+                >
                   <Image source={{ uri: url }} style={styles.photo} resizeMode="cover" />
                 </TouchableOpacity>
               ))}

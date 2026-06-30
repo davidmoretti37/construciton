@@ -1858,23 +1858,17 @@ router.get('/projects/:projectId/documents', verifyProjectAccess, async (req, re
 
     const { data, error } = await supabase
       .from('project_documents')
-      .select('id, title, description, category, file_name, file_size, mime_type, storage_path, created_at')
+      .select('id, file_name, file_url, file_type, category, notes, created_at, visible_to_clients')
       .eq('project_id', projectId)
+      .eq('visible_to_clients', true)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
 
-    // Generate signed download URLs for each document
-    const docs = await Promise.all((data || []).map(async (doc) => {
-      let download_url = null;
-      if (doc.storage_path) {
-        const { data: signedData } = await supabase.storage
-          .from('project-documents')
-          .createSignedUrl(doc.storage_path, 3600); // 1 hour expiry
-        download_url = signedData?.signedUrl || null;
-      }
-      return { ...doc, download_url };
-    }));
+    // project_documents stores a ready-to-use public/stored URL in file_url; the
+    // client UI opens it via download_url. (No storage signing — these files are
+    // already at a resolvable URL.)
+    const docs = (data || []).map((doc) => ({ ...doc, download_url: doc.file_url || null }));
 
     res.json(docs);
   } catch (error) {
@@ -1927,7 +1921,7 @@ router.get('/projects/:projectId/billing', verifyProjectAccess, async (req, res)
         .order('order_index', { ascending: true }),
       supabase
         .from('invoices')
-        .select('id, invoice_number, status, total, amount_paid, amount_due, due_date, paid_date, created_at, sent_date')
+        .select('id, invoice_number, status, total, amount_paid, amount_due, due_date, paid_date, created_at')
         .eq('project_id', projectId)
         .neq('status', 'cancelled')
         .order('created_at', { ascending: false }),
@@ -2008,7 +2002,7 @@ router.get('/projects/:projectId/billing', verifyProjectAccess, async (req, res)
         status: isOverdue ? 'overdue' : (inv.status || 'unpaid'),
         due_date: inv.due_date,
         days_overdue: isOverdue ? Math.floor((Date.now() - new Date(inv.due_date).getTime()) / 86400000) : 0,
-        zone, occurred_at: inv.paid_date || inv.sent_date || inv.created_at,
+        zone, occurred_at: inv.paid_date || inv.created_at,
       });
     }
 

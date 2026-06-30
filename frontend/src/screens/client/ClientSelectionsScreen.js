@@ -118,10 +118,15 @@ export default function ClientSelectionsScreen({ navigation }) {
     <View style={styles.container}>
       <SafeAreaView edges={['top']} style={{ backgroundColor: C.surface }}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <TouchableOpacity
+            testID="clientSelections.backButton"
+            accessibilityLabel="clientSelections.backButton"
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <Ionicons name="chevron-back" size={26} color={C.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{t('clientSelections.title')}</Text>
+          <Text style={styles.headerTitle} testID="clientSelections.headerTitle" accessibilityLabel="clientSelections.headerTitle">{t('clientSelections.title')}</Text>
           <View style={{ width: 26 }} />
         </View>
       </SafeAreaView>
@@ -133,19 +138,19 @@ export default function ClientSelectionsScreen({ navigation }) {
       >
         {/* Summary */}
         {selections.length > 0 && (
-          <View style={styles.summaryRow}>
+          <View style={styles.summaryRow} testID="clientSelections.summaryRow" accessibilityLabel="clientSelections.summaryRow">
             {pending.length > 0 && (
-              <View style={[styles.summaryChip, { backgroundColor: C.amberLight }]}>
+              <View style={[styles.summaryChip, { backgroundColor: C.amberLight }]} testID="clientSelections.pendingChip" accessibilityLabel="clientSelections.pendingChip">
                 <Text style={[styles.summaryChipText, { color: C.amberText }]}>{t('clientSelections.pendingCount', { count: pending.length })}</Text>
               </View>
             )}
             {reviewed.length > 0 && (
-              <View style={[styles.summaryChip, { backgroundColor: C.blueBg }]}>
+              <View style={[styles.summaryChip, { backgroundColor: C.blueBg }]} testID="clientSelections.reviewedChip" accessibilityLabel="clientSelections.reviewedChip">
                 <Text style={[styles.summaryChipText, { color: C.blue }]}>{t('clientSelections.inReviewCount', { count: reviewed.length })}</Text>
               </View>
             )}
             {confirmed.length > 0 && (
-              <View style={[styles.summaryChip, { backgroundColor: C.greenBg }]}>
+              <View style={[styles.summaryChip, { backgroundColor: C.greenBg }]} testID="clientSelections.confirmedChip" accessibilityLabel="clientSelections.confirmedChip">
                 <Text style={[styles.summaryChipText, { color: C.greenText }]}>{t('clientSelections.confirmedCount', { count: confirmed.length })}</Text>
               </View>
             )}
@@ -178,7 +183,7 @@ export default function ClientSelectionsScreen({ navigation }) {
             <Text style={styles.emptySub}>{t('clientSelections.emptySub')}</Text>
           </View>
         ) : (
-          selections.map((sel) => {
+          selections.map((sel, selIndex) => {
             const status = STATUS_MAP[sel.status] || STATUS_MAP.pending;
             const options = sel.options || [];
             const isExpanded = expandedId === sel.id;
@@ -191,13 +196,15 @@ export default function ClientSelectionsScreen({ navigation }) {
               <View key={sel.id} style={styles.selCard}>
                 {/* Header */}
                 <TouchableOpacity
+                  testID={`clientSelections.cardToggleButton.${selIndex}`}
+                  accessibilityLabel={`clientSelections.cardToggleButton.${selIndex}`}
                   style={styles.selHeader}
                   onPress={() => setExpandedId(isExpanded ? null : sel.id)}
                   activeOpacity={0.7}
                 >
                   <View style={{ flex: 1 }}>
                     <View style={styles.selHeaderRow}>
-                      <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
+                      <View style={[styles.statusBadge, { backgroundColor: status.bg }]} testID={`clientSelections.statusBadge.${selIndex}`} accessibilityLabel={`clientSelections.statusBadge.${selIndex}`}>
                         <Text style={[styles.statusText, { color: status.text }]}>{status.label}</Text>
                       </View>
                       {daysUntilDue !== null && daysUntilDue <= 7 && isPending && (
@@ -206,7 +213,7 @@ export default function ClientSelectionsScreen({ navigation }) {
                         </Text>
                       )}
                     </View>
-                    <Text style={styles.selTitle}>{sel.title}</Text>
+                    <Text style={styles.selTitle} testID={`clientSelections.cardTitle.${selIndex}`} accessibilityLabel={`clientSelections.cardTitle.${selIndex}`}>{sel.title}</Text>
                     {sel.description && <Text style={styles.selDesc} numberOfLines={2}>{sel.description}</Text>}
                   </View>
                   <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={20} color={C.textMuted} />
@@ -222,7 +229,7 @@ export default function ClientSelectionsScreen({ navigation }) {
                       if (option.price != null) {
                         const p = Number(option.price);
                         if (Number.isFinite(p)) {
-                          priceText = `$${p.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                          priceText = `$${p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
                         }
                       }
                       return (

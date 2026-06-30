@@ -183,25 +183,50 @@ export default function VisitDetailScreen({ route }) {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+          testID="visitDetail.backButton"
+          accessibilityLabel="visitDetail.backButton"
+        >
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]} numberOfLines={1}>
+          <Text
+            style={[styles.headerTitle, { color: Colors.primaryText }]}
+            numberOfLines={1}
+            testID="visitDetail.headerTitle"
+            accessibilityLabel="visitDetail.headerTitle"
+          >
             {location.name || t('visitDetail.defaultTitle')}
           </Text>
           {location.address ? (
-            <Text style={[styles.headerSubtitle, { color: Colors.secondaryText }]} numberOfLines={1}>
+            <Text
+              style={[styles.headerSubtitle, { color: Colors.secondaryText }]}
+              numberOfLines={1}
+              testID="visitDetail.address"
+              accessibilityLabel="visitDetail.address"
+            >
               {location.address}
             </Text>
           ) : null}
           {planName ? (
-            <Text style={[styles.headerSubtitle, { color: '#3B82F6' }]} numberOfLines={1}>
+            <Text
+              style={[styles.headerSubtitle, { color: '#3B82F6' }]}
+              numberOfLines={1}
+              testID="visitDetail.planName"
+              accessibilityLabel="visitDetail.planName"
+            >
               {planName}
             </Text>
           ) : null}
         </View>
-        <TouchableOpacity onPress={openMaps} style={styles.mapsBtn}>
+        <TouchableOpacity
+          onPress={openMaps}
+          style={styles.mapsBtn}
+          testID="visitDetail.mapsButton"
+          accessibilityLabel="visitDetail.mapsButton"
+        >
           <Ionicons name="navigate" size={20} color="#3B82F6" />
         </TouchableOpacity>
       </View>
@@ -249,8 +274,18 @@ export default function VisitDetailScreen({ route }) {
         ) : checklist.length > 0 && (
           <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
             <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('visitDetail.checklist')}</Text>
-              <Text style={[styles.sectionCount, { color: Colors.secondaryText }]}>
+              <Text
+                style={[styles.sectionTitle, { color: Colors.primaryText }]}
+                testID="visitDetail.checklistTitle"
+                accessibilityLabel="visitDetail.checklistTitle"
+              >
+                {t('visitDetail.checklist')}
+              </Text>
+              <Text
+                style={[styles.sectionCount, { color: Colors.secondaryText }]}
+                testID="visitDetail.checklistCount"
+                accessibilityLabel="visitDetail.checklistCount"
+              >
                 {completedItems}/{totalItems}
               </Text>
             </View>
@@ -299,7 +334,13 @@ export default function VisitDetailScreen({ route }) {
 
         {/* Notes */}
         <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('visitDetail.notes')}</Text>
+          <Text
+            style={[styles.sectionTitle, { color: Colors.primaryText }]}
+            testID="visitDetail.notesTitle"
+            accessibilityLabel="visitDetail.notesTitle"
+          >
+            {t('visitDetail.notes')}
+          </Text>
           <TextInput
             style={[styles.notesInput, { color: Colors.primaryText, borderColor: Colors.border }]}
             value={notes}
@@ -315,7 +356,11 @@ export default function VisitDetailScreen({ route }) {
 
         {/* Photos */}
         <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
+          <Text
+            style={[styles.sectionTitle, { color: Colors.primaryText }]}
+            testID="visitDetail.photosTitle"
+            accessibilityLabel="visitDetail.photosTitle"
+          >
             {t('visitDetail.photos', { count: photos.length })}
           </Text>
           <View style={styles.photoGrid}>
@@ -328,10 +373,20 @@ export default function VisitDetailScreen({ route }) {
             ))}
             {!isCompleted && (
               <View style={styles.photoActions}>
-                <TouchableOpacity style={[styles.photoBtn, { borderColor: Colors.border }]} onPress={handleTakePhoto}>
+                <TouchableOpacity
+                  style={[styles.photoBtn, { borderColor: Colors.border }]}
+                  onPress={handleTakePhoto}
+                  testID="visitDetail.takePhotoButton"
+                  accessibilityLabel="visitDetail.takePhotoButton"
+                >
                   <Ionicons name="camera-outline" size={24} color="#3B82F6" />
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.photoBtn, { borderColor: Colors.border }]} onPress={handlePickImage}>
+                <TouchableOpacity
+                  style={[styles.photoBtn, { borderColor: Colors.border }]}
+                  onPress={handlePickImage}
+                  testID="visitDetail.pickImageButton"
+                  accessibilityLabel="visitDetail.pickImageButton"
+                >
                   <Ionicons name="images-outline" size={24} color="#3B82F6" />
                 </TouchableOpacity>
               </View>

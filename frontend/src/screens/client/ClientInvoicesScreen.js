@@ -77,10 +77,10 @@ export default function ClientInvoicesScreen({ route, navigation }) {
       {/* Gradient Header */}
       <LinearGradient colors={[C.amber, C.amberDark]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
         <SafeAreaView edges={['top']} style={styles.headerInner}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} testID="clientInvoices.backButton" accessibilityLabel="clientInvoices.backButton">
             <Ionicons name="chevron-back" size={22} color="#fff" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{t('clientInvoices.title')}</Text>
+          <Text style={styles.headerTitle} testID="clientInvoices.headerTitle" accessibilityLabel="clientInvoices.headerTitle">{t('clientInvoices.title')}</Text>
           <View style={{ width: 36 }} />
         </SafeAreaView>
       </LinearGradient>
@@ -112,7 +112,7 @@ export default function ClientInvoicesScreen({ route, navigation }) {
             const status = STATUS[invoice.status] || STATUS.unpaid;
             const dateVal = invoice.due_date || invoice.date;
             const d = dateVal ? new Date(dateVal) : null;
-            const dateLabel = d && !isNaN(d.getTime()) ? d.toLocaleDateString() : '';
+            const dateLabel = d && !isNaN(d.getTime()) ? d.toLocaleDateString('en-US') : '';
             const amount = parseFloat(invoice.total || invoice.amount || 0);
             const paid = parseFloat(invoice.amount_paid || 0);
             const remaining = amount - paid;
@@ -122,7 +122,7 @@ export default function ClientInvoicesScreen({ route, navigation }) {
               <View key={invoice.id} style={styles.card}>
                 {/* Row 1: Invoice # and date */}
                 <View style={styles.cardRow}>
-                  <Text style={styles.invoiceNum}>{invoice.invoice_number || 'INV'}</Text>
+                  <Text style={styles.invoiceNum} testID="clientInvoices.invoiceNumber" accessibilityLabel="clientInvoices.invoiceNumber">{invoice.invoice_number || 'INV'}</Text>
                   <Text style={styles.invoiceDate}>{dateLabel}</Text>
                 </View>
 
@@ -136,9 +136,9 @@ export default function ClientInvoicesScreen({ route, navigation }) {
 
                 {/* Row 3: Amount + Status */}
                 <View style={[styles.cardRow, { marginTop: 8 }]}>
-                  <Text style={styles.amount}>${amount.toLocaleString()}</Text>
+                  <Text style={styles.amount} testID="clientInvoices.invoiceAmount" accessibilityLabel="clientInvoices.invoiceAmount">${amount.toLocaleString('en-US')}</Text>
                   <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
-                    <Text style={[styles.statusText, { color: status.text }]}>{t(`clientInvoices.status.${invoice.status && STATUS[invoice.status] ? invoice.status : 'unpaid'}`)}</Text>
+                    <Text style={[styles.statusText, { color: status.text }]} testID="clientInvoices.invoiceStatus" accessibilityLabel="clientInvoices.invoiceStatus">{t(`clientInvoices.status.${invoice.status && STATUS[invoice.status] ? invoice.status : 'unpaid'}`)}</Text>
                   </View>
                 </View>
 

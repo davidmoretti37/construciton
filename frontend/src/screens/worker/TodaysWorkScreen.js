@@ -249,8 +249,16 @@ export default function TodaysWorkScreen() {
       {/* Header — matches My Projects polished style */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('todaysWork.title')}</Text>
-          <Text style={[styles.headerSub, { color: Colors.secondaryText }]}>
+          <Text
+            testID="todaysWork.headerTitle"
+            accessibilityLabel="todaysWork.headerTitle"
+            style={[styles.headerTitle, { color: Colors.primaryText }]}
+          >{t('todaysWork.title')}</Text>
+          <Text
+            testID="todaysWork.headerSubtitle"
+            accessibilityLabel="todaysWork.headerSubtitle"
+            style={[styles.headerSub, { color: Colors.secondaryText }]}
+          >
             {totalItems > 0
               ? `${t('todaysWork.headerSummary', { completed: completedItems, total: totalItems })} · ${new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`
               : `${t('todaysWork.nothingDueToday')} · ${new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`}
@@ -260,7 +268,12 @@ export default function TodaysWorkScreen() {
           <View style={[styles.toggleBtn, { backgroundColor: '#059669' }]}>
             <Text style={[styles.toggleText, { color: '#fff' }]}>{t('todaysWork.toggleToday')}</Text>
           </View>
-          <TouchableOpacity style={[styles.toggleBtn, { backgroundColor: Colors.lightGray }]} onPress={() => setViewMode('calendar')}>
+          <TouchableOpacity
+            testID="todaysWork.calendarToggleButton"
+            accessibilityLabel="todaysWork.calendarToggleButton"
+            style={[styles.toggleBtn, { backgroundColor: Colors.lightGray }]}
+            onPress={() => setViewMode('calendar')}
+          >
             <Text style={[styles.toggleText, { color: Colors.secondaryText }]}>{t('todaysWork.toggleCalendar')}</Text>
           </TouchableOpacity>
         </View>
@@ -308,12 +321,23 @@ export default function TodaysWorkScreen() {
 
             return (
               <View key={cardId} style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
-                <TouchableOpacity style={styles.cardHeader} onPress={() => toggleCard(cardId)} activeOpacity={0.7}>
+                <TouchableOpacity
+                  testID={`todaysWork.projectCardHeader.${proj.id}`}
+                  accessibilityLabel={`todaysWork.projectCardHeader.${proj.id}`}
+                  style={styles.cardHeader}
+                  onPress={() => toggleCard(cardId)}
+                  activeOpacity={0.7}
+                >
                   <View style={[styles.cardIcon, { backgroundColor: '#F59E0B15' }]}>
                     <Ionicons name="construct" size={18} color="#F59E0B" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.cardTitle, { color: Colors.primaryText }]} numberOfLines={1}>{proj.name}</Text>
+                    <Text
+                      testID={`todaysWork.projectCardTitle.${proj.id}`}
+                      accessibilityLabel={`todaysWork.projectCardTitle.${proj.id}`}
+                      style={[styles.cardTitle, { color: Colors.primaryText }]}
+                      numberOfLines={1}
+                    >{proj.name}</Text>
                     {totalItems > 0 && (
                       <Text style={[styles.cardMeta, { color: Colors.secondaryText }]}>{t('todaysWork.itemsCount', { done: doneItems, total: totalItems })}</Text>
                     )}
@@ -362,7 +386,12 @@ export default function TodaysWorkScreen() {
                     />
 
                     {/* Details link */}
-                    <TouchableOpacity style={styles.detailsLink} onPress={() => navigation.navigate('WorkerProjectDetail', { project: { id: proj.id, name: proj.name } })}>
+                    <TouchableOpacity
+                      testID={`todaysWork.projectViewDetailsButton.${proj.id}`}
+                      accessibilityLabel={`todaysWork.projectViewDetailsButton.${proj.id}`}
+                      style={styles.detailsLink}
+                      onPress={() => navigation.navigate('WorkerProjectDetail', { project: { id: proj.id, name: proj.name } })}
+                    >
                       <Text style={styles.detailsText}>{t('todaysWork.viewDetails')}</Text>
                       <Ionicons name="arrow-forward" size={14} color="#3B82F6" />
                     </TouchableOpacity>
@@ -380,12 +409,23 @@ export default function TodaysWorkScreen() {
 
             return (
               <View key={cardId} style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
-                <TouchableOpacity style={styles.cardHeader} onPress={() => toggleCard(cardId)} activeOpacity={0.7}>
+                <TouchableOpacity
+                  testID={`todaysWork.planCardHeader.${plan.id}`}
+                  accessibilityLabel={`todaysWork.planCardHeader.${plan.id}`}
+                  style={styles.cardHeader}
+                  onPress={() => toggleCard(cardId)}
+                  activeOpacity={0.7}
+                >
                   <View style={[styles.cardIcon, { backgroundColor: '#05966915' }]}>
                     <Ionicons name="leaf" size={18} color="#059669" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.cardTitle, { color: Colors.primaryText }]} numberOfLines={1}>{plan.name}</Text>
+                    <Text
+                      testID={`todaysWork.planCardTitle.${plan.id}`}
+                      accessibilityLabel={`todaysWork.planCardTitle.${plan.id}`}
+                      style={[styles.cardTitle, { color: Colors.primaryText }]}
+                      numberOfLines={1}
+                    >{plan.name}</Text>
                     {plan.visits.length > 0 ? (
                       <Text style={[styles.cardMeta, { color: Colors.secondaryText }]}>{t('todaysWork.visitsCount', { done: visitsDone, total: plan.visits.length })}</Text>
                     ) : (

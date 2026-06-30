@@ -41,7 +41,7 @@ const STATUS = {
 // instead of epoch (1969/1970) or 'Invalid Date'.
 const fmt = (d) => {
   const t = d ? new Date(d) : null;
-  return t && !isNaN(t.getTime()) ? t.toLocaleDateString() : '—';
+  return t && !isNaN(t.getTime()) ? t.toLocaleDateString('en-US') : '—';
 };
 
 export default function ClientMoneyScreen({ navigation }) {
@@ -262,6 +262,7 @@ export default function ClientMoneyScreen({ navigation }) {
       />
 
       <ScrollView
+        testID="clientMoney.scrollView"
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -272,7 +273,11 @@ export default function ClientMoneyScreen({ navigation }) {
         {contractAmount > 0 && (
           <View style={styles.budgetCard}>
             <View style={styles.budgetHeader}>
-              <Text style={styles.budgetLabel}>{t('clientMoney.budgetOverview')}</Text>
+              <Text
+                style={styles.budgetLabel}
+                testID="clientMoney.headerTitle"
+                accessibilityLabel="clientMoney.headerTitle"
+              >{t('clientMoney.budgetOverview')}</Text>
               <Ionicons name="wallet" size={18} color={C.amber} />
             </View>
 
@@ -289,15 +294,27 @@ export default function ClientMoneyScreen({ navigation }) {
             <View style={styles.budgetGrid}>
               <View style={styles.budgetItem}>
                 <Text style={styles.budgetItemLabel}>{t('clientMoney.contract')}</Text>
-                <Text style={styles.budgetItemValue}>${contractAmount.toLocaleString()}</Text>
+                <Text
+                  style={styles.budgetItemValue}
+                  testID="clientMoney.contractValue"
+                  accessibilityLabel="clientMoney.contractValue"
+                >${contractAmount.toLocaleString('en-US')}</Text>
               </View>
               <View style={[styles.budgetItem, styles.budgetItemCenter]}>
                 <Text style={styles.budgetItemLabel}>{t('clientMoney.paid')}</Text>
-                <Text style={[styles.budgetItemValue, { color: C.green }]}>${totalPaid.toLocaleString()}</Text>
+                <Text
+                  style={[styles.budgetItemValue, { color: C.green }]}
+                  testID="clientMoney.paidValue"
+                  accessibilityLabel="clientMoney.paidValue"
+                >${totalPaid.toLocaleString('en-US')}</Text>
               </View>
               <View style={styles.budgetItem}>
                 <Text style={styles.budgetItemLabel}>{t('clientMoney.remainingLabel')}</Text>
-                <Text style={[styles.budgetItemValue, { color: C.amber }]}>${remaining.toLocaleString()}</Text>
+                <Text
+                  style={[styles.budgetItemValue, { color: C.amber }]}
+                  testID="clientMoney.remainingValue"
+                  accessibilityLabel="clientMoney.remainingValue"
+                >${remaining.toLocaleString('en-US')}</Text>
               </View>
             </View>
           </View>
@@ -358,7 +375,7 @@ export default function ClientMoneyScreen({ navigation }) {
                         {it.description}
                       </Text>
                       <Text style={{ fontSize: 12, color: C.textSec, marginTop: 2 }}>
-                        ${Math.round(it.amount).toLocaleString()}
+                        ${Math.round(it.amount).toLocaleString('en-US')}
                         {it.invoice?.invoice_number ? `  •  ${it.invoice.invoice_number}` : ''}
                       </Text>
                     </View>
@@ -385,6 +402,8 @@ export default function ClientMoneyScreen({ navigation }) {
           <TouchableOpacity
             style={styles.coBanner}
             activeOpacity={0.7}
+            testID="clientMoney.reviewChangeOrdersButton"
+            accessibilityLabel="clientMoney.reviewChangeOrdersButton"
             onPress={() => {
               const firstPending = changeOrders.find(co => ['pending_client', 'viewed'].includes(co.status));
               if (firstPending) {
@@ -431,7 +450,7 @@ export default function ClientMoneyScreen({ navigation }) {
                   <Text style={styles.invoiceProject} numberOfLines={1}>{co.title}</Text>
                   <View style={[styles.invoiceRow, { marginTop: 8 }]}>
                     <Text style={[styles.invoiceAmount, { fontSize: 20 }]}>
-                      {parseFloat(co.total_amount || 0) >= 0 ? '+' : ''}${Math.abs(parseFloat(co.total_amount || 0)).toLocaleString()}
+                      {parseFloat(co.total_amount || 0) >= 0 ? '+' : ''}${Math.abs(parseFloat(co.total_amount || 0)).toLocaleString('en-US')}
                     </Text>
                     <Text style={styles.invoiceDate}>{fmt(co.created_at)}</Text>
                   </View>
@@ -444,7 +463,11 @@ export default function ClientMoneyScreen({ navigation }) {
         {/* Unpaid Invoices */}
         {unpaidInvoices.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>{t('clientMoney.outstandingHeader')}</Text>
+            <Text
+              style={styles.sectionLabel}
+              testID="clientMoney.outstandingSectionHeader"
+              accessibilityLabel="clientMoney.outstandingSectionHeader"
+            >{t('clientMoney.outstandingHeader')}</Text>
             {unpaidInvoices.map((invoice) => {
               const status = STATUS[invoice.status] || STATUS.unpaid;
               const amount = parseFloat(invoice.total || 0);
@@ -461,7 +484,7 @@ export default function ClientMoneyScreen({ navigation }) {
                   </View>
                   {invoice.project_name && <Text style={styles.invoiceProject} numberOfLines={1}>{invoice.project_name}</Text>}
                   <View style={[styles.invoiceRow, { marginTop: 8 }]}>
-                    <Text style={styles.invoiceAmount}>${amount.toLocaleString()}</Text>
+                    <Text style={styles.invoiceAmount}>${amount.toLocaleString('en-US')}</Text>
                     {invoice.due_date && (
                       <Text style={styles.invoiceDate}>{t('clientMoney.dueDate', { date: fmt(invoice.due_date) })}</Text>
                     )}
@@ -503,7 +526,7 @@ export default function ClientMoneyScreen({ navigation }) {
                 </View>
                 {invoice.project_name && <Text style={styles.invoiceProject} numberOfLines={1}>{invoice.project_name}</Text>}
                 <View style={[styles.invoiceRow, { marginTop: 8 }]}>
-                  <Text style={[styles.invoiceAmount, { color: C.textSec }]}>${parseFloat(invoice.total || 0).toLocaleString()}</Text>
+                  <Text style={[styles.invoiceAmount, { color: C.textSec }]}>${parseFloat(invoice.total || 0).toLocaleString('en-US')}</Text>
                   {invoice.paid_date && (
                     <Text style={styles.invoiceDate}>{t('clientMoney.paidDate', { date: fmt(invoice.paid_date) })}</Text>
                   )}
@@ -525,12 +548,18 @@ export default function ClientMoneyScreen({ navigation }) {
         {/* Estimates */}
         {estimates.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>{t('clientMoney.estimatesHeader')}</Text>
+            <Text
+              style={styles.sectionLabel}
+              testID="clientMoney.estimatesSectionHeader"
+              accessibilityLabel="clientMoney.estimatesSectionHeader"
+            >{t('clientMoney.estimatesHeader')}</Text>
             {estimates.map((est) => (
               <TouchableOpacity
                 key={est.id}
                 style={styles.activityRow}
                 activeOpacity={0.7}
+                testID="clientMoney.viewEstimateButton"
+                accessibilityLabel="clientMoney.viewEstimateButton"
                 disabled={openingEstimate === est.source_id}
                 onPress={async () => {
                   if (openingEstimate) return; // prevent double-tap
@@ -567,7 +596,7 @@ export default function ClientMoneyScreen({ navigation }) {
                     {statusLabel(est.status)} · {fmt(est.occurred_at)}
                   </Text>
                 </View>
-                <Text style={styles.activityAmount}>${(est.amount || 0).toLocaleString()}</Text>
+                <Text style={styles.activityAmount}>${(est.amount || 0).toLocaleString('en-US')}</Text>
                 <Ionicons name="chevron-forward" size={16} color={C.textMuted} style={{ marginLeft: 4 }} />
               </TouchableOpacity>
             ))}
@@ -597,7 +626,7 @@ export default function ClientMoneyScreen({ navigation }) {
                     <Text style={styles.activitySub}>{subText}</Text>
                   </View>
                   <Text style={styles.activityAmount}>
-                    ${parseFloat(evt.amount || 0).toLocaleString()}
+                    ${parseFloat(evt.amount || 0).toLocaleString('en-US')}
                   </Text>
                 </View>
               );

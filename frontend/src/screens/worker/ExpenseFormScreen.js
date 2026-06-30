@@ -431,10 +431,21 @@ export default function ExpenseFormScreen({ navigation }) {
       >
         {/* Header */}
         <View style={[styles.header, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+            testID="expenseForm.backButton"
+            accessibilityLabel="expenseForm.backButton"
+          >
             <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('expenseForm.title')}</Text>
+          <Text
+            style={[styles.headerTitle, { color: Colors.primaryText }]}
+            testID="expenseForm.headerTitle"
+            accessibilityLabel="expenseForm.headerTitle"
+          >
+            {t('expenseForm.title')}
+          </Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -467,10 +478,18 @@ export default function ExpenseFormScreen({ navigation }) {
           {/* Step 1: Project Selection */}
           {step === 1 && (
             <View style={[styles.section, { backgroundColor: Colors.white }]}>
-              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
+              <Text
+                style={[styles.sectionTitle, { color: Colors.primaryText }]}
+                testID="expenseForm.selectProjectTitle"
+                accessibilityLabel="expenseForm.selectProjectTitle"
+              >
                 {t('expenseForm.selectProject')}
               </Text>
-              <Text style={[styles.sectionSubtitle, { color: Colors.secondaryText }]}>
+              <Text
+                style={[styles.sectionSubtitle, { color: Colors.secondaryText }]}
+                testID="expenseForm.selectProjectSubtitle"
+                accessibilityLabel="expenseForm.selectProjectSubtitle"
+              >
                 {t('expenseForm.selectProjectSubtitle')}
               </Text>
               {assignedProjects.length === 0 ? (
@@ -478,8 +497,8 @@ export default function ExpenseFormScreen({ navigation }) {
                   {t('expenseForm.noAssignedProjects')}
                 </Text>
               ) : (
-                <View style={styles.projectList}>
-                  {assignedProjects.map((project) => (
+                <View style={styles.projectList} testID="expenseForm.projectList">
+                  {assignedProjects.map((project, projectIndex) => (
                     <TouchableOpacity
                       key={project.id}
                       style={[
@@ -490,9 +509,15 @@ export default function ExpenseFormScreen({ navigation }) {
                         }
                       ]}
                       onPress={() => handleProjectSelect(project)}
+                      testID={projectIndex === 0 ? 'expenseForm.projectItemFirst' : `expenseForm.projectItem.${projectIndex}`}
+                      accessibilityLabel={projectIndex === 0 ? 'expenseForm.projectItemFirst' : `expenseForm.projectItem.${projectIndex}`}
                     >
                       <View style={styles.projectItemContent}>
-                        <Text style={[styles.projectName, { color: Colors.primaryText }]}>
+                        <Text
+                          style={[styles.projectName, { color: Colors.primaryText }]}
+                          testID={projectIndex === 0 ? 'expenseForm.projectNameFirst' : `expenseForm.projectName.${projectIndex}`}
+                          accessibilityLabel={projectIndex === 0 ? 'expenseForm.projectNameFirst' : `expenseForm.projectName.${projectIndex}`}
+                        >
                           {project.name}
                         </Text>
                         {project.location && (

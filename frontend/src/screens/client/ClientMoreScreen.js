@@ -118,13 +118,21 @@ export default function ClientMoreScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>{t('clientMore.title')}</Text>
+        <Text
+          style={styles.headerTitle}
+          testID="clientMore.headerTitle"
+          accessibilityLabel="clientMore.headerTitle"
+        >{t('clientMore.title')}</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {MENU_SECTIONS.map((section) => (
           <View key={section.label}>
-            <Text style={styles.sectionLabel}>{section.label}</Text>
+            <Text
+              style={styles.sectionLabel}
+              testID={`clientMore.section.${section.label.replace(/\s+/g, '')}`}
+              accessibilityLabel={`clientMore.section.${section.label.replace(/\s+/g, '')}`}
+            >{section.label}</Text>
             <View style={styles.group}>
               {section.items.map((item, i) => (
                 <TouchableOpacity
@@ -137,11 +145,17 @@ export default function ClientMoreScreen({ navigation }) {
                   ]}
                   onPress={() => handlePress(item)}
                   activeOpacity={0.7}
+                  testID={`clientMore.${item.key.replace(/\s+/g, '')}Button`}
+                  accessibilityLabel={`clientMore.${item.key.replace(/\s+/g, '')}Button`}
                 >
                   <View style={[styles.iconBox, { backgroundColor: item.iconBg }]}>
                     <Ionicons name={item.icon} size={18} color={item.iconColor} />
                   </View>
-                  <Text style={styles.rowLabel}>{item.label}</Text>
+                  <Text
+                    style={styles.rowLabel}
+                    testID={`clientMore.${item.key.replace(/\s+/g, '')}Label`}
+                    accessibilityLabel={`clientMore.${item.key.replace(/\s+/g, '')}Label`}
+                  >{item.label}</Text>
                   <Ionicons name="chevron-forward" size={16} color="#D1D5DB" />
                 </TouchableOpacity>
               ))}

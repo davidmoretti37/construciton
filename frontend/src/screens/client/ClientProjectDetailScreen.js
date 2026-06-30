@@ -60,8 +60,10 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.4, duration: 1000, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
+        // isInteraction:false — decorative looping pulse; must not register an
+        // InteractionManager handle (would block touch callbacks / UI sync).
+        Animated.timing(pulseAnim, { toValue: 1.4, duration: 1000, useNativeDriver: true, isInteraction: false }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true, isInteraction: false }),
       ])
     ).start();
   }, []);
@@ -118,16 +120,27 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
                 <TouchableOpacity
                   onPress={() => navigation.goBack()}
                   style={styles.backBtn}
+                  testID="clientProjectDetail.backButton"
+                  accessibilityLabel="clientProjectDetail.backButton"
                 >
                   <Ionicons name="chevron-back" size={22} color={C.text} />
                 </TouchableOpacity>
               </SafeAreaView>
               <View style={styles.heroBottom}>
-                <Text style={styles.heroTitle} numberOfLines={2}>{project.name}</Text>
+                <Text
+                  style={styles.heroTitle}
+                  numberOfLines={2}
+                  testID="clientProjectDetail.headerTitle"
+                  accessibilityLabel="clientProjectDetail.headerTitle"
+                >{project.name}</Text>
                 {project.location && (
                   <View style={styles.heroLocationRow}>
                     <Ionicons name="location" size={13} color="rgba(255,255,255,0.7)" />
-                    <Text style={styles.heroLocation}>{project.location}</Text>
+                    <Text
+                      style={styles.heroLocation}
+                      testID="clientProjectDetail.location"
+                      accessibilityLabel="clientProjectDetail.location"
+                    >{project.location}</Text>
                   </View>
                 )}
               </View>
@@ -141,7 +154,11 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
             {project.status && (
               <View style={styles.infoChip}>
                 <Ionicons name="flag" size={14} color={C.amber} />
-                <Text style={styles.infoChipText}>
+                <Text
+                  style={styles.infoChipText}
+                  testID="clientProjectDetail.statusValue"
+                  accessibilityLabel="clientProjectDetail.statusValue"
+                >
                   {statusLabel(project.status)}
                 </Text>
               </View>
@@ -149,7 +166,11 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
             {project.contract_amount > 0 && (
               <View style={styles.infoChip}>
                 <Ionicons name="wallet" size={14} color={C.amber} />
-                <Text style={styles.infoChipText}>${parseFloat(project.contract_amount).toLocaleString()}</Text>
+                <Text
+                  style={styles.infoChipText}
+                  testID="clientProjectDetail.contractAmount"
+                  accessibilityLabel="clientProjectDetail.contractAmount"
+                >${parseFloat(project.contract_amount).toLocaleString('en-US')}</Text>
               </View>
             )}
           </View>
@@ -160,6 +181,8 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
               style={styles.actionPrimary}
               onPress={() => navigation.navigate('ClientInvoices', { projectId })}
               activeOpacity={0.8}
+              testID="clientProjectDetail.invoicesButton"
+              accessibilityLabel="clientProjectDetail.invoicesButton"
             >
               <Ionicons name="receipt-outline" size={18} color="#fff" />
               <Text style={styles.actionPrimaryText}>{t('clientProjectDetail.invoices')}</Text>
@@ -168,6 +191,8 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
               style={styles.actionSecondary}
               onPress={() => navigation.navigate('ClientMessages', { projectId, projectName: project.name })}
               activeOpacity={0.8}
+              testID="clientProjectDetail.messagesButton"
+              accessibilityLabel="clientProjectDetail.messagesButton"
             >
               <Ionicons name="chatbubbles-outline" size={18} color={C.text} />
               <Text style={styles.actionSecondaryText}>{t('clientProjectDetail.messages')}</Text>

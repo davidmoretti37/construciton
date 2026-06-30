@@ -652,6 +652,8 @@ export default function DailyReportFormScreen({ navigation, route }) {
         style={[styles.optionalHeader, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}
         onPress={() => toggle(sectionKey)}
         activeOpacity={0.7}
+        testID={`dailyReportForm.section.${sectionKey}Button`}
+        accessibilityLabel={`dailyReportForm.section.${sectionKey}Button`}
       >
         <Ionicons name={icon} size={18} color={count > 0 ? ACCENT : Colors.secondaryText} />
         <Text style={[styles.optionalTitle, { color: count > 0 ? Colors.primaryText : Colors.secondaryText }]}>{title}</Text>
@@ -678,10 +680,21 @@ export default function DailyReportFormScreen({ navigation, route }) {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backBtn}
+            testID="dailyReportForm.backButton"
+            accessibilityLabel="dailyReportForm.backButton"
+          >
             <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('dailyReportForm.dailyLog')}</Text>
+          <Text
+            style={[styles.headerTitle, { color: Colors.primaryText }]}
+            testID="dailyReportForm.headerTitle"
+            accessibilityLabel="dailyReportForm.headerTitle"
+          >
+            {t('dailyReportForm.dailyLog')}
+          </Text>
           <View style={{ width: 36 }} />
         </View>
 
@@ -697,12 +710,20 @@ export default function DailyReportFormScreen({ navigation, route }) {
             </View>
           ) : (
             <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
-              <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>{t('dailyReportForm.projectOrServicePlan')}</Text>
+              <Text
+                style={[styles.cardTitle, { color: Colors.primaryText }]}
+                testID="dailyReportForm.projectSelectTitle"
+                accessibilityLabel="dailyReportForm.projectSelectTitle"
+              >
+                {t('dailyReportForm.projectOrServicePlan')}
+              </Text>
               {assignedProjects.length === 0 ? (
                 <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>{t('dailyReportForm.noProjectsAvailable')}</Text>
               ) : (
                 <TouchableOpacity
                   style={[styles.dropdownBtn, { borderColor: Colors.border, backgroundColor: Colors.inputBackground }]}
+                  testID="dailyReportForm.projectSelectButton"
+                  accessibilityLabel="dailyReportForm.projectSelectButton"
                   onPress={() => {
                     const labels = assignedProjects.map(p => `${p.isServicePlan ? '🔄 ' : '📋 '}${p.name}`);
                     labels.push(t('common:actions.cancel'));

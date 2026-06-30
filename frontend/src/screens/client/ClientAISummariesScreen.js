@@ -105,10 +105,21 @@ export default function ClientAISummariesScreen({ navigation }) {
     <View style={styles.container}>
       <SafeAreaView edges={['top']} style={{ backgroundColor: C.surface }}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <TouchableOpacity
+            testID="clientAISummaries.backButton"
+            accessibilityLabel="clientAISummaries.backButton"
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <Ionicons name="chevron-back" size={26} color={C.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{t('clientAISummaries.title')}</Text>
+          <Text
+            testID="clientAISummaries.headerTitle"
+            accessibilityLabel="clientAISummaries.headerTitle"
+            style={styles.headerTitle}
+          >
+            {t('clientAISummaries.title')}
+          </Text>
           <View style={{ width: 26 }} />
         </View>
       </SafeAreaView>
@@ -121,7 +132,13 @@ export default function ClientAISummariesScreen({ navigation }) {
         {/* AI Badge */}
         <View style={styles.aiBadge}>
           <Ionicons name="sparkles" size={16} color={C.amber} />
-          <Text style={styles.aiBadgeText}>{t('clientAISummaries.aiBadge')}</Text>
+          <Text
+            testID="clientAISummaries.aiBadgeText"
+            accessibilityLabel="clientAISummaries.aiBadgeText"
+            style={styles.aiBadgeText}
+          >
+            {t('clientAISummaries.aiBadge')}
+          </Text>
         </View>
 
         {error ? (
@@ -156,6 +173,8 @@ export default function ClientAISummariesScreen({ navigation }) {
             return (
               <TouchableOpacity
                 key={summary.id}
+                testID={`clientAISummaries.summaryCard.${idx}`}
+                accessibilityLabel={`clientAISummaries.summaryCard.${idx}`}
                 style={[styles.summaryCard, isLatest && styles.summaryCardLatest]}
                 onPress={() => setExpandedId(isExpanded ? null : summary.id)}
                 activeOpacity={0.7}
@@ -167,8 +186,20 @@ export default function ClientAISummariesScreen({ navigation }) {
                       <Ionicons name="sparkles" size={16} color={isLatest ? '#fff' : C.amber} />
                     </View>
                     <View>
-                      <Text style={styles.summaryWeek}>{formatWeekLabel(summary.week_start, summary.week_end)}</Text>
-                      <Text style={styles.summaryAgo}>{getWeeksAgo(summary.week_end)}</Text>
+                      <Text
+                        testID={`clientAISummaries.summaryWeek.${idx}`}
+                        accessibilityLabel={`clientAISummaries.summaryWeek.${idx}`}
+                        style={styles.summaryWeek}
+                      >
+                        {formatWeekLabel(summary.week_start, summary.week_end)}
+                      </Text>
+                      <Text
+                        testID={`clientAISummaries.summaryAgo.${idx}`}
+                        accessibilityLabel={`clientAISummaries.summaryAgo.${idx}`}
+                        style={styles.summaryAgo}
+                      >
+                        {getWeeksAgo(summary.week_end)}
+                      </Text>
                     </View>
                   </View>
                   <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={20} color={C.textMuted} />

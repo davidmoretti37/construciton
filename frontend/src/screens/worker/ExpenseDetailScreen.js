@@ -76,10 +76,19 @@ export default function ExpenseDetailScreen({ navigation, route }) {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+          testID="expenseDetail.backButton"
+          accessibilityLabel="expenseDetail.backButton"
+        >
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('expenseDetail.title')}</Text>
+        <Text
+          style={[styles.headerTitle, { color: Colors.primaryText }]}
+          testID="expenseDetail.headerTitle"
+          accessibilityLabel="expenseDetail.headerTitle"
+        >{t('expenseDetail.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -90,8 +99,16 @@ export default function ExpenseDetailScreen({ navigation, route }) {
         {/* Amount Card */}
         <View style={[styles.amountCard, { backgroundColor: '#DC2626' }]}>
           <Text style={styles.amountLabel}>{t('expenseDetail.totalAmount')}</Text>
-          <Text style={styles.amountValue}>{formatCurrency(expense.amount)}</Text>
-          <Text style={styles.amountDate}>{formatDate(expense.date)}</Text>
+          <Text
+            style={styles.amountValue}
+            testID="expenseDetail.amountValue"
+            accessibilityLabel="expenseDetail.amountValue"
+          >{formatCurrency(expense.amount)}</Text>
+          <Text
+            style={styles.amountDate}
+            testID="expenseDetail.amountDate"
+            accessibilityLabel="expenseDetail.amountDate"
+          >{formatDate(expense.date)}</Text>
         </View>
 
         {/* Receipt Image */}
@@ -113,7 +130,11 @@ export default function ExpenseDetailScreen({ navigation, route }) {
           <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
             {t('expenseDetail.description')}
           </Text>
-          <Text style={[styles.descriptionText, { color: Colors.primaryText }]}>
+          <Text
+            style={[styles.descriptionText, { color: Colors.primaryText }]}
+            testID="expenseDetail.descriptionValue"
+            accessibilityLabel="expenseDetail.descriptionValue"
+          >
             {expense.description || t('expenseDetail.noDescription')}
           </Text>
         </View>
@@ -134,7 +155,11 @@ export default function ExpenseDetailScreen({ navigation, route }) {
             <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>{t('expenseDetail.project')}</Text>
             <View style={styles.projectBadge}>
               <Ionicons name="briefcase" size={16} color={Colors.primaryBlue} />
-              <Text style={[styles.projectText, { color: Colors.primaryText }]}>
+              <Text
+                style={[styles.projectText, { color: Colors.primaryText }]}
+                testID="expenseDetail.projectValue"
+                accessibilityLabel="expenseDetail.projectValue"
+              >
                 {expense.projects?.name || expense.service_plans?.name || t('expenseDetail.unknownProject')}
               </Text>
             </View>

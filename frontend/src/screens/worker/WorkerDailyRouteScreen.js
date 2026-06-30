@@ -220,13 +220,28 @@ export default function WorkerDailyRouteScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+          testID="workerDailyRoute.backButton"
+          accessibilityLabel="workerDailyRoute.backButton"
+        >
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('workerDailyRoute.title')}</Text>
+          <Text
+            style={[styles.headerTitle, { color: Colors.primaryText }]}
+            testID="workerDailyRoute.headerTitle"
+            accessibilityLabel="workerDailyRoute.headerTitle"
+          >
+            {t('workerDailyRoute.title')}
+          </Text>
           {totalCount > 0 && (
-            <Text style={[styles.headerSubtitle, { color: Colors.secondaryText }]}>
+            <Text
+              style={[styles.headerSubtitle, { color: Colors.secondaryText }]}
+              testID="workerDailyRoute.progressLabel"
+              accessibilityLabel="workerDailyRoute.progressLabel"
+            >
               {t('workerDailyRoute.stopsCompleted', { completed: completedCount, total: totalCount })}
             </Text>
           )}
@@ -253,7 +268,11 @@ export default function WorkerDailyRouteScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#059669" />}
         >
           {totalCount === 0 && (
-            <View style={styles.emptyState}>
+            <View
+              style={styles.emptyState}
+              testID="workerDailyRoute.emptyState"
+              accessibilityLabel="workerDailyRoute.emptyState"
+            >
               <Ionicons name="sunny-outline" size={56} color={Colors.secondaryText} />
               <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>{t('workerDailyRoute.emptyTitle')}</Text>
               <Text style={[styles.emptySubtitle, { color: Colors.secondaryText }]}>
@@ -272,6 +291,8 @@ export default function WorkerDailyRouteScreen() {
                 style={[styles.stopCard, { backgroundColor: Colors.cardBackground }]}
                 onPress={() => handleStopPress(stop)}
                 activeOpacity={0.8}
+                testID={`workerDailyRoute.stopCard.${index}`}
+                accessibilityLabel={`workerDailyRoute.stopCard.${index}`}
               >
                 {/* Stop number */}
                 <View style={[styles.stopBadge, { backgroundColor: isVisit ? '#059669' : '#F59E0B' }]}>
@@ -296,7 +317,12 @@ export default function WorkerDailyRouteScreen() {
                   </View>
 
                   {/* Title */}
-                  <Text style={[styles.stopTitle, { color: Colors.primaryText }, stop.status === 'completed' && { textDecorationLine: 'line-through', opacity: 0.6 }]} numberOfLines={1}>
+                  <Text
+                    style={[styles.stopTitle, { color: Colors.primaryText }, stop.status === 'completed' && { textDecorationLine: 'line-through', opacity: 0.6 }]}
+                    numberOfLines={1}
+                    testID={`workerDailyRoute.stopTitle.${index}`}
+                    accessibilityLabel={`workerDailyRoute.stopTitle.${index}`}
+                  >
                     {stop.title}
                   </Text>
 
@@ -327,6 +353,8 @@ export default function WorkerDailyRouteScreen() {
                     style={styles.navBtn}
                     onPress={() => openMaps(stop.address)}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    testID={`workerDailyRoute.navigateButton.${index}`}
+                    accessibilityLabel={`workerDailyRoute.navigateButton.${index}`}
                   >
                     <Ionicons name="navigate" size={20} color="#3B82F6" />
                   </TouchableOpacity>

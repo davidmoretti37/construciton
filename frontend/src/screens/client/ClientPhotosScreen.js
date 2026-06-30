@@ -76,11 +76,16 @@ export default function ClientPhotosScreen({ navigation }) {
     <View style={styles.container}>
       <SafeAreaView edges={['top']} style={{ backgroundColor: C.surface }}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <TouchableOpacity
+            testID="clientPhotos.backButton"
+            accessibilityLabel="clientPhotos.backButton"
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <Ionicons name="chevron-back" size={26} color={C.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{t('clientPhotos.title')}</Text>
-          <Text style={styles.headerCount}>{photos.length}</Text>
+          <Text testID="clientPhotos.headerTitle" accessibilityLabel="clientPhotos.headerTitle" style={styles.headerTitle}>{t('clientPhotos.title')}</Text>
+          <Text testID="clientPhotos.headerCount" accessibilityLabel="clientPhotos.headerCount" style={styles.headerCount}>{photos.length}</Text>
         </View>
       </SafeAreaView>
 
@@ -106,9 +111,15 @@ export default function ClientPhotosScreen({ navigation }) {
             <Text style={styles.emptySub}>{t('clientPhotos.emptySub')}</Text>
           </View>
         ) : (
-          <View style={styles.grid}>
+          <View testID="clientPhotos.grid" accessibilityLabel="clientPhotos.grid" style={styles.grid}>
             {photos.map((url, i) => (
-              <TouchableOpacity key={i} onPress={() => { setViewerIndex(i); setShowViewer(true); }} activeOpacity={0.8}>
+              <TouchableOpacity
+                key={i}
+                testID={`clientPhotos.photoButton.${i}`}
+                accessibilityLabel={`clientPhotos.photoButton.${i}`}
+                onPress={() => { setViewerIndex(i); setShowViewer(true); }}
+                activeOpacity={0.8}
+              >
                 {failedUris[url] ? (
                   <View style={[styles.photo, styles.photoFallback]}>
                     <Ionicons name="image-outline" size={24} color={C.textMuted} />

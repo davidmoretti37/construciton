@@ -99,7 +99,7 @@ const NavItem = ({ item, isActive, onPress, Colors }) => {
   }, [isActive]);
 
   return (
-    <TouchableOpacity activeOpacity={0.7} onPress={onPress} style={navItemStyles.navItem}>
+    <TouchableOpacity testID={`clientTab.${item.routeName}`} accessibilityLabel={`clientTab.${item.routeName}`} activeOpacity={0.7} onPress={onPress} style={navItemStyles.navItem}>
       <Animated.View style={[navItemStyles.iconContainer, animatedStyle]}>
         <Ionicons
           name={item.icon}

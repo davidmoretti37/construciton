@@ -425,13 +425,20 @@ export default function WorkerProjectsListScreen() {
         activeOpacity={0.6}
         onPress={() => openProject(item)}
         style={[styles.card, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}
+        testID={`workerProjects.projectCard.${item.id}`}
+        accessibilityLabel={`workerProjects.projectCard.${item.name}`}
       >
         {/* Phase-color accent stripe on the left */}
         <View style={[styles.cardAccent, { backgroundColor: phaseColor }]} />
 
         <View style={styles.cardBody}>
           <View style={styles.cardTopRow}>
-            <Text style={[styles.projectName, { color: Colors.primaryText }]} numberOfLines={1}>
+            <Text
+              style={[styles.projectName, { color: Colors.primaryText }]}
+              numberOfLines={1}
+              testID={`workerProjects.projectName.${item.id}`}
+              accessibilityLabel={`workerProjects.projectName.${item.name}`}
+            >
               {item.name}
             </Text>
             {item.currentPhase && (
@@ -477,6 +484,8 @@ export default function WorkerProjectsListScreen() {
                   setCollapsed(prev => ({ ...prev, [item.id]: !prev[item.id] }));
                 }}
                 style={styles.todayHeader}
+                testID={`workerProjects.todayToggleButton.${item.id}`}
+                accessibilityLabel={`workerProjects.todayToggleButton.${item.id}`}
               >
                 <Text style={[styles.todayLabel, { color: '#3B82F6' }]}>
                   {t('workerProjectsList.todayItems', { count: totalToday })}
@@ -573,7 +582,11 @@ export default function WorkerProjectsListScreen() {
     return (
       <View style={{ marginBottom: Spacing.md }}>
         <View style={styles.sectionLabelRow}>
-          <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
+          <Text
+            style={[styles.sectionLabel, { color: Colors.secondaryText }]}
+            testID="workerProjects.dailyChecksHeader"
+            accessibilityLabel="workerProjects.dailyChecksHeader"
+          >
             {t('workerProjectsList.dailyChecksSection')}
           </Text>
           {totalDailyPending > 0 && (
@@ -634,7 +647,13 @@ export default function WorkerProjectsListScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>{t('workerProjectsList.title')}</Text>
+        <Text
+          style={styles.title}
+          testID="workerProjects.headerTitle"
+          accessibilityLabel="workerProjects.headerTitle"
+        >
+          {t('workerProjectsList.title')}
+        </Text>
       </View>
       <FlatList
         data={projects}
@@ -650,7 +669,13 @@ export default function WorkerProjectsListScreen() {
               <Text style={styles.emptyText}>
                 {t('workerProjectsList.errorBody')}
               </Text>
-              <TouchableOpacity style={styles.retryButton} activeOpacity={0.7} onPress={onRetry}>
+              <TouchableOpacity
+                style={styles.retryButton}
+                activeOpacity={0.7}
+                onPress={onRetry}
+                testID="workerProjects.retryButton"
+                accessibilityLabel="workerProjects.retryButton"
+              >
                 <Ionicons name="refresh" size={16} color="#FFFFFF" />
                 <Text style={styles.retryButtonText}>{t('workerProjectsList.retryButton')}</Text>
               </TouchableOpacity>

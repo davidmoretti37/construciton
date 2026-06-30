@@ -319,8 +319,18 @@ export default function WorkerScheduleScreen({ navigation, embedded = false }) {
       {/* Top Bar */}
       {!embedded && (
         <View style={[styles.topBar, { backgroundColor: Colors.background }]}>
-          <Text style={[styles.topBarTitle, { color: Colors.primaryText }]}>{t('schedule.title')}</Text>
-          <TouchableOpacity onPress={() => navigation?.navigate('Settings')}>
+          <Text
+            testID="workerSchedule.headerTitle"
+            accessibilityLabel="workerSchedule.headerTitle"
+            style={[styles.topBarTitle, { color: Colors.primaryText }]}
+          >
+            {t('schedule.title')}
+          </Text>
+          <TouchableOpacity
+            testID="workerSchedule.settingsButton"
+            accessibilityLabel="workerSchedule.settingsButton"
+            onPress={() => navigation?.navigate('Settings')}
+          >
             <Ionicons name="settings-outline" size={22} color={Colors.primaryText} />
           </TouchableOpacity>
         </View>
@@ -358,7 +368,11 @@ export default function WorkerScheduleScreen({ navigation, embedded = false }) {
         {/* Day Detail Section */}
         <View style={styles.dayDetailSection}>
           {/* Date Header */}
-          <Text style={[styles.dayDetailDate, { color: Colors.primaryText }]}>
+          <Text
+            testID="workerSchedule.selectedDate"
+            accessibilityLabel="workerSchedule.selectedDate"
+            style={[styles.dayDetailDate, { color: Colors.primaryText }]}
+          >
             {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </Text>
 
@@ -372,7 +386,11 @@ export default function WorkerScheduleScreen({ navigation, embedded = false }) {
           {/* Tasks Section */}
           {!scheduleLoading && (
             <View style={styles.scheduleCategory}>
-              <Text style={[styles.categoryLabel, { color: Colors.warningOrange }]}>
+              <Text
+                testID="workerSchedule.tasksLabel"
+                accessibilityLabel="workerSchedule.tasksLabel"
+                style={[styles.categoryLabel, { color: Colors.warningOrange }]}
+              >
                 {t('workerSchedule.tasksLabel')}
               </Text>
 
@@ -393,12 +411,19 @@ export default function WorkerScheduleScreen({ navigation, embedded = false }) {
                   return (
                     <View key={projectName} style={styles.projectGroup}>
                       <TouchableOpacity
+                        testID={`workerSchedule.projectHeader.${projectName}`}
+                        accessibilityLabel={`workerSchedule.projectHeader.${projectName}`}
                         style={[styles.projectHeader, { backgroundColor: Colors.white, borderLeftWidth: 4, borderLeftColor: Colors.warningOrange, borderWidth: 1, borderColor: Colors.border }]}
                         onPress={() => setExpandedProjects(prev => ({ ...prev, [projectName]: !prev[projectName] }))}
                         activeOpacity={0.7}
                       >
                         <Ionicons name="business-outline" size={18} color={Colors.warningOrange} />
-                        <Text style={[styles.projectName, { color: Colors.primaryText }]} numberOfLines={1}>
+                        <Text
+                          testID={`workerSchedule.projectName.${projectName}`}
+                          accessibilityLabel={`workerSchedule.projectName.${projectName}`}
+                          style={[styles.projectName, { color: Colors.primaryText }]}
+                          numberOfLines={1}
+                        >
                           {projectName}
                         </Text>
                         <Text style={{ color: Colors.secondaryText, fontSize: 13, fontWeight: '500', marginRight: 8 }}>

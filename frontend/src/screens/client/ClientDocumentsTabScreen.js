@@ -51,7 +51,7 @@ const ENTITY_LABEL = {
 function fmtDate(value) {
   if (!value) return '—';
   const d = new Date(value);
-  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-US');
 }
 
 // Timestamp coalesced to a sortable number (0 when missing/unparseable),
@@ -66,7 +66,11 @@ function ActivityRow({ event }) {
   const v = ACTIVITY_VISUAL[event.action] || ACTIVITY_VISUAL.viewed;
   const entityLabel = ENTITY_LABEL[event.entity_type] || event.entity_type;
   return (
-    <View style={styles.activityRow}>
+    <View
+      style={styles.activityRow}
+      testID="clientDocumentsTab.activityRow"
+      accessibilityLabel="clientDocumentsTab.activityRow"
+    >
       <View style={[styles.activityIcon, { backgroundColor: v.color + '20' }]}>
         <Ionicons name={v.icon} size={16} color={v.color} />
       </View>
@@ -105,12 +109,19 @@ function DocumentRow({ doc }) {
       style={[styles.docRow, !ready && styles.docRowDisabled]}
       onPress={openDoc}
       activeOpacity={0.7}
+      testID="clientDocumentsTab.openDocumentButton"
+      accessibilityLabel="clientDocumentsTab.openDocumentButton"
     >
       <View style={[styles.docIcon, { backgroundColor: isImage ? '#F3E8FF' : '#DBEAFE' }]}>
         <Ionicons name={isImage ? 'image-outline' : 'document-text-outline'} size={18} color={isImage ? '#8B5CF6' : C.blue} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={styles.docTitle} numberOfLines={1}>{doc.title || doc.file_name || t('clientDocumentsTab.untitledDocument')}</Text>
+        <Text
+          style={styles.docTitle}
+          numberOfLines={1}
+          testID="clientDocumentsTab.documentTitle"
+          accessibilityLabel="clientDocumentsTab.documentTitle"
+        >{doc.title || doc.file_name || t('clientDocumentsTab.untitledDocument')}</Text>
         <Text style={styles.docSub}>
           {doc.category ? doc.category[0].toUpperCase() + doc.category.slice(1) : t('clientDocumentsTab.documentCategory')} ·
           {' '}{fmtDate(doc.created_at)}
@@ -193,7 +204,7 @@ export default function ClientDocumentsTabScreen({ navigation }) {
   if (loading) {
     return (
       <View style={styles.container}>
-        <ClientHeader title={t('clientDocumentsTab.title')} subtitle={activeProject?.name} navigation={navigation} />
+        <ClientHeader title={t('clientDocumentsTab.title')} subtitle={activeProject?.name} navigation={navigation} titleTestID="clientDocumentsTab.headerTitle" />
         <ActivityIndicator size="large" color={C.amber} style={{ marginTop: 80 }} />
       </View>
     );
@@ -201,7 +212,7 @@ export default function ClientDocumentsTabScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <ClientHeader title={t('clientDocumentsTab.title')} subtitle={activeProject?.name} navigation={navigation} />
+      <ClientHeader title={t('clientDocumentsTab.title')} subtitle={activeProject?.name} navigation={navigation} titleTestID="clientDocumentsTab.headerTitle" />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -220,7 +231,11 @@ export default function ClientDocumentsTabScreen({ navigation }) {
         {/* Activity feed — what happened recently */}
         {activityFeed.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>{t('clientDocumentsTab.recentActivity')}</Text>
+            <Text
+              style={styles.sectionLabel}
+              testID="clientDocumentsTab.activitySectionLabel"
+              accessibilityLabel="clientDocumentsTab.activitySectionLabel"
+            >{t('clientDocumentsTab.recentActivity')}</Text>
             {activityFeed.map((evt) => (
               <ActivityRow key={evt.id} event={evt} />
             ))}
@@ -230,7 +245,11 @@ export default function ClientDocumentsTabScreen({ navigation }) {
         {/* Documents — files shared by the contractor */}
         {documents.length > 0 ? (
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>{t('clientDocumentsTab.documentsCount', { count: documents.length })}</Text>
+            <Text
+              style={styles.sectionLabel}
+              testID="clientDocumentsTab.documentsSectionLabel"
+              accessibilityLabel="clientDocumentsTab.documentsSectionLabel"
+            >{t('clientDocumentsTab.documentsCount', { count: documents.length })}</Text>
             {documents.map((doc) => (
               <DocumentRow key={doc.id} doc={doc} />
             ))}
