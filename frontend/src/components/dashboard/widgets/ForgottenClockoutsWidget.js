@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Line } from 'react-native-svg';
+import { useTranslation } from 'react-i18next';
 import Animated, {
   useSharedValue,
   useAnimatedProps,
@@ -57,6 +58,8 @@ function AnimatedClock({ size = 32, editMode }) {
 }
 
 export default function ForgottenClockoutsWidget({ count, names = [], size, editMode, onPress }) {
+  const { t } = useTranslation('common');
+
   if (size === 'medium') {
     return (
       <TouchableOpacity
@@ -76,7 +79,7 @@ export default function ForgottenClockoutsWidget({ count, names = [], size, edit
             <View style={styles.countRow}>
               <Text style={styles.valueMedium}>{count}</Text>
               <View style={styles.hrsBadge}>
-                <Text style={styles.hrsText}>10+ hrs</Text>
+                <Text style={styles.hrsText}>{t('forgottenClockoutsWidget.hoursThreshold')}</Text>
               </View>
             </View>
             {names.length > 0 && (
@@ -107,9 +110,9 @@ export default function ForgottenClockoutsWidget({ count, names = [], size, edit
         <Text style={styles.valueSmall}>{count}</Text>
         <View style={styles.hrsBadgeSmall}>
           <Ionicons name="time-outline" size={9} color="#FDE68A" />
-          <Text style={styles.hrsTextSmall}>10+ hrs</Text>
+          <Text style={styles.hrsTextSmall}>{t('forgottenClockoutsWidget.hoursThreshold')}</Text>
         </View>
-        <Text style={styles.label}>CLOCK-OUTS</Text>
+        <Text style={styles.label}>{t('forgottenClockoutsWidget.label')}</Text>
       </LinearGradient>
     </TouchableOpacity>
   );

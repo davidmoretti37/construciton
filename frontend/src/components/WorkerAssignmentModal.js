@@ -223,7 +223,7 @@ export default function WorkerAssignmentModal({
             <Ionicons name="search" size={20} color="#9CA3AF" />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search workers..."
+              placeholder={t('workerAssignmentModal.searchPlaceholder')}
               placeholderTextColor="#9CA3AF"
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -255,7 +255,7 @@ export default function WorkerAssignmentModal({
                   styles.filterPillText,
                   filterTrade === trade && styles.filterPillTextActive
                 ]}>
-                  {trade === 'all' ? 'All Trades' : trade}
+                  {trade === 'all' ? t('workerAssignmentModal.allTrades') : trade}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -332,7 +332,7 @@ export default function WorkerAssignmentModal({
                       {/* Status Badge */}
                       <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
                         <Text style={styles.statusBadgeText}>
-                          {worker.status || 'Active'}
+                          {worker.status || t('workerAssignmentModal.statusActive')}
                         </Text>
                       </View>
                     </TouchableOpacity>
@@ -349,7 +349,7 @@ export default function WorkerAssignmentModal({
             <View style={styles.floatingBarContent}>
               <Ionicons name="checkmark-circle" size={24} color="#10B981" />
               <Text style={styles.floatingBarText}>
-                {selectedCount} selected
+                {t('workerAssignmentModal.selectedCount', { count: selectedCount })}
               </Text>
             </View>
           </View>

@@ -26,6 +26,7 @@ export default function EditPricingScreen({ route, navigation }) {
   const Colors = getColors(isDark) || LightColors;
   const insets = useSafeAreaInsets();
   const { t } = useTranslation('common');
+  const { t: ts } = useTranslation('settings');
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -192,7 +193,7 @@ export default function EditPricingScreen({ route, navigation }) {
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primaryBlue} />
-          <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>Loading...</Text>
+          <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>{ts('editPricing.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -215,7 +216,7 @@ export default function EditPricingScreen({ route, navigation }) {
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Ionicons name={trade.icon} size={24} color={Colors.primaryBlue} style={{ marginRight: Spacing.sm }} />
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{trade.name} Pricing</Text>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{ts('editPricing.headerTitle', { name: trade.name })}</Text>
         </View>
         <View style={{ width: 40 }} />
       </View>
@@ -231,13 +232,13 @@ export default function EditPricingScreen({ route, navigation }) {
             <View style={[styles.infoBox, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue + '30' }]}>
               <Ionicons name="information-circle-outline" size={20} color={Colors.primaryBlue} />
               <Text style={[styles.infoText, { color: Colors.primaryBlue }]}>
-                Set your pricing for {trade.name.toLowerCase()} services. The AI will use these rates when creating estimates.
+                {ts('editPricing.infoText', { name: trade.name.toLowerCase() })}
               </Text>
             </View>
 
             {/* Standard Pricing Items */}
             <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-              Standard Services
+              {ts('editPricing.standardServices')}
             </Text>
             <View style={styles.pricingList}>
               {trade.pricingTemplate.map((item, index) => (
@@ -253,7 +254,7 @@ export default function EditPricingScreen({ route, navigation }) {
                       {item.label}
                     </Text>
                     <Text style={[styles.itemUnit, { color: Colors.secondaryText }]}>
-                      per {item.unit}
+                      {ts('editPricing.perUnit', { unit: item.unit })}
                     </Text>
                   </View>
 
@@ -280,7 +281,7 @@ export default function EditPricingScreen({ route, navigation }) {
             {customItems.length > 0 && (
               <>
                 <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginTop: Spacing.xl }]}>
-                  Custom Services
+                  {ts('editPricing.customServices')}
                 </Text>
                 <View style={styles.pricingList}>
                   {customItems.map((item) => (
@@ -297,7 +298,7 @@ export default function EditPricingScreen({ route, navigation }) {
                             {item.label}
                           </Text>
                           <Text style={[styles.itemUnit, { color: Colors.secondaryText }]}>
-                            per {item.unit}
+                            {ts('editPricing.perUnit', { unit: item.unit })}
                           </Text>
                         </View>
                         <TouchableOpacity
@@ -340,17 +341,22 @@ export default function EditPricingScreen({ route, navigation }) {
             >
               <Ionicons name="add-circle-outline" size={24} color={Colors.primaryBlue} />
               <Text style={[styles.addButtonText, { color: Colors.primaryBlue }]}>
-                Add Custom Service
+                {ts('editPricing.addCustomService')}
               </Text>
             </TouchableOpacity>
 
             {/* Example Calculation */}
             <View style={[styles.exampleBox, { backgroundColor: Colors.lightGray }]}>
               <Text style={[styles.exampleTitle, { color: Colors.primaryText }]}>
-                Example Calculation
+                {ts('editPricing.exampleCalculation')}
               </Text>
               <Text style={[styles.exampleText, { color: Colors.secondaryText }]}>
-                {trade.pricingTemplate[0]?.label}: 100 {trade.pricingTemplate[0]?.unit} × ${pricing[trade.pricingTemplate[0]?.id]?.price || 0} = ${((pricing[trade.pricingTemplate[0]?.id]?.price || 0) * 100).toFixed(2)}
+                {ts('editPricing.exampleText', {
+                  label: trade.pricingTemplate[0]?.label,
+                  unit: trade.pricingTemplate[0]?.unit,
+                  price: pricing[trade.pricingTemplate[0]?.id]?.price || 0,
+                  total: ((pricing[trade.pricingTemplate[0]?.id]?.price || 0) * 100).toFixed(2),
+                })}
               </Text>
             </View>
           </View>
@@ -379,7 +385,7 @@ export default function EditPricingScreen({ route, navigation }) {
             ) : (
               <>
                 <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                <Text style={styles.saveButtonText}>Save Pricing</Text>
+                <Text style={styles.saveButtonText}>{ts('editPricing.savePricing')}</Text>
               </>
             )}
           </TouchableOpacity>

@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, SectionList, TouchableOpacity, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { TASK_STATUSES } from '../../constants/theme';
 import { getProjectColor } from '../../utils/calendarUtils';
 
@@ -20,7 +21,7 @@ const todayStr = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-const formatSectionDate = (dateStr) => {
+const formatSectionDate = (dateStr, t) => {
   const date = new Date(dateStr + 'T12:00:00');
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -28,8 +29,8 @@ const formatSectionDate = (dateStr) => {
   tomorrow.setDate(tomorrow.getDate() + 1);
   const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
-  if (target.getTime() === today.getTime()) return { primary: 'Today', meta: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) };
-  if (target.getTime() === tomorrow.getTime()) return { primary: 'Tomorrow', meta: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) };
+  if (target.getTime() === today.getTime()) return { primary: t('agendaView.today'), meta: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) };
+  if (target.getTime() === tomorrow.getTime()) return { primary: t('agendaView.tomorrow'), meta: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) };
 
   return {
     primary: date.toLocaleDateString('en-US', { weekday: 'long' }),
@@ -60,6 +61,7 @@ export default function AgendaView({
   dailyChecklist = [],
   onToggleDailyChecklistItem,
 }) {
+  const { t } = useTranslation('common');
   const sectionListRef = useRef(null);
   const didInitialScrollRef = useRef(false);
   const fabScale = useRef(new Animated.Value(0)).current;
@@ -134,7 +136,7 @@ export default function AgendaView({
         }
       }
 
-      const labels = formatSectionDate(dateStr);
+      const labels = formatSectionDate(dateStr, t);
       const isToday = dateStr === today;
 
       // Synthetic daily-checklist rows go into TODAY only (templates reset
@@ -161,7 +163,7 @@ export default function AgendaView({
     }
 
     return out;
-  }, [tasks, dailyChecklist]);
+  }, [tasks, dailyChecklist, t]);
 
   // Scroll to a specific date when requested by parent (e.g. from month tap)
   useEffect(() => {
@@ -262,7 +264,7 @@ export default function AgendaView({
         <View style={styles.gapRow}>
           <View style={[styles.gapLine, { backgroundColor: theme.border }]} />
           <Text style={[styles.gapText, { color: theme.secondaryText }]}>
-            No tasks · {formatDivider(section.startStr, section.endStr)}
+            {t('agendaView.noTasksGap', { dateRange: formatDivider(section.startStr, section.endStr) })}
           </Text>
           <View style={[styles.gapLine, { backgroundColor: theme.border }]} />
         </View>
@@ -272,7 +274,7 @@ export default function AgendaView({
     if (item._empty) {
       return (
         <Text style={[styles.emptyDay, { color: theme.placeholderText || theme.secondaryText }]}>
-          Nothing scheduled
+          {t('agendaView.nothingScheduled')}
         </Text>
       );
     }
@@ -310,7 +312,7 @@ export default function AgendaView({
                 {item.title}
               </Text>
               <View style={[styles.dailyBadge, { backgroundColor: '#8B5CF618' }]}>
-                <Text style={[styles.dailyBadgeText, { color: '#7C3AED' }]}>DAILY</Text>
+                <Text style={[styles.dailyBadgeText, { color: '#7C3AED' }]}>{t('agendaView.dailyBadge')}</Text>
               </View>
             </View>
             {!!item.project_name && (
@@ -395,7 +397,7 @@ export default function AgendaView({
         </View>
       </View>
     );
-  }, [theme, onToggleComplete, onToggleDailyChecklistItem]);
+  }, [theme, onToggleComplete, onToggleDailyChecklistItem, t]);
 
   return (
     <View style={{ flex: 1 }}>

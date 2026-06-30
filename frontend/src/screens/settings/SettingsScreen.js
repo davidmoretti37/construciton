@@ -276,7 +276,7 @@ export default function SettingsScreen({ navigation }) {
             <View style={styles.itemContent}>
               <Text style={[styles.itemTitle, { color: Colors.primaryText }]}>Sylk</Text>
               <Text style={[styles.itemSubtitle, { color: Colors.secondaryText }]}>
-                AI-powered estimates
+                {t('about.tagline')}
               </Text>
             </View>
           </View>

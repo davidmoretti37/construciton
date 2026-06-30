@@ -54,7 +54,7 @@ import { setVoiceMode } from '../services/aiService';
 const USE_OPTIMIZED_AUDIO = false;
 
 const AIInputWithSearch = ({
-  placeholder = 'Type a message...',
+  placeholder,
   onSubmit,
   onFileSelect,
   onCameraPress,            // legacy: opens "take vs choose" alert (still used as fallback)
@@ -71,6 +71,7 @@ const AIInputWithSearch = ({
   onChangeText: controlledOnChangeText,
 }) => {
   const { t } = useTranslation('common');
+  const resolvedPlaceholder = placeholder ?? t('aIInputWithSearch.placeholder');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const [internalValue, setInternalValue] = useState('');
@@ -624,7 +625,7 @@ const AIInputWithSearch = ({
                           <Ionicons name="document-text" size={18} color={Colors.primaryBlue} />
                         </View>
                         <Text style={[styles.attachmentDocName, { color: Colors.primaryText }]} numberOfLines={1}>
-                          {att.name || 'File'}
+                          {att.name || t('aIInputWithSearch.fileDefault')}
                         </Text>
                         <TouchableOpacity
                           style={styles.attachmentDocRemove}
@@ -647,7 +648,7 @@ const AIInputWithSearch = ({
                   styles.textInput,
                   { color: Colors.primaryText },
                 ]}
-                placeholder={placeholder}
+                placeholder={resolvedPlaceholder}
                 placeholderTextColor={Colors.placeholderText}
                 value={value}
                 onChangeText={setValue}
@@ -663,7 +664,7 @@ const AIInputWithSearch = ({
                   <View style={[styles.integrationChip, { backgroundColor: Colors.primaryBlue + '15', borderColor: Colors.primaryBlue + '40' }]}>
                     <Ionicons name="link" size={12} color={Colors.primaryBlue} style={{ marginRight: 4 }} />
                     <Text style={[styles.integrationChipText, { color: Colors.primaryBlue }]} numberOfLines={1}>
-                      Using {selectedIntegration.name}
+                      {t('aIInputWithSearch.usingIntegration', { name: selectedIntegration.name })}
                     </Text>
                     <TouchableOpacity
                       onPress={() => setSelectedIntegration(null)}

@@ -81,11 +81,11 @@ export default function RecurringExpenseScreen() {
 
   const handleAdd = async () => {
     if (!formDesc.trim()) {
-      Alert.alert('Required', 'Please enter a description');
+      Alert.alert(t('recurringExpense.requiredTitle'), t('recurringExpense.enterDescription'));
       return;
     }
     if (!formAmount || parseFloat(formAmount) <= 0) {
-      Alert.alert('Required', 'Please enter a valid amount');
+      Alert.alert(t('recurringExpense.requiredTitle'), t('recurringExpense.enterValidAmount'));
       return;
     }
 
@@ -118,7 +118,7 @@ export default function RecurringExpenseScreen() {
       loadData(); // Refresh to get real ID from server
     } catch (error) {
       setItems(prev => prev.filter(i => i.id !== newItem.id));
-      Alert.alert('Error', 'Failed to add recurring expense');
+      Alert.alert(t('common:alerts.error'), t('recurringExpense.failedAdd'));
     }
   };
 
@@ -128,7 +128,7 @@ export default function RecurringExpenseScreen() {
 
     updateRecurringExpense(item.id, { is_active: !item.is_active }).catch(() => {
       setItems(prev => prev.map(i => i.id === item.id ? { ...i, is_active: item.is_active } : i));
-      Alert.alert('Error', 'Failed to update expense');
+      Alert.alert(t('common:alerts.error'), t('recurringExpense.failedUpdate'));
     });
   };
 
@@ -147,7 +147,7 @@ export default function RecurringExpenseScreen() {
 
             deleteRecurringExpense(item.id).catch(() => {
               setItems(prev => [...prev, item]);
-              Alert.alert('Error', 'Failed to delete expense');
+              Alert.alert(t('common:alerts.error'), t('recurringExpense.failedDelete'));
             });
           },
         },
@@ -195,7 +195,7 @@ export default function RecurringExpenseScreen() {
         {/* Monthly total */}
         <View style={[styles.totalCard, { backgroundColor: Colors.cardBackground }]}>
           <Text style={[styles.totalLabel, { color: Colors.secondaryText }]}>{t('recurring.monthlyEstimate')}</Text>
-          <Text style={[styles.totalAmount, { color: '#EF4444' }]}>{formatCurrency(totalMonthly)}/mo</Text>
+          <Text style={[styles.totalAmount, { color: '#EF4444' }]}>{formatCurrency(totalMonthly)}{t('recurringExpense.perMonth')}</Text>
           <Text style={[styles.totalSub, { color: Colors.secondaryText }]}>
             {items.filter(i => i.is_active).length} {t('recurring.activeExpenses')}
           </Text>
@@ -281,7 +281,7 @@ export default function RecurringExpenseScreen() {
                 style={[styles.formInput, { backgroundColor: Colors.cardBackground, color: Colors.primaryText, borderColor: Colors.border }]}
                 value={formDesc}
                 onChangeText={setFormDesc}
-                placeholder="e.g., Equipment rental, Insurance"
+                placeholder={t('recurringExpense.descPlaceholder')}
                 placeholderTextColor={Colors.placeholderText}
               />
             </View>

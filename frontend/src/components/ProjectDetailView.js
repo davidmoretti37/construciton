@@ -557,28 +557,28 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
     const net = gross - retainage;
 
     Alert.alert(
-      'Send draw invoice',
-      `Generate $${net.toLocaleString(undefined, { maximumFractionDigits: 2 })} invoice for "${drawItem.description}"?` +
-      (retainage > 0 ? `\n\nGross $${gross.toFixed(2)} − retainage $${retainage.toFixed(2)} = net $${net.toFixed(2)}.` : ''),
+      t('projects:projectDetailView.sendDrawTitle'),
+      t('projects:projectDetailView.sendDrawBody', { amount: net.toLocaleString(undefined, { maximumFractionDigits: 2 }), description: drawItem.description }) +
+      (retainage > 0 ? t('projects:projectDetailView.sendDrawRetainage', { gross: gross.toFixed(2), retainage: retainage.toFixed(2), net: net.toFixed(2) }) : ''),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('buttons.cancel'), style: 'cancel' },
         {
-          text: 'Send',
+          text: t('buttons.send'),
           onPress: async () => {
             setDrawSending(drawItem.id);
             try {
               const { generateDrawInvoice } = await import('../utils/storage/projectDraws');
               const result = await generateDrawInvoice(drawItem.id, 30);
               if (result?.ok) {
-                Alert.alert('Invoice created', `Invoice ${result.invoice.invoice_number} for $${result.invoice.total.toFixed(2)} is ready.`);
+                Alert.alert(t('projects:projectDetailView.invoiceCreatedTitle'), t('projects:projectDetailView.invoiceCreatedBody', { number: result.invoice.invoice_number, amount: result.invoice.total.toFixed(2) }));
                 await refreshDrawSchedule();
                 onRefreshNeeded?.();
               } else {
-                Alert.alert('Could not send draw', result?.error || 'Unknown error');
+                Alert.alert(t('projects:projectDetailView.couldNotSendDraw'), result?.error || t('projects:projectDetailView.unknownError'));
               }
             } catch (e) {
               console.error('[handleSendDraw]', e);
-              Alert.alert('Could not send draw', e.message || 'Unknown error');
+              Alert.alert(t('projects:projectDetailView.couldNotSendDraw'), e.message || t('projects:projectDetailView.unknownError'));
             } finally {
               setDrawSending(null);
             }
@@ -805,7 +805,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
       if (!taskDescription) return;
       const updated = await addTaskToPhase(phase.id, taskDescription);
       if (!updated) {
-        Alert.alert('Error', 'Could not add task. Please try again.');
+        Alert.alert(t('alerts.error'), t('projects:projectDetailView.couldNotAddTask'));
         return;
       }
       const fresh = await fetchProjectPhases(project.id);
@@ -819,11 +819,11 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
 
     if (Platform.OS === 'ios') {
       Alert.prompt(
-        'New Task',
-        `Add a task to ${phase.name}`,
+        t('projects:projectDetailView.newTaskTitle'),
+        t('projects:projectDetailView.addTaskToPhase', { phase: phase.name }),
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Add', onPress: persistTask },
+          { text: t('buttons.cancel'), style: 'cancel' },
+          { text: t('buttons.add'), onPress: persistTask },
         ],
         'plain-text',
         ''
@@ -842,8 +842,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
     // then re-fetch so the next tap has a valid handle.
     if (!task.workerTaskId) {
       Alert.alert(
-        'Syncing task',
-        'Tap again in a moment — re-syncing this task with your schedule.'
+        t('projects:projectDetailView.syncingTaskTitle'),
+        t('projects:projectDetailView.syncingTaskBody')
       );
       (async () => {
         try {
@@ -981,7 +981,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
-          options: [t('buttons.cancel'), t('labels.appleMaps'), t('labels.googleMaps'), 'Share Address'],
+          options: [t('buttons.cancel'), t('labels.appleMaps'), t('labels.googleMaps'), t('projects:projectDetailView.shareAddress')],
           cancelButtonIndex: 0,
         },
         (buttonIndex) => {
@@ -1005,7 +1005,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             onPress: () => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`)
           },
           {
-            text: 'Share',
+            text: t('buttons.share'),
             onPress: () => Share.share({ message: address }),
           },
         ]
@@ -1198,14 +1198,14 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
       if (error) {
         console.error('Error toggling contract visibility:', error);
         setLocalHideContract(!newValue);
-        Alert.alert('Error', 'Could not update visibility setting.');
+        Alert.alert(t('alerts.error'), t('projects:projectDetailView.couldNotUpdateVisibility'));
         return;
       }
       Alert.alert(
-        newValue ? 'Hidden from supervisors' : 'Visible to supervisors',
+        newValue ? t('projects:projectDetailView.hiddenFromSupervisors') : t('projects:projectDetailView.visibleToSupervisors'),
         newValue
-          ? 'Supervisors will not see the contract amount.'
-          : 'Supervisors can now see the contract amount.'
+          ? t('projects:projectDetailView.supervisorsWontSeeContract')
+          : t('projects:projectDetailView.supervisorsCanSeeContract')
       );
     } catch (err) {
       setLocalHideContract(!newValue);
@@ -1377,12 +1377,12 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           t('alerts.success'),
           successCount === 1
             ? t('messages.documentUploaded')
-            : `${successCount} documents uploaded successfully.`
+            : t('projects:projectDetailView.documentsUploaded', { count: successCount })
         );
       } else {
         Alert.alert(
           t('alerts.error'),
-          `${successCount} uploaded, ${failCount} failed.`
+          t('projects:projectDetailView.uploadPartial', { success: successCount, fail: failCount })
         );
       }
     } catch (error) {
@@ -1444,7 +1444,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
 
     if (!fileUrl) {
       console.warn('[handleViewDocument] doc has no file_url', doc?.id);
-      Alert.alert(t('alerts.error'), 'This document has no file path stored. It may have failed to upload.');
+      Alert.alert(t('alerts.error'), t('projects:projectDetailView.documentNoPath'));
       return;
     }
 
@@ -1466,7 +1466,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
       console.warn('[handleViewDocument] could not resolve signed URL for', originalUrl);
       Alert.alert(
         t('alerts.error'),
-        `Could not load document.\n\nPath: ${originalUrl}\n\nCheck the storage bucket and RLS policies — the file may be in a bucket the signer can't read.`
+        t('projects:projectDetailView.couldNotLoadDocument', { path: originalUrl })
       );
       return;
     }
@@ -1484,19 +1484,19 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   const showStatusPicker = () => {
     if (isDemo) return;
     const options = [
-      { value: 'draft',       label: 'Draft' },
-      { value: 'active',      label: 'Active' },
-      { value: 'on-track',    label: 'On Track' },
-      { value: 'behind',      label: 'Behind' },
-      { value: 'over-budget', label: 'Over Budget' },
-      { value: 'completed',   label: 'Completed' },
-      { value: 'archived',    label: 'Archived' },
+      { value: 'draft',       label: t('projects:projectDetailView.statusDraft') },
+      { value: 'active',      label: t('projects:projectDetailView.statusActive') },
+      { value: 'on-track',    label: t('projects:projectDetailView.statusOnTrack') },
+      { value: 'behind',      label: t('projects:projectDetailView.statusBehind') },
+      { value: 'over-budget', label: t('projects:projectDetailView.statusOverBudget') },
+      { value: 'completed',   label: t('projects:projectDetailView.statusCompleted') },
+      { value: 'archived',    label: t('projects:projectDetailView.statusArchived') },
     ];
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
-          title: 'Change Project Status',
-          options: [...options.map(o => o.label), 'Cancel'],
+          title: t('projects:projectDetailView.changeProjectStatusTitle'),
+          options: [...options.map(o => o.label), t('buttons.cancel')],
           cancelButtonIndex: options.length,
         },
         (idx) => {
@@ -1508,29 +1508,29 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
       );
     } else {
       Alert.alert(
-        'Change Project Status', 'Pick a new status',
+        t('projects:projectDetailView.changeProjectStatusTitle'), t('projects:projectDetailView.pickNewStatus'),
         [
           ...options.map(o => ({
             text: o.label,
             onPress: () => o.value !== project.status && handleStatusChange(o.value),
           })),
-          { text: 'Cancel', style: 'cancel' },
+          { text: t('buttons.cancel'), style: 'cancel' },
         ]
       );
     }
   };
 
   const handleStatusChange = (newStatus) => {
-    const labels = { completed: 'Complete', paused: 'Pause', active: 'Reopen', archived: 'Archive', draft: 'Draft', 'on-track': 'On Track', behind: 'Behind', 'over-budget': 'Over Budget' };
+    const labels = { completed: t('projects:projectDetailView.actionComplete'), paused: t('projects:projectDetailView.actionPause'), active: t('projects:projectDetailView.actionReopen'), archived: t('projects:projectDetailView.actionArchive'), draft: t('projects:projectDetailView.statusDraft'), 'on-track': t('projects:projectDetailView.statusOnTrack'), behind: t('projects:projectDetailView.statusBehind'), 'over-budget': t('projects:projectDetailView.statusOverBudget') };
     Alert.alert(
-      `Change to ${labels[newStatus] || newStatus}?`,
+      t('projects:projectDetailView.changeToStatus', { status: labels[newStatus] || newStatus }),
       newStatus === 'completed'
-        ? 'This will mark the project as completed and notify assigned workers.'
+        ? t('projects:projectDetailView.markCompletedNotify')
         : newStatus === 'archived'
-          ? 'Archived projects are hidden from the main list.'
+          ? t('projects:projectDetailView.archivedHidden')
           : undefined,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('buttons.cancel'), style: 'cancel' },
         {
           text: labels[newStatus] || newStatus,
           onPress: async () => {
@@ -1571,7 +1571,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   .catch(() => {});
               }
             } catch (e) {
-              Alert.alert('Error', 'Failed to update project status.');
+              Alert.alert(t('alerts.error'), t('projects:projectDetailView.failedUpdateStatus'));
             }
           },
         },
@@ -1725,7 +1725,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               >
                 <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#FFFFFF' }} />
                 <Text testID="projectDetail.statusText" style={{ fontSize: 12, fontWeight: '600', color: '#FFFFFF', textTransform: 'capitalize' }}>
-                  {project.status?.replace(/-/g, ' ') || 'Active'}
+                  {project.status?.replace(/-/g, ' ') || t('projects:projectDetailView.statusActive')}
                 </Text>
                 {!isDemo && <Ionicons name="chevron-down" size={12} color="#FFFFFF" />}
               </TouchableOpacity>
@@ -1738,12 +1738,12 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   onChangeText={setEditedName}
                   testID="projectDetail.nameInput"
                   accessibilityLabel="Project name"
-                  placeholder="Project name"
+                  placeholder={t('projects:projectDetailView.projectNamePlaceholder')}
                   placeholderTextColor="rgba(255,255,255,0.5)"
                 />
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
                   <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }}>
-                    <Text style={{ color: '#B45309', fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 }}>Editing…</Text>
+                    <Text style={{ color: '#B45309', fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 }}>{t('projects:projectDetailView.editingBadge')}</Text>
                   </View>
                 </View>
               </View>
@@ -1780,7 +1780,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             {/* Contract Value — Big Anchor */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <View>
-                <Text style={{ fontSize: 11, fontWeight: '500', color: '#94A3B8', letterSpacing: 0.8, textTransform: 'uppercase' }}>Contract Value</Text>
+                <Text style={{ fontSize: 11, fontWeight: '500', color: '#94A3B8', letterSpacing: 0.8, textTransform: 'uppercase' }}>{t('projects:projectDetailView.contractValue')}</Text>
                 {isSupervisor && ownerHidesContract ? (
                   <Text style={{ fontSize: 34, fontWeight: '700', color: '#0F172A', letterSpacing: -0.8, marginTop: 4 }}>---</Text>
                 ) : isEditing ? (
@@ -1827,7 +1827,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 accessibilityLabel="View income transactions"
                 activeOpacity={0.7}
               >
-                <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Income</Text>
+                <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>{t('projects:projectDetailView.income')}</Text>
                 <Text
                   testID="projectDetail.incomeAmount"
                   numberOfLines={1}
@@ -1837,7 +1837,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 >
                   ${incomeCollected.toLocaleString('en-US')}
                 </Text>
-                <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{contractAmount > 0 ? Math.round((incomeCollected / contractAmount) * 100) : 0}% collected</Text>
+                <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{t('projects:projectDetailView.percentCollected', { percent: contractAmount > 0 ? Math.round((incomeCollected / contractAmount) * 100) : 0 })}</Text>
               </TouchableOpacity>
 
               {/* Divider */}
@@ -1857,7 +1857,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 accessibilityLabel="View expense transactions"
                 activeOpacity={0.7}
               >
-                <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Expenses</Text>
+                <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>{t('projects:projectDetailView.expenses')}</Text>
                 <Text
                   testID="projectDetail.expensesAmount"
                   numberOfLines={1}
@@ -1867,7 +1867,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 >
                   ${expenses.toLocaleString('en-US')}
                 </Text>
-                <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>of contract</Text>
+                <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{t('projects:projectDetailView.ofContract')}</Text>
               </TouchableOpacity>
 
               {/* Divider */}
@@ -1875,7 +1875,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
 
               {/* Profit */}
               <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 6 }}>
-                <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Profit</Text>
+                <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>{t('projects:projectDetailView.profit')}</Text>
                 <Text
                   testID="projectDetail.profitAmount"
                   numberOfLines={1}
@@ -1885,7 +1885,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 >
                   ${Math.abs(profit).toLocaleString('en-US')}
                 </Text>
-                <Text style={{ fontSize: 11, color: profit >= 0 ? '#059669' : '#DC2626', marginTop: 2 }}>{profit >= 0 ? 'Healthy ✓' : 'Review ↗'}</Text>
+                <Text style={{ fontSize: 11, color: profit >= 0 ? '#059669' : '#DC2626', marginTop: 2 }}>{profit >= 0 ? t('projects:projectDetailView.healthy') : t('projects:projectDetailView.review')}</Text>
               </View>
             </View>
           </View>
@@ -1899,14 +1899,14 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 <View style={[styles.iconBadge, { backgroundColor: '#EFF6FF' }]}>
                   <Ionicons name="calendar" size={18} color="#1E40AF" />
                 </View>
-                <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Timeline</Text>
+                <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>{t('labels.timeline')}</Text>
                 <Text testID="projectDetail.progressPercent" style={{ fontSize: 22, fontWeight: '700', color: '#0F172A', marginTop: 2 }}>
                   {calculatedProgress != null ? `${calculatedProgress}%` : `${project.percent_complete || 0}%`}
                 </Text>
                 <View style={{ height: 4, backgroundColor: '#F1F5F9', borderRadius: 4, marginTop: 8 }}>
                   <View style={{ height: 4, backgroundColor: '#1E40AF', borderRadius: 4, width: `${Math.min(calculatedProgress || project.percent_complete || 0, 100)}%` }} />
                 </View>
-                <Text style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>complete</Text>
+                <Text style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>{t('projects:projectDetailView.complete')}</Text>
               </View>
             </View>
           )}
@@ -1929,7 +1929,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' }}>
                     <Ionicons name="pie-chart" size={16} color="#3B82F6" />
                   </View>
-                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#0F172A' }}>Budget Breakdown</Text>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#0F172A' }}>{t('projects:projectDetailView.budgetBreakdown')}</Text>
                 </View>
                 <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center' }}>
                   <Ionicons name={financialsExpanded ? 'chevron-up' : 'chevron-down'} size={16} color="#94A3B8" />
@@ -1942,7 +1942,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   {contractAmount > 0 && (
                     <View style={{ marginBottom: tradeBudgets.length > 0 ? 18 : 0 }}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
-                        <Text style={{ fontSize: 13, fontWeight: '600', color: '#64748B' }}>Overall Budget</Text>
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: '#64748B' }}>{t('projects:projectDetailView.overallBudget')}</Text>
                         <Text testID="projectDetail.overallBudgetValue" style={{ fontSize: 13, fontWeight: '700', color: expenses > contractAmount ? '#EF4444' : '#0F172A' }}>
                           ${expenses.toLocaleString('en-US')} / ${contractAmount.toLocaleString('en-US')}
                         </Text>
@@ -1956,7 +1956,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                         }} />
                       </View>
                       <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>
-                        {Math.round((expenses / contractAmount) * 100)}% used · ${(contractAmount - expenses).toLocaleString('en-US')} remaining
+                        {t('projects:projectDetailView.budgetUsedRemaining', { percent: Math.round((expenses / contractAmount) * 100), remaining: (contractAmount - expenses).toLocaleString('en-US') })}
                       </Text>
                     </View>
                   )}
@@ -1968,7 +1968,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     <View style={{ marginTop: contractAmount > 0 ? 18 : 0 }}>
                       {contractAmount > 0 && <View style={{ height: 1, backgroundColor: '#F1F5F9', marginBottom: 14 }} />}
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.8, textTransform: 'uppercase' }}>Phases</Text>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.8, textTransform: 'uppercase' }}>{t('projects:projectDetailView.phasesLabel')}</Text>
                         <TouchableOpacity onPress={() => setShowBulkShiftModal(true)} testID="projectDetail.shiftTasksButton" accessibilityLabel="Shift tasks" style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: Colors.primaryBlue + '15' }}>
                           <Ionicons name="calendar-outline" size={12} color={Colors.primaryBlue} />
                           <Text style={{ fontSize: 11, fontWeight: '700', color: Colors.primaryBlue }}>{t('buttons.shiftTasks')}</Text>
@@ -2018,7 +2018,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     return (
                       <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
                         <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 }}>
-                          Other Trades
+                          {t('projects:projectDetailView.otherTrades')}
                         </Text>
                         {orphans.map((tb, idx) => {
                           const pct = tb.budget_amount > 0 ? Math.round((tb.paid / tb.budget_amount) * 100) : 0;
@@ -2078,7 +2078,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                         style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: '#E2E8F0', borderStyle: 'dashed' }}
                       >
                         <Ionicons name="add" size={16} color="#3B82F6" />
-                        <Text style={{ fontSize: 13, color: '#3B82F6', fontWeight: '600' }}>Add Trade Budget</Text>
+                        <Text style={{ fontSize: 13, color: '#3B82F6', fontWeight: '600' }}>{t('projects:projectDetailView.addTradeBudget')}</Text>
                       </TouchableOpacity>
                     </View>
                   )}
@@ -2124,7 +2124,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     testID="projectDetail.markCompleteButton"
                     accessibilityLabel="Mark complete"
                   >
-                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Mark Complete</Text>
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{t('projects:projectDetailView.markComplete')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={{ flex: 1, backgroundColor: Colors.cardBackground, paddingVertical: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: Colors.border }}
@@ -2132,7 +2132,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     testID="projectDetail.pauseButton"
                     accessibilityLabel="Pause project"
                   >
-                    <Text style={{ color: '#F59E0B', fontWeight: '700', fontSize: 14 }}>Pause</Text>
+                    <Text style={{ color: '#F59E0B', fontWeight: '700', fontSize: 14 }}>{t('projects:projectDetailView.pause')}</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -2144,7 +2144,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     testID="projectDetail.reopenButton"
                     accessibilityLabel="Reopen project"
                   >
-                    <Text style={{ color: '#3B82F6', fontWeight: '700', fontSize: 14 }}>Reopen</Text>
+                    <Text style={{ color: '#3B82F6', fontWeight: '700', fontSize: 14 }}>{t('projects:projectDetailView.reopen')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={{ flex: 1, backgroundColor: '#3B82F6', paddingVertical: 12, borderRadius: 10, alignItems: 'center' }}
@@ -2158,7 +2158,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     testID="projectDetail.generateInvoiceButton"
                     accessibilityLabel="Generate invoice"
                   >
-                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Generate Invoice</Text>
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{t('projects:projectDetailView.generateInvoice')}</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -2169,7 +2169,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   testID="projectDetail.resumeButton"
                   accessibilityLabel="Resume project"
                 >
-                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Resume Project</Text>
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{t('projects:projectDetailView.resumeProject')}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -2186,7 +2186,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     <Ionicons name="time-outline" size={18} color={Colors.primaryBlue} />
                   </View>
                   <View style={styles.detailContent}>
-                    <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>Hours Logged</Text>
+                    <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>{t('projects:projectDetailView.hoursLogged')}</Text>
                     <Text style={[styles.detailValue, { color: Colors.primaryText }]}>{formatHoursMinutes(totalProjectHours)}</Text>
                   </View>
                 </View>
@@ -2286,7 +2286,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             <View style={styles.sectionHeader}>
               <Ionicons name="people-outline" size={20} color={Colors.primaryBlue} />
               <Text testID="projectDetail.assignedCount" style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, flex: 1 }]}>
-                Assigned ({workers.length + (supervisorName ? 1 : 0)})
+                {t('projects:projectDetailView.assignedCount', { count: workers.length + (supervisorName ? 1 : 0) })}
               </Text>
               <View style={styles.assignButtonsRow}>
                 {canAssignToSupervisor && (
@@ -2297,7 +2297,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     accessibilityLabel="Assign supervisor"
                   >
                     <Ionicons name="briefcase" size={14} color="#FFFFFF" />
-                    <Text style={styles.assignButtonText}>Supervisor</Text>
+                    <Text style={styles.assignButtonText}>{t('projects:projectDetailView.supervisor')}</Text>
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity
@@ -2307,7 +2307,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   accessibilityLabel="Assign worker"
                 >
                   <Ionicons name="person-add" size={14} color="#FFFFFF" />
-                  <Text style={styles.assignButtonText}>Worker</Text>
+                  <Text style={styles.assignButtonText}>{t('projects:projectDetailView.worker')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -2336,7 +2336,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     {supervisorName}
                   </Text>
                   <Text style={[styles.workerCardRole, { color: '#1E40AF' }]} numberOfLines={1}>
-                    Supervisor
+                    {t('projects:projectDetailView.supervisor')}
                   </Text>
                 </View>
                 {canAssignToSupervisor && (
@@ -2344,12 +2344,12 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     onPress={(e) => {
                       e.stopPropagation();
                       Alert.alert(
-                        'Unassign supervisor',
-                        `Remove ${supervisorName} from ${project?.name || 'this project'}?`,
+                        t('projects:projectDetailView.unassignSupervisorTitle'),
+                        t('projects:projectDetailView.unassignConfirm', { name: supervisorName, project: project?.name || t('projects:projectDetailView.thisProject') }),
                         [
-                          { text: 'Cancel', style: 'cancel' },
+                          { text: t('buttons.cancel'), style: 'cancel' },
                           {
-                            text: 'Unassign',
+                            text: t('projects:projectDetailView.unassign'),
                             style: 'destructive',
                             onPress: async () => {
                               try {
@@ -2358,7 +2358,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                                 projectDetailCache.delete(project.id);
                                 if (onRefreshNeeded) onRefreshNeeded();
                               } catch (err) {
-                                Alert.alert('Error', err?.message || 'Could not unassign supervisor.');
+                                Alert.alert(t('alerts.error'), err?.message || t('projects:projectDetailView.couldNotUnassignSupervisor'));
                               }
                             },
                           },
@@ -2420,12 +2420,12 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                         onPress={(e) => {
                           e.stopPropagation();
                           Alert.alert(
-                            'Unassign worker',
-                            `Remove ${worker.full_name} from ${project?.name || 'this project'}?`,
+                            t('projects:projectDetailView.unassignWorkerTitle'),
+                            t('projects:projectDetailView.unassignConfirm', { name: worker.full_name, project: project?.name || t('projects:projectDetailView.thisProject') }),
                             [
-                              { text: 'Cancel', style: 'cancel' },
+                              { text: t('buttons.cancel'), style: 'cancel' },
                               {
-                                text: 'Unassign',
+                                text: t('projects:projectDetailView.unassign'),
                                 style: 'destructive',
                                 onPress: async () => {
                                   try {
@@ -2434,7 +2434,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                                     projectDetailCache.delete(project.id);
                                     if (onRefreshNeeded) onRefreshNeeded();
                                   } catch (err) {
-                                    Alert.alert('Error', err?.message || 'Could not unassign worker.');
+                                    Alert.alert(t('alerts.error'), err?.message || t('projects:projectDetailView.couldNotUnassignWorker'));
                                   }
                                 },
                               },
@@ -2519,9 +2519,9 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   {projectReports.map((report, index) => {
                     const reportDate = report.report_date ? new Date(report.report_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A';
                     const getReporterName = () => {
-                      if (report.reporter_type === 'owner') return 'Owner';
-                      if (report.reporter_type === 'supervisor') return report.profiles?.business_name || 'Supervisor';
-                      return report.workers?.full_name || 'Worker';
+                      if (report.reporter_type === 'owner') return t('projects:projectDetailView.owner');
+                      if (report.reporter_type === 'supervisor') return report.profiles?.business_name || t('projects:projectDetailView.supervisor');
+                      return report.workers?.full_name || t('projects:projectDetailView.worker');
                     };
                     const getReporterColor = () => {
                       if (report.reporter_type === 'owner') return '#10B981';
@@ -2547,7 +2547,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                           <View style={styles.reportBadgesRow}>
                             <View style={[styles.reporterBadge, { backgroundColor: getReporterColor() + '20' }]}>
                               <Text style={[styles.reporterBadgeText, { color: getReporterColor() }]}>
-                                {report.reporter_type === 'owner' ? 'Owner' : report.reporter_type === 'supervisor' ? 'Supervisor' : 'Worker'}
+                                {report.reporter_type === 'owner' ? t('projects:projectDetailView.owner') : report.reporter_type === 'supervisor' ? t('projects:projectDetailView.supervisor') : t('projects:projectDetailView.worker')}
                               </Text>
                             </View>
                             {photoCount > 0 && (
@@ -2705,9 +2705,9 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     <Ionicons name="time-outline" size={18} color="#F59E0B" />
                   </View>
                   <View style={styles.detailContent}>
-                    <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>Days Remaining</Text>
+                    <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>{t('projects:projectDetailView.daysRemaining')}</Text>
                     <Text style={[styles.detailValue, { color: Colors.primaryText }]}>
-                      {project.daysRemaining} days
+                      {t('projects:projectDetailView.daysValue', { count: project.daysRemaining })}
                     </Text>
                   </View>
                 </View>
@@ -2736,7 +2736,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                       // Detect which day was ADDED (toggled ON)
                       const addedDay = days.find(d => !oldDays.includes(d));
 
-                      const dayNames = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                      const dayNames = ['', t('calendar.days.monday'), t('calendar.days.tuesday'), t('calendar.days.wednesday'), t('calendar.days.thursday'), t('calendar.days.friday'), t('calendar.days.saturday'), t('calendar.days.sunday')];
 
                       if (removedDay) {
                         // A day was toggled OFF - use AI to redistribute tasks from that day
@@ -2892,7 +2892,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           setShowSupervisorAssignment(false);
           if (newSupervisorId) {
             // Set placeholder immediately so the chip renders right away
-            setSupervisorName('Supervisor');
+            setSupervisorName(t('projects:projectDetailView.supervisor'));
             try {
               const { data: supProfile } = await supabase
                 .from('profiles')
@@ -2928,12 +2928,12 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         <View style={styles.visibilityModalOverlay}>
           <View style={[styles.visibilityModalContent, { backgroundColor: Colors.cardBackground }]}>
             <Text style={[styles.visibilityModalTitle, { color: Colors.primaryText }]}>
-              Upload Document
+              {t('projects:projectDetailView.uploadDocumentTitle')}
             </Text>
             <Text style={[styles.visibilityModalSubtitle, { color: Colors.secondaryText }]}>
               {pendingDocumentUploads.length === 1
                 ? pendingDocumentUploads[0]?.fileName
-                : `${pendingDocumentUploads.length} files selected`}
+                : t('projects:projectDetailView.filesSelected', { count: pendingDocumentUploads.length })}
             </Text>
 
             <TouchableOpacity
@@ -2951,10 +2951,10 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 />
                 <View style={styles.visibilityOptionText}>
                   <Text style={[styles.visibilityOptionTitle, { color: Colors.primaryText }]}>
-                    Visible to Workers
+                    {t('projects:projectDetailView.visibleToWorkers')}
                   </Text>
                   <Text style={[styles.visibilityOptionDesc, { color: Colors.secondaryText }]}>
-                    Workers assigned to this project can view this document
+                    {t('projects:projectDetailView.visibleToWorkersDesc')}
                   </Text>
                 </View>
               </View>
@@ -2977,7 +2977,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 accessibilityLabel="Cancel document upload"
               >
                 <Text style={[styles.visibilityModalButtonText, { color: Colors.secondaryText }]}>
-                  Cancel
+                  {t('buttons.cancel')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -2987,7 +2987,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 accessibilityLabel="Upload document"
               >
                 <Text style={[styles.visibilityModalButtonText, { color: '#FFFFFF' }]}>
-                  Upload
+                  {t('buttons.upload')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -3026,7 +3026,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   setShowEndDatePicker(false);
                 }}
               >
-                <Text style={[styles.datePickerCancelText, { color: Colors.secondaryText }]}>Cancel</Text>
+                <Text style={[styles.datePickerCancelText, { color: Colors.secondaryText }]}>{t('buttons.cancel')}</Text>
               </TouchableOpacity>
               <Text style={[styles.datePickerTitle, { color: Colors.primaryText }]}>
                 {showStartDatePicker ? t('labels.startDate') : t('labels.endDate')}
@@ -3120,7 +3120,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             <TouchableOpacity onPress={() => setShowEstimateModal(false)} testID="projectDetail.estimateModalCloseButton" accessibilityLabel="Close estimate">
               <Ionicons name="close" size={28} color={Colors.primaryText} />
             </TouchableOpacity>
-            <Text style={[styles.estimateModalTitle, { color: Colors.primaryText }]}>Estimate</Text>
+            <Text style={[styles.estimateModalTitle, { color: Colors.primaryText }]}>{t('projects:projectDetailView.estimate')}</Text>
             <View style={{ width: 28 }} />
           </View>
           <ScrollView style={styles.estimateModalContent} showsVerticalScrollIndicator={false}>
@@ -3150,12 +3150,12 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   if (action?.type === 'send-estimate-to-client') {
                     try {
                       if (!action.data?.id) {
-                        Alert.alert('Save First', 'Please save the estimate before sending to client.');
+                        Alert.alert(t('projects:projectDetailView.saveFirstTitle'), t('projects:projectDetailView.saveEstimateBeforeSending'));
                         return;
                       }
                       const { data: { session } } = await supabase.auth.getSession();
                       if (!session?.access_token) {
-                        Alert.alert('Error', 'Not authenticated');
+                        Alert.alert(t('alerts.error'), t('projects:projectDetailView.notAuthenticated'));
                         return;
                       }
                       const { API_URL } = require('../config/api');
@@ -3182,10 +3182,10 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                         setShowEstimateModal(false);
                         onRefreshNeeded && onRefreshNeeded();
                       } else {
-                        Alert.alert('Send Failed', result.error || 'Could not send estimate.');
+                        Alert.alert(t('projects:projectDetailView.sendFailedTitle'), result.error || t('projects:projectDetailView.couldNotSendEstimate'));
                       }
                     } catch (e) {
-                      Alert.alert('Error', e.message || 'Failed to send estimate.');
+                      Alert.alert(t('alerts.error'), e.message || t('projects:projectDetailView.failedToSendEstimate'));
                     }
                     return;
                   }
@@ -3193,7 +3193,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   if (action?.type === 'set-up-draws-from-estimate') {
                     const estId = action.data?.id || action.data?.estimateId;
                     if (!estId) {
-                      Alert.alert('Missing estimate', 'Save the estimate first.');
+                      Alert.alert(t('projects:projectDetailView.missingEstimateTitle'), t('projects:projectDetailView.saveEstimateFirst'));
                       return;
                     }
                     setShowEstimateModal(false);
@@ -3215,10 +3215,10 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                       if (inv) {
                         onRefreshNeeded && onRefreshNeeded();
                       } else {
-                        Alert.alert('Could not bill', 'The estimate has no invoice mapping. Try again or open the estimate to verify.');
+                        Alert.alert(t('projects:projectDetailView.couldNotBillTitle'), t('projects:projectDetailView.noInvoiceMapping'));
                       }
                     } catch (e) {
-                      Alert.alert('Error', e.message || 'Failed to create invoice');
+                      Alert.alert(t('alerts.error'), e.message || t('projects:projectDetailView.failedToCreateInvoice'));
                     }
                     return;
                   }
@@ -3230,13 +3230,13 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             )}
             {estimateSignature && (
               <View style={{ marginHorizontal: 16, marginTop: 8, marginBottom: 8, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.white }}>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: Colors.secondaryText, letterSpacing: 0.5, marginBottom: 12 }}>SIGNATURE</Text>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: Colors.secondaryText, letterSpacing: 0.5, marginBottom: 12 }}>{t('projects:projectDetailView.signatureLabel')}</Text>
                 {estimateSignature.signaturePngUrl && (
                   <Image source={{ uri: estimateSignature.signaturePngUrl }} style={{ width: '100%', height: 140, marginBottom: 12, backgroundColor: '#FAFAFA', borderRadius: 8 }} resizeMode="contain" />
                 )}
                 <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.primaryText }}>{estimateSignature.signerName}</Text>
                 <Text style={{ fontSize: 12, color: Colors.secondaryText, marginTop: 4 }}>
-                  Signed {estimateSignature.signedAt ? new Date(estimateSignature.signedAt).toLocaleString('en-US') : ''}
+                  {t('projects:projectDetailView.signedAt', { date: estimateSignature.signedAt ? new Date(estimateSignature.signedAt).toLocaleString('en-US') : '' })}
                 </Text>
               </View>
             )}
@@ -3255,13 +3255,13 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         <View style={styles.deleteModalOverlay}>
           <View style={[styles.deleteModalContent, { backgroundColor: Colors.cardBackground }]}>
             <Text style={[styles.deleteModalTitle, { color: Colors.primaryText }]}>
-              Delete "{project?.name}"?
+              {t('projects:projectDetailView.deleteProjectTitle', { name: project?.name })}
             </Text>
             <Text style={[styles.deleteModalSubtitle, { color: Colors.secondaryText }]}>
-              This action cannot be undone. All project data, phases, tasks, and documents will be permanently removed.
+              {t('projects:projectDetailView.deleteProjectWarning')}
             </Text>
             <Text style={[styles.deleteModalInstruction, { color: Colors.secondaryText }]}>
-              Type <Text style={{ fontWeight: '700', color: '#EF4444' }}>DELETE</Text> to confirm:
+              {t('projects:projectDetailView.typeWord')} <Text style={{ fontWeight: '700', color: '#EF4444' }}>DELETE</Text> {t('projects:projectDetailView.toConfirm')}
             </Text>
             <TextInput
               style={[styles.deleteModalInput, {
@@ -3273,7 +3273,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               onChangeText={setDeleteConfirmText}
               testID="projectDetail.deleteConfirmInput"
               accessibilityLabel="Type DELETE to confirm"
-              placeholder="Type DELETE"
+              placeholder={t('projects:projectDetailView.typeDeletePlaceholder')}
               placeholderTextColor={Colors.secondaryText + '60'}
               autoCapitalize="characters"
               autoCorrect={false}
@@ -3286,7 +3286,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 accessibilityLabel="Cancel delete"
                 activeOpacity={0.7}
               >
-                <Text style={[styles.deleteModalCancelText, { color: Colors.primaryText }]}>Cancel</Text>
+                <Text style={[styles.deleteModalCancelText, { color: Colors.primaryText }]}>{t('buttons.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
@@ -3302,7 +3302,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 <Text style={[
                   styles.deleteModalConfirmText,
                   { color: deleteConfirmText === 'DELETE' ? '#FFFFFF' : Colors.secondaryText },
-                ]}>Delete Project</Text>
+                ]}>{t('buttons.deleteProject')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -3328,7 +3328,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             accessibilityLabel="Cancel editing"
             style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center', opacity: savingChanges ? 0.5 : 1 }}
           >
-            <Text style={{ color: '#64748B', fontWeight: '700', fontSize: 15 }}>Cancel</Text>
+            <Text style={{ color: '#64748B', fontWeight: '700', fontSize: 15 }}>{t('buttons.cancel')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={handleSaveAllChanges}
@@ -3338,7 +3338,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             style={{ flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: '#3B82F6', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, opacity: savingChanges ? 0.6 : 1 }}
           >
             {savingChanges && <ActivityIndicator size="small" color="#FFFFFF" />}
-            <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 15 }}>{savingChanges ? 'Saving…' : 'Save Changes'}</Text>
+            <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 15 }}>{savingChanges ? t('projects:projectDetailView.saving') : t('buttons.saveChanges')}</Text>
           </TouchableOpacity>
         </View>
       )}

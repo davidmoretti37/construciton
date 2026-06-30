@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 
@@ -8,6 +9,7 @@ export default function InvoiceList({ data, onAction }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
+  const { t } = useTranslation('invoices');
   const { invoices = [], summary = {} } = data;
 
   const getStatusColor = (status) => {
@@ -45,7 +47,7 @@ export default function InvoiceList({ data, onAction }) {
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
+    if (!dateString) return t('invoiceList.na');
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
@@ -65,7 +67,7 @@ export default function InvoiceList({ data, onAction }) {
       {/* Header */}
       <View style={styles.header}>
         <Text style={[styles.title, { color: Colors.primaryText }]}>
-          📄 Invoices
+          {'📄 '}{t('invoiceList.title')}
         </Text>
         {summary.total > 0 && (
           <View style={[styles.badge, { backgroundColor: Colors.primaryBlue }]}>
@@ -81,14 +83,14 @@ export default function InvoiceList({ data, onAction }) {
             <Text style={[styles.statValue, { color: '#F59E0B' }]}>
               {summary.unpaid || 0}
             </Text>
-            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>Unpaid</Text>
+            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>{t('invoiceList.stats.unpaid')}</Text>
           </View>
           <View style={[styles.statDivider, { backgroundColor: Colors.border }]} />
           <View style={styles.statItem}>
             <Text style={[styles.statValue, { color: Colors.success }]}>
               {summary.paid || 0}
             </Text>
-            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>Paid</Text>
+            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>{t('invoiceList.stats.paid')}</Text>
           </View>
           {summary.totalDue !== undefined && (
             <>
@@ -97,7 +99,7 @@ export default function InvoiceList({ data, onAction }) {
                 <Text style={[styles.statValue, { color: Colors.primaryBlue }]}>
                   ${(summary.totalDue / 1000).toFixed(1)}K
                 </Text>
-                <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>Total Due</Text>
+                <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>{t('invoiceList.stats.totalDue')}</Text>
               </View>
             </>
           )}
@@ -115,7 +117,7 @@ export default function InvoiceList({ data, onAction }) {
           <View style={styles.emptyState}>
             <Ionicons name="document-outline" size={48} color={Colors.secondaryText} />
             <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-              No invoices yet
+              {t('invoiceList.empty')}
             </Text>
           </View>
         ) : (
@@ -139,7 +141,7 @@ export default function InvoiceList({ data, onAction }) {
                 <View style={[styles.statusBadge, { backgroundColor: getStatusColor(invoice.status) + '20' }]}>
                   <Ionicons name={getStatusIcon(invoice.status)} size={14} color={getStatusColor(invoice.status)} />
                   <Text style={[styles.statusText, { color: getStatusColor(invoice.status) }]}>
-                    {invoice.status?.charAt(0).toUpperCase() + invoice.status?.slice(1) || 'Unpaid'}
+                    {invoice.status ? t(`invoiceList.status.${invoice.status}`) : t('invoiceList.status.unpaid')}
                   </Text>
                 </View>
               </View>
@@ -156,14 +158,14 @@ export default function InvoiceList({ data, onAction }) {
                 <View style={styles.detailRow}>
                   <Ionicons name="calendar-outline" size={14} color={Colors.secondaryText} />
                   <Text style={[styles.detailText, { color: Colors.secondaryText }]}>
-                    Due: {formatDate(invoice.due_date || invoice.dueDate)}
+                    {t('invoiceList.dueDate', { date: formatDate(invoice.due_date || invoice.dueDate) })}
                   </Text>
                 </View>
                 {invoice.items && (
                   <View style={styles.detailRow}>
                     <Ionicons name="list-outline" size={14} color={Colors.secondaryText} />
                     <Text style={[styles.detailText, { color: Colors.secondaryText }]}>
-                      {invoice.items.length} item{invoice.items.length !== 1 ? 's' : ''}
+                      {t('invoiceList.itemCount', { count: invoice.items.length })}
                     </Text>
                   </View>
                 )}
@@ -172,14 +174,14 @@ export default function InvoiceList({ data, onAction }) {
               {/* Amount Section */}
               <View style={styles.amountSection}>
                 <View style={styles.amountRow}>
-                  <Text style={[styles.amountLabel, { color: Colors.secondaryText }]}>Total:</Text>
+                  <Text style={[styles.amountLabel, { color: Colors.secondaryText }]}>{t('invoiceList.total')}</Text>
                   <Text style={[styles.amount, { color: Colors.primaryText }]}>
                     ${formatCurrency(invoice.total)}
                   </Text>
                 </View>
                 {(invoice.amount_due !== undefined || invoice.amountDue !== undefined) && (
                   <View style={styles.amountRow}>
-                    <Text style={[styles.amountLabel, { color: Colors.secondaryText }]}>Amount Due:</Text>
+                    <Text style={[styles.amountLabel, { color: Colors.secondaryText }]}>{t('invoiceList.amountDue')}</Text>
                     <Text style={[styles.amountDue, { color: getStatusColor(invoice.status) }]}>
                       ${formatCurrency(invoice.amount_due || invoice.amountDue)}
                     </Text>

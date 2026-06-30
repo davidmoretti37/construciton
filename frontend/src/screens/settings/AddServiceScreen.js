@@ -26,7 +26,7 @@ import { supabase } from '../../lib/supabase';
 export default function AddServiceScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
-  const { t } = useTranslation('common');
+  const { t } = useTranslation('settings');
 
   const [loading, setLoading] = useState(true);
   const [userServiceCategoryIds, setUserServiceCategoryIds] = useState([]);
@@ -70,7 +70,7 @@ export default function AddServiceScreen({ navigation }) {
       setAllCategories(categories);
     } catch (error) {
       console.error('Error loading data:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'services' }));
+      Alert.alert(t('common:alerts.error'), t('addService.failedToLoad'));
     } finally {
       setLoading(false);
     }
@@ -112,11 +112,11 @@ export default function AddServiceScreen({ navigation }) {
           categoryIcon: newService.icon
         });
       } else {
-        Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'service' }));
+        Alert.alert(t('common:alerts.error'), t('addService.failedToSave'));
       }
     } catch (error) {
       console.error('Error creating service:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'service' }));
+      Alert.alert(t('common:alerts.error'), t('addService.failedToSave'));
     } finally {
       setIsCreatingService(false);
     }
@@ -134,7 +134,7 @@ export default function AddServiceScreen({ navigation }) {
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primaryBlue} />
-          <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>Loading...</Text>
+          <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>{t('common:status.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -153,7 +153,7 @@ export default function AddServiceScreen({ navigation }) {
         >
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text testID="addService.headerTitle" accessibilityLabel="addService.headerTitle" style={[styles.headerTitle, { color: Colors.primaryText }]}>Add Service</Text>
+        <Text testID="addService.headerTitle" accessibilityLabel="addService.headerTitle" style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('addService.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -168,10 +168,10 @@ export default function AddServiceScreen({ navigation }) {
             <ActivityIndicator size="large" color={Colors.primaryBlue} style={{ marginVertical: Spacing.lg }} />
 
             <Text style={[styles.creatingTitle, { color: Colors.primaryText }]}>
-              Creating Service...
+              {t('addService.creatingTitle')}
             </Text>
             <Text style={[styles.creatingSubtitle, { color: Colors.secondaryText }]}>
-              AI is generating items and phases
+              {t('addService.creatingSubtitle')}
             </Text>
 
             <View style={styles.creatingDots}>
@@ -193,7 +193,7 @@ export default function AddServiceScreen({ navigation }) {
               <TextInput
                 ref={searchInputRef}
                 style={[styles.searchInput, { color: Colors.primaryText }]}
-                placeholder="Search services..."
+                placeholder={t('addService.searchPlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -221,10 +221,10 @@ export default function AddServiceScreen({ navigation }) {
 
                   <View style={styles.createServiceInfo}>
                     <Text style={[styles.createServiceName, { color: Colors.primaryBlue }]}>
-                      Add custom service
+                      {t('addService.createCustomService')}
                     </Text>
                     <Text style={[styles.createHint, { color: Colors.secondaryText }]}>
-                      Search to create a new service with AI
+                      {t('addService.searchToCreateHint')}
                     </Text>
                   </View>
 
@@ -247,10 +247,10 @@ export default function AddServiceScreen({ navigation }) {
 
                   <View style={styles.createServiceInfo}>
                     <Text style={[styles.createServiceName, { color: Colors.primaryBlue }]}>
-                      Create "{searchQuery.trim()}"
+                      {t('addService.createServiceLabel', { name: searchQuery.trim() })}
                     </Text>
                     <Text style={[styles.createHint, { color: Colors.secondaryText }]}>
-                      AI will generate a template for this service
+                      {t('addService.aiWillGenerateHint')}
                     </Text>
                   </View>
 
@@ -264,17 +264,17 @@ export default function AddServiceScreen({ navigation }) {
                 {searchQuery ? (
                   <>
                     <Ionicons name="search-outline" size={48} color={Colors.secondaryText} />
-                    <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>No Results</Text>
+                    <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>{t('addService.noResultsTitle')}</Text>
                     <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-                      No existing services found matching "{searchQuery}".{'\n'}Use the button above to create it with AI.
+                      {t('addService.noResultsText', { query: searchQuery })}
                     </Text>
                   </>
                 ) : (
                   <>
                     <Ionicons name="checkmark-circle" size={48} color={Colors.success} />
-                    <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>All Services Added</Text>
+                    <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>{t('addService.allServicesAddedTitle')}</Text>
                     <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-                      You've already added all available services! Use the button above to create a custom service.
+                      {t('addService.allServicesAddedText')}
                     </Text>
                   </>
                 )}
@@ -283,7 +283,7 @@ export default function AddServiceScreen({ navigation }) {
               <>
                 {/* Section Title */}
                 <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-                  {searchQuery ? 'Search Results' : 'Available Services'} ({filteredCategories.length})
+                  {t(searchQuery ? 'addService.searchResults' : 'addService.availableServices', { count: filteredCategories.length })}
                 </Text>
 
                 {/* Service Options */}

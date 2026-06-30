@@ -1,10 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export default function WorkerList({ data }) {
+  const { t } = useTranslation('chat');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -71,12 +73,12 @@ export default function WorkerList({ data }) {
             )}
             {worker.hoursToday !== undefined && (
               <Text style={[styles.hours, { color: Colors.primaryText }]}>
-                {worker.hoursToday}h today
+                {t('workerList.hoursToday', { hours: worker.hoursToday })}
               </Text>
             )}
             {worker.hoursThisWeek !== undefined && (
               <Text style={[styles.weekHours, { color: Colors.secondaryText }]}>
-                {worker.hoursThisWeek}h this week
+                {t('workerList.hoursThisWeek', { hours: worker.hoursThisWeek })}
               </Text>
             )}
           </View>
@@ -87,7 +89,7 @@ export default function WorkerList({ data }) {
         <View style={styles.emptyState}>
           <Ionicons name="people-outline" size={32} color={Colors.secondaryText} />
           <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-            No workers to display
+            {t('workerList.noWorkers')}
           </Text>
         </View>
       )}

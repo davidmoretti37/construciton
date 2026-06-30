@@ -2,10 +2,12 @@ import React, { useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import MapView, { Marker, Callout } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export default function TimeTrackingMap({ data }) {
+  const { t } = useTranslation('chat');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const mapRef = useRef(null);
@@ -70,7 +72,7 @@ export default function TimeTrackingMap({ data }) {
     return (
       <View style={[styles.container, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
         <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-          <Text style={[styles.title, { color: Colors.primaryText }]}>{title || 'Clock-In Locations'}</Text>
+          <Text style={[styles.title, { color: Colors.primaryText }]}>{title || t('timeTrackingMap.defaultTitle')}</Text>
           {subtitle && (
             <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>{subtitle}</Text>
           )}
@@ -78,7 +80,7 @@ export default function TimeTrackingMap({ data }) {
         <View style={styles.emptyState}>
           <Ionicons name="location-outline" size={40} color={Colors.secondaryText} />
           <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-            No location data available
+            {t('timeTrackingMap.noLocationData')}
           </Text>
         </View>
       </View>
@@ -90,7 +92,7 @@ export default function TimeTrackingMap({ data }) {
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
         <View style={styles.headerText}>
-          <Text style={[styles.title, { color: Colors.primaryText }]}>{title || 'Clock-In Locations'}</Text>
+          <Text style={[styles.title, { color: Colors.primaryText }]}>{title || t('timeTrackingMap.defaultTitle')}</Text>
           {subtitle && (
             <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>{subtitle}</Text>
           )}
@@ -134,13 +136,13 @@ export default function TimeTrackingMap({ data }) {
                 </View>
                 {record.totalHours > 0 && (
                   <Text style={styles.calloutHours}>
-                    {record.totalHours} hrs
+                    {t('timeTrackingMap.totalHours', { hours: record.totalHours })}
                   </Text>
                 )}
                 {record.status === 'active' && (
                   <View style={styles.activeIndicator}>
                     <View style={styles.activeDot} />
-                    <Text style={styles.activeText}>Currently Active</Text>
+                    <Text style={styles.activeText}>{t('timeTrackingMap.currentlyActive')}</Text>
                   </View>
                 )}
               </View>
@@ -153,11 +155,11 @@ export default function TimeTrackingMap({ data }) {
       <View style={[styles.legend, { backgroundColor: Colors.lightBackground }]}>
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: '#10B981' }]} />
-          <Text style={[styles.legendText, { color: Colors.secondaryText }]}>Active</Text>
+          <Text style={[styles.legendText, { color: Colors.secondaryText }]}>{t('timeTrackingMap.legendActive')}</Text>
         </View>
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: Colors.primaryBlue }]} />
-          <Text style={[styles.legendText, { color: Colors.secondaryText }]}>Completed</Text>
+          <Text style={[styles.legendText, { color: Colors.secondaryText }]}>{t('timeTrackingMap.legendCompleted')}</Text>
         </View>
       </View>
     </View>

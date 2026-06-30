@@ -5,6 +5,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -22,6 +23,7 @@ const SERVICE_TYPE_CONFIG = {
 };
 
 const ServicePlanCard = ({ plan, onPress }) => {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -58,7 +60,7 @@ const ServicePlanCard = ({ plan, onPress }) => {
         <View style={styles.stat}>
           <Ionicons name="location-outline" size={13} color={Colors.secondaryText} />
           <Text style={[styles.statText, { color: Colors.secondaryText }]}>
-            {plan.location_count} {plan.location_count === 1 ? 'location' : 'locations'}
+            {plan.location_count} {plan.location_count === 1 ? t('servicePlanCard.location') : t('servicePlanCard.locations')}
           </Text>
         </View>
       </View>
@@ -66,7 +68,7 @@ const ServicePlanCard = ({ plan, onPress }) => {
       {/* Visits this month */}
       <View style={styles.visitsRow}>
         <Text style={[styles.visitsText, { color: Colors.secondaryText }]}>
-          {plan.completed_this_month}/{plan.visits_this_month} visits
+          {plan.completed_this_month}/{plan.visits_this_month} {t('servicePlanCard.visits')}
         </Text>
         {plan.visits_this_month > 0 && (
           <View style={[styles.progressBar, { backgroundColor: Colors.border }]}>
@@ -81,8 +83,8 @@ const ServicePlanCard = ({ plan, onPress }) => {
       {/* Pricing */}
       <Text style={[styles.pricing, { color: '#1E40AF' }]}>
         {plan.billing_cycle === 'per_visit'
-          ? `$${plan.price_per_visit?.toFixed(0) || '0'}/visit`
-          : `$${plan.monthly_rate?.toFixed(0) || '0'}/mo`
+          ? t('servicePlanCard.pricePerVisit', { price: plan.price_per_visit?.toFixed(0) || '0' })
+          : t('servicePlanCard.pricePerMonth', { price: plan.monthly_rate?.toFixed(0) || '0' })
         }
       </Text>
 
@@ -90,7 +92,7 @@ const ServicePlanCard = ({ plan, onPress }) => {
       {isPaused && (
         <View style={styles.pausedBadge}>
           <Ionicons name="pause-circle" size={12} color="#F59E0B" />
-          <Text style={styles.pausedText}>Paused</Text>
+          <Text style={styles.pausedText}>{t('servicePlanCard.paused')}</Text>
         </View>
       )}
     </TouchableOpacity>

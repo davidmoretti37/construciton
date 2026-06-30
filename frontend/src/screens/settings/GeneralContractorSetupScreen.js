@@ -23,7 +23,7 @@ import { addTrade, saveUserProfile, getUserProfile, saveSubcontractorQuote, addU
 import { analyzeSubcontractorQuote } from '../../services/aiService';
 
 export default function GeneralContractorSetupScreen({ navigation }) {
-  const { t } = useTranslation('common');
+  const { t } = useTranslation('settings');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -69,7 +69,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
 
   const handleContinueToQuotes = () => {
     if (selectedServices.length === 0) {
-      Alert.alert(t('alerts.selectServices'), t('messages.selectAtLeastOneService'));
+      Alert.alert(t('generalContractorSetup.selectServicesTitle'), t('generalContractorSetup.selectAtLeastOneService'));
       return;
     }
     setCurrentTradeForQuote(selectedServices[0]);
@@ -110,7 +110,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
       // Request permission
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(t('permissions.required'), t('permissions.photoLibraryRequired'));
+        Alert.alert(t('generalContractorSetup.permissionRequired'), t('generalContractorSetup.photoLibraryRequired'));
         return;
       }
 
@@ -134,7 +134,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error uploading quote:', error);
-      Alert.alert(t('alerts.error'), error.message || t('messages.failedToAnalyzeQuote'));
+      Alert.alert(t('common:alerts.error'), error.message || t('generalContractorSetup.failedToAnalyzeQuote'));
       setAnalyzingQuote(false);
       setUploadingQuote(false);
     }
@@ -145,7 +145,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
       // Request camera permission
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(t('permissions.required'), t('permissions.cameraRequired'));
+        Alert.alert(t('generalContractorSetup.permissionRequired'), t('generalContractorSetup.cameraRequired'));
         return;
       }
 
@@ -168,7 +168,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error taking photo:', error);
-      Alert.alert(t('alerts.error'), error.message || t('messages.failedToAnalyzeQuote'));
+      Alert.alert(t('common:alerts.error'), error.message || t('generalContractorSetup.failedToAnalyzeQuote'));
       setAnalyzingQuote(false);
       setUploadingQuote(false);
     }
@@ -204,16 +204,16 @@ export default function GeneralContractorSetupScreen({ navigation }) {
         setCurrentQuoteData(null);
 
         Alert.alert(
-          t('alerts.quoteSaved'),
-          t('messages.quoteSavedSuccessfully', { name: currentQuoteData.subcontractorName }),
-          [{ text: t('alerts.ok') }]
+          t('generalContractorSetup.quoteSavedTitle'),
+          t('generalContractorSetup.quoteSavedSuccessfully', { name: currentQuoteData.subcontractorName }),
+          [{ text: t('generalContractorSetup.ok') }]
         );
       } else {
-        Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'quote' }));
+        Alert.alert(t('common:alerts.error'), t('generalContractorSetup.failedToSaveQuote'));
       }
     } catch (error) {
       console.error('Error saving quote:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'quote' }));
+      Alert.alert(t('common:alerts.error'), t('generalContractorSetup.failedToSaveQuote'));
     } finally {
       setSavingQuote(false);
     }
@@ -277,21 +277,21 @@ export default function GeneralContractorSetupScreen({ navigation }) {
         const quotesCount = Object.values(uploadedQuotes).reduce((sum, quotes) => sum + quotes.length, 0);
 
         Alert.alert(
-          t('alerts.success'),
-          t('messages.gcSetupComplete', { services: selectedServices.length, quotes: quotesCount }),
+          t('common:alerts.success'),
+          t('generalContractorSetup.setupComplete', { services: selectedServices.length, quotes: quotesCount }),
           [
             {
-              text: t('alerts.ok'),
+              text: t('generalContractorSetup.ok'),
               onPress: () => navigation.pop(2), // Go back to main settings
             },
           ]
         );
       } else {
-        Alert.alert(t('alerts.error'), t('messages.failedToSaveTryAgain'));
+        Alert.alert(t('common:alerts.error'), t('generalContractorSetup.failedToSaveTryAgain'));
       }
     } catch (error) {
       console.error('Error saving General Contractor setup:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToSaveTryAgain'));
+      Alert.alert(t('common:alerts.error'), t('generalContractorSetup.failedToSaveTryAgain'));
     } finally {
       setSaving(false);
     }
@@ -311,7 +311,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>General Contractor</Text>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('generalContractorSetup.title')}</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -325,20 +325,20 @@ export default function GeneralContractorSetupScreen({ navigation }) {
               </View>
               <View style={styles.gcInfo}>
                 <Text style={[styles.gcTitle, { color: Colors.primaryText }]}>
-                  General Contractor
+                  {t('generalContractorSetup.title')}
                 </Text>
                 <Text style={[styles.gcSubtitle, { color: Colors.secondaryText }]}>
-                  Select the services you manage and set pricing for each
+                  {t('generalContractorSetup.subtitle')}
                 </Text>
               </View>
             </View>
 
             {/* Instructions */}
             <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-              What services do you manage?
+              {t('generalContractorSetup.servicesQuestion')}
             </Text>
             <Text style={[styles.sectionSubtitle, { color: Colors.secondaryText }]}>
-              Select all services you contract or manage. You can add more later.
+              {t('generalContractorSetup.servicesHint')}
             </Text>
 
             {/* Service Grid */}
@@ -388,7 +388,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
               <View style={[styles.selectedBanner, { backgroundColor: Colors.success + '20' }]}>
                 <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
                 <Text style={[styles.selectedText, { color: Colors.success }]}>
-                  {selectedServices.length} service{selectedServices.length > 1 ? 's' : ''} selected
+                  {t('generalContractorSetup.servicesSelected', { count: selectedServices.length })}
                 </Text>
               </View>
             )}
@@ -409,7 +409,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
             activeOpacity={0.8}
           >
             <Text style={[styles.buttonText, { opacity: selectedServices.length > 0 ? 1 : 0.5 }]}>
-              Continue to Upload Quotes
+              {t('generalContractorSetup.continueToQuotes')}
             </Text>
             <Ionicons name="arrow-forward" size={20} color="#fff" style={{ opacity: selectedServices.length > 0 ? 1 : 0.5 }} />
           </TouchableOpacity>
@@ -433,7 +433,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
           <TouchableOpacity onPress={() => setStep(1)} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Upload Quotes</Text>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('generalContractorSetup.uploadQuotesTitle')}</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -449,17 +449,17 @@ export default function GeneralContractorSetupScreen({ navigation }) {
                 {currentTrade?.name}
               </Text>
               <Text style={[styles.quoteTradeSubtitle, { color: Colors.secondaryText }]}>
-                Service {currentTradeIndex + 1} of {selectedServices.length}
+                {t('generalContractorSetup.serviceProgress', { current: currentTradeIndex + 1, total: selectedServices.length })}
               </Text>
             </View>
           </View>
 
           {/* Instructions */}
           <Text style={[styles.quoteInstructions, { color: Colors.primaryText }]}>
-            Upload subcontractor quotes for {currentTrade?.name} services
+            {t('generalContractorSetup.uploadQuotesFor', { trade: currentTrade?.name })}
           </Text>
           <Text style={[styles.quoteSubtext, { color: Colors.secondaryText }]}>
-            The AI will extract pricing information automatically. You can upload multiple quotes and mark your preferred vendor.
+            {t('generalContractorSetup.aiExtractHint')}
           </Text>
 
           {/* Upload Buttons */}
@@ -471,7 +471,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
                 activeOpacity={0.8}
               >
                 <Ionicons name="camera" size={24} color="#fff" />
-                <Text style={styles.uploadButtonText}>Take Photo</Text>
+                <Text style={styles.uploadButtonText}>{t('generalContractorSetup.takePhoto')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -480,7 +480,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
                 activeOpacity={0.8}
               >
                 <Ionicons name="image" size={24} color="#fff" />
-                <Text style={styles.uploadButtonText}>Choose from Gallery</Text>
+                <Text style={styles.uploadButtonText}>{t('generalContractorSetup.chooseFromGallery')}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -490,10 +490,10 @@ export default function GeneralContractorSetupScreen({ navigation }) {
             <View style={[styles.analyzingContainer, { backgroundColor: Colors.white }]}>
               <ActivityIndicator size="large" color={Colors.primaryBlue} />
               <Text style={[styles.analyzingText, { color: Colors.primaryText }]}>
-                Analyzing quote with AI...
+                {t('generalContractorSetup.analyzingQuote')}
               </Text>
               <Text style={[styles.analyzingSubtext, { color: Colors.secondaryText }]}>
-                Extracting pricing and company details
+                {t('generalContractorSetup.extractingDetails')}
               </Text>
             </View>
           )}
@@ -504,14 +504,14 @@ export default function GeneralContractorSetupScreen({ navigation }) {
               <View style={styles.extractedHeader}>
                 <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
                 <Text style={[styles.extractedTitle, { color: Colors.primaryText }]}>
-                  Quote Extracted
+                  {t('generalContractorSetup.quoteExtracted')}
                 </Text>
               </View>
 
               {/* Contractor Info */}
               <View style={styles.contractorInfo}>
                 <Text style={[styles.contractorLabel, { color: Colors.secondaryText }]}>
-                  Subcontractor
+                  {t('generalContractorSetup.subcontractorLabel')}
                 </Text>
                 <Text style={[styles.contractorName, { color: Colors.primaryText }]}>
                   {currentQuoteData.subcontractorName}
@@ -539,7 +539,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
               {/* Services Preview */}
               <View style={styles.servicesPreview}>
                 <Text style={[styles.servicesLabel, { color: Colors.secondaryText }]}>
-                  Services Extracted ({currentQuoteData.services.length})
+                  {t('generalContractorSetup.servicesExtracted', { count: currentQuoteData.services.length })}
                 </Text>
                 {currentQuoteData.services.slice(0, 3).map((service, index) => (
                   <View key={index} style={styles.serviceItem}>
@@ -553,7 +553,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
                 ))}
                 {currentQuoteData.services.length > 3 && (
                   <Text style={[styles.moreServices, { color: Colors.secondaryText }]}>
-                    +{currentQuoteData.services.length - 3} more services
+                    {t('generalContractorSetup.moreServices', { count: currentQuoteData.services.length - 3 })}
                   </Text>
                 )}
               </View>
@@ -567,7 +567,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
                   activeOpacity={0.8}
                 >
                   <Ionicons name="star" size={18} color="#fff" />
-                  <Text style={styles.quoteActionText}>Save as Preferred</Text>
+                  <Text style={styles.quoteActionText}>{t('generalContractorSetup.saveAsPreferred')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -577,7 +577,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
                   activeOpacity={0.8}
                 >
                   <Ionicons name="checkmark" size={18} color="#fff" />
-                  <Text style={styles.quoteActionText}>Save Quote</Text>
+                  <Text style={styles.quoteActionText}>{t('generalContractorSetup.saveQuote')}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -590,7 +590,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
                 activeOpacity={0.8}
               >
                 <Text style={[styles.discardButtonText, { color: Colors.secondaryText }]}>
-                  Discard & Upload Different
+                  {t('generalContractorSetup.discardAndReupload')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -601,7 +601,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
             <View style={[styles.uploadedSummary, { backgroundColor: Colors.success + '20' }]}>
               <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
               <Text style={[styles.uploadedText, { color: Colors.success }]}>
-                {quotesForCurrentTrade.length} quote{quotesForCurrentTrade.length > 1 ? 's' : ''} uploaded for {currentTrade?.name}
+                {t('generalContractorSetup.quotesUploadedFor', { count: quotesForCurrentTrade.length, trade: currentTrade?.name })}
               </Text>
             </View>
           )}
@@ -617,7 +617,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
                 activeOpacity={0.8}
               >
                 <Ionicons name="arrow-back" size={20} color={Colors.primaryText} />
-                <Text style={[styles.navButtonText, { color: Colors.primaryText }]}>Previous</Text>
+                <Text style={[styles.navButtonText, { color: Colors.primaryText }]}>{t('generalContractorSetup.previous')}</Text>
               </TouchableOpacity>
             )}
 
@@ -628,7 +628,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
                 activeOpacity={0.8}
               >
                 <Text style={styles.navButtonText}>
-                  {quotesForCurrentTrade.length > 0 ? 'Next Service' : 'Skip'}
+                  {quotesForCurrentTrade.length > 0 ? t('generalContractorSetup.nextService') : t('generalContractorSetup.skip')}
                 </Text>
                 <Ionicons name="arrow-forward" size={20} color="#fff" />
               </TouchableOpacity>
@@ -643,7 +643,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
                   <>
-                    <Text style={styles.navButtonText}>Complete Setup</Text>
+                    <Text style={styles.navButtonText}>{t('generalContractorSetup.completeSetup')}</Text>
                     <Ionicons name="checkmark-circle" size={20} color="#fff" />
                   </>
                 )}
@@ -663,7 +663,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
         <TouchableOpacity onPress={() => setStep(1)} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Set Pricing</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('generalContractorSetup.setPricingTitle')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -684,7 +684,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
                 {currentTrade?.name}
               </Text>
               <Text style={[styles.serviceHeaderSubtitle, { color: Colors.secondaryText }]}>
-                Service {currentServiceIndex + 1} of {selectedServices.length}
+                {t('generalContractorSetup.serviceProgress', { current: currentServiceIndex + 1, total: selectedServices.length })}
               </Text>
             </View>
           </View>
@@ -748,7 +748,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
                       {item.label}
                     </Text>
                     <Text style={[styles.priceItemUnit, { color: Colors.secondaryText }]}>
-                      per {item.unit}
+                      {t('generalContractorSetup.perUnit', { unit: item.unit })}
                     </Text>
                   </View>
 
@@ -782,7 +782,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
                 activeOpacity={0.8}
               >
                 <Ionicons name="arrow-back" size={20} color={Colors.primaryText} />
-                <Text style={[styles.navButtonText, { color: Colors.primaryText }]}>Previous</Text>
+                <Text style={[styles.navButtonText, { color: Colors.primaryText }]}>{t('generalContractorSetup.previous')}</Text>
               </TouchableOpacity>
             )}
 
@@ -792,7 +792,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
                 onPress={handleNextService}
                 activeOpacity={0.8}
               >
-                <Text style={styles.navButtonText}>Next</Text>
+                <Text style={styles.navButtonText}>{t('common:buttons.next')}</Text>
                 <Ionicons name="arrow-forward" size={20} color="#fff" />
               </TouchableOpacity>
             ) : (
@@ -806,7 +806,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
                   <>
-                    <Text style={styles.navButtonText}>Complete Setup</Text>
+                    <Text style={styles.navButtonText}>{t('generalContractorSetup.completeSetup')}</Text>
                     <Ionicons name="checkmark-circle" size={20} color="#fff" />
                   </>
                 )}

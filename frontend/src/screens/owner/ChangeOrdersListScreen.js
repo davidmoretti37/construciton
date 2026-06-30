@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { fetchChangeOrders, recallChangeOrder, voidChangeOrder } from '../../utils/storage/changeOrders';
 
 const C = {
@@ -55,6 +56,19 @@ export default function ChangeOrdersListScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState('all');
+  const { t } = useTranslation('owner');
+
+  const getStatusLabel = (status) => {
+    const keyMap = {
+      draft: 'draft',
+      pending_client: 'pendingClient',
+      viewed: 'viewed',
+      approved: 'approved',
+      rejected: 'rejected',
+      void: 'void',
+    };
+    return t(`changeOrdersList.status.${keyMap[status] || 'draft'}`);
+  };
 
   const load = useCallback(async () => {
     if (!projectId) {
@@ -89,34 +103,34 @@ export default function ChangeOrdersListScreen({ route, navigation }) {
     const isSent = ['pending_client', 'viewed'].includes(co.status);
     const canVoid = co.status !== 'approved';
     const options = [];
-    if (isSent) options.push({ label: 'Recall to draft', danger: false, fn: async () => {
+    if (isSent) options.push({ label: t('changeOrdersList.recallToDraft'), danger: false, fn: async () => {
       try { await recallChangeOrder(co.id); load(); }
-      catch (e) { Alert.alert('Recall failed', e.message); }
+      catch (e) { Alert.alert(t('changeOrdersList.recallFailed'), e.message); }
     }});
-    if (canVoid) options.push({ label: 'Void this CO', danger: true, fn: async () => {
-      Alert.alert('Void change order?', 'This is reversible only by creating a new CO.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Void', style: 'destructive', onPress: async () => {
+    if (canVoid) options.push({ label: t('changeOrdersList.voidThisCO'), danger: true, fn: async () => {
+      Alert.alert(t('changeOrdersList.voidTitle'), t('changeOrdersList.voidBody'), [
+        { text: t('common:buttons.cancel'), style: 'cancel' },
+        { text: t('changeOrdersList.voidButton'), style: 'destructive', onPress: async () => {
           try { await voidChangeOrder(co.id, ''); load(); }
-          catch (e) { Alert.alert('Void failed', e.message); }
+          catch (e) { Alert.alert(t('changeOrdersList.voidFailed'), e.message); }
         }},
       ]);
     }});
     const display = STATUS_DISPLAY[co.status] || STATUS_DISPLAY.draft;
     const days = Number(co.schedule_impact_days || 0);
     const summaryLines = [
-      co.title || 'Change order',
+      co.title || t('changeOrdersList.coFallback'),
       '',
-      `Status: ${display.label}`,
-      `Amount: ${fmt$(co.total_amount)}`,
-      days !== 0 ? `Schedule: ${days > 0 ? '+' : ''}${days} day${Math.abs(days) === 1 ? '' : 's'}` : null,
+      t('changeOrdersList.statusLine', { label: getStatusLabel(co.status || 'draft') }),
+      t('changeOrdersList.amountLine', { amount: fmt$(co.total_amount) }),
+      days !== 0 ? t(Math.abs(days) === 1 ? 'changeOrdersList.scheduleDayOne' : 'changeOrdersList.scheduleDayOther', { delta: `${days > 0 ? '+' : ''}${days}` }) : null,
     ].filter(Boolean).join('\n');
 
     if (options.length === 0) {
       Alert.alert(
         `CO-${String(co.co_number || 0).padStart(3, '0')}`,
-        `${summaryLines}\n\nNo actions available.`,
-        [{ text: 'OK', style: 'cancel' }]
+        `${summaryLines}\n\n${t('changeOrdersList.noActions')}`,
+        [{ text: t('changeOrdersList.ok'), style: 'cancel' }]
       );
       return;
     }
@@ -126,7 +140,7 @@ export default function ChangeOrdersListScreen({ route, navigation }) {
       summaryLines,
       [
         ...options.map((o) => ({ text: o.label, style: o.danger ? 'destructive' : 'default', onPress: o.fn })),
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
       ]
     );
   };
@@ -146,15 +160,15 @@ export default function ChangeOrdersListScreen({ route, navigation }) {
           <View style={styles.rowHeader}>
             <Text testID={`changeOrdersList.row.${co.id}.number`} style={styles.coNumber}>CO-{String(co.co_number || 0).padStart(3, '0')}</Text>
             <View style={[styles.pill, { backgroundColor: display.bg }]}>
-              <Text testID={`changeOrdersList.row.${co.id}.status`} style={[styles.pillText, { color: display.text }]}>{display.label}</Text>
+              <Text testID={`changeOrdersList.row.${co.id}.status`} style={[styles.pillText, { color: display.text }]}>{getStatusLabel(co.status)}</Text>
             </View>
           </View>
-          <Text testID={`changeOrdersList.row.${co.id}.title`} style={styles.coTitle} numberOfLines={2}>{co.title || 'Untitled'}</Text>
+          <Text testID={`changeOrdersList.row.${co.id}.title`} style={styles.coTitle} numberOfLines={2}>{co.title || t('changeOrdersList.untitled')}</Text>
           <View style={styles.rowMeta}>
             <Text testID={`changeOrdersList.row.${co.id}.amount`} style={styles.amount}>{fmt$(co.total_amount)}</Text>
             {days !== 0 && (
               <Text style={styles.days}>
-                {days > 0 ? '+' : ''}{days} day{Math.abs(days) === 1 ? '' : 's'}
+                {t(Math.abs(days) === 1 ? 'changeOrdersList.daysOne' : 'changeOrdersList.daysOther', { delta: `${days > 0 ? '+' : ''}${days}` })}
               </Text>
             )}
             <Text style={styles.date}>
@@ -174,7 +188,7 @@ export default function ChangeOrdersListScreen({ route, navigation }) {
           <TouchableOpacity testID="changeOrdersList.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="chevron-back" size={26} color={C.text} />
           </TouchableOpacity>
-          <Text testID="changeOrdersList.title" style={styles.headerTitle}>Change Orders</Text>
+          <Text testID="changeOrdersList.title" style={styles.headerTitle}>{t('changeOrdersList.title')}</Text>
           <View style={{ width: 26 }} />
         </View>
       </SafeAreaView>
@@ -182,12 +196,12 @@ export default function ChangeOrdersListScreen({ route, navigation }) {
       {/* Summary */}
       <View style={styles.summary}>
         <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Approved total</Text>
+          <Text style={styles.summaryLabel}>{t('changeOrdersList.approvedTotal')}</Text>
           <Text testID="changeOrdersList.approvedTotal" style={styles.summaryValue}>{fmt$(summary.approvedTotal)}</Text>
         </View>
         <View style={styles.summarySep} />
         <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Pending</Text>
+          <Text style={styles.summaryLabel}>{t('changeOrdersList.pending')}</Text>
           <Text testID="changeOrdersList.pendingCount" style={[styles.summaryValue, summary.pendingCount > 0 && { color: C.amberDark }]}>
             {summary.pendingCount}
           </Text>
@@ -196,9 +210,9 @@ export default function ChangeOrdersListScreen({ route, navigation }) {
 
       {/* Tabs */}
       <View style={styles.tabs}>
-        {TABS.map((t) => (
-          <TouchableOpacity testID={`changeOrdersList.tab.${t.key}`} accessibilityLabel={`${t.label} tab`} key={t.key} style={[styles.tab, tab === t.key && styles.tabActive]} onPress={() => setTab(t.key)}>
-            <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>{t.label}</Text>
+        {TABS.map((tabItem) => (
+          <TouchableOpacity testID={`changeOrdersList.tab.${tabItem.key}`} accessibilityLabel={`${tabItem.label} tab`} key={tabItem.key} style={[styles.tab, tab === tabItem.key && styles.tabActive]} onPress={() => setTab(tabItem.key)}>
+            <Text style={[styles.tabText, tab === tabItem.key && styles.tabTextActive]}>{t(`changeOrdersList.tab.${tabItem.key}`)}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -217,8 +231,12 @@ export default function ChangeOrdersListScreen({ route, navigation }) {
               <Ionicons name="documents-outline" size={36} color={C.textMuted} />
               <Text style={styles.emptyText}>
                 {tab === 'all'
-                  ? 'No change orders yet. Ask the AI to draft one.'
-                  : `No ${tab === 'pending' ? 'pending' : tab} change orders.`}
+                  ? t('changeOrdersList.emptyAll')
+                  : tab === 'pending'
+                  ? t('changeOrdersList.emptyPending')
+                  : tab === 'approved'
+                  ? t('changeOrdersList.emptyApproved')
+                  : t('changeOrdersList.emptyRejected')}
               </Text>
             </View>
           }

@@ -124,7 +124,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
   const handleDelete = () => {
     Alert.alert(
       t('workers:confirmDelete.title'),
-      `Are you sure you want to delete ${worker.full_name}? This will remove all their data and cannot be undone.`,
+      t('common:editWorkerPayment.confirmDeleteMessage', { name: worker.full_name }),
       [
         { text: t('common:buttons.cancel'), style: 'cancel' },
         {
@@ -135,7 +135,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
             try {
               const success = await deleteWorker(worker.id);
               if (success) {
-                Alert.alert(t('common:alerts.deleted'), `${worker.full_name} has been removed.`, [
+                Alert.alert(t('common:alerts.deleted'), t('common:editWorkerPayment.workerRemovedMessage', { name: worker.full_name }), [
                   { text: t('common:buttons.ok'), onPress: () => navigation.popToTop() }
                 ]);
               } else {
@@ -155,12 +155,12 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
 
   const handlePromoteToSupervisor = () => {
     Alert.alert(
-      'Promote to Supervisor',
-      `This will give ${fullName} supervisor access. They'll be able to manage workers, view projects, and track crew operations.\n\nThis action cannot be easily undone.`,
+      t('common:editWorkerPayment.promoteTitle'),
+      t('common:editWorkerPayment.promoteMessage', { name: fullName }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
         {
-          text: 'Promote',
+          text: t('common:editWorkerPayment.promoteButton'),
           onPress: async () => {
             try {
               setSaving(true);
@@ -173,23 +173,23 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
               );
 
               if (error) {
-                const msg = error.message || 'Failed to promote worker.';
-                Alert.alert('Error', msg);
+                const msg = error.message || t('common:editWorkerPayment.promoteFailed');
+                Alert.alert(t('common:alerts.error'), msg);
                 return;
               }
 
               if (data?.success) {
                 Alert.alert(
-                  'Promoted',
-                  `${fullName} is now a supervisor. They'll see the supervisor view next time they open the app.`,
-                  [{ text: 'OK', onPress: () => navigation.goBack() }]
+                  t('common:editWorkerPayment.promotedTitle'),
+                  t('common:editWorkerPayment.promotedMessage', { name: fullName }),
+                  [{ text: t('common:buttons.ok'), onPress: () => navigation.goBack() }]
                 );
               } else {
-                Alert.alert('Error', 'Promotion did not complete.');
+                Alert.alert(t('common:alerts.error'), t('common:editWorkerPayment.promoteIncomplete'));
               }
             } catch (e) {
               console.error('Promote error:', e);
-              Alert.alert('Error', e?.message || 'Failed to promote worker.');
+              Alert.alert(t('common:alerts.error'), e?.message || t('common:editWorkerPayment.promoteFailed'));
             } finally {
               setSaving(false);
             }
@@ -228,7 +228,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
           >
             <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="editWorkerPayment.headerTitle">Edit Worker</Text>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="editWorkerPayment.headerTitle">{t('common:editWorkerPayment.title')}</Text>
           <View style={{ width: 60 }} />
         </View>
         <View style={styles.centerState}>
@@ -253,7 +253,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
         >
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="editWorkerPayment.headerTitle">Edit Worker</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="editWorkerPayment.headerTitle">{t('common:editWorkerPayment.title')}</Text>
         <TouchableOpacity
           style={[styles.saveBtn, { backgroundColor: saving ? '#9CA3AF' : '#1E40AF' }]}
           onPress={handleSave}
@@ -264,7 +264,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
           {saving ? (
             <ActivityIndicator size="small" color="#FFF" />
           ) : (
-            <Text style={styles.saveBtnText}>Save</Text>
+            <Text style={styles.saveBtnText}>{t('common:buttons.save')}</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -284,7 +284,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
           <View style={[styles.card, { backgroundColor: Colors.white }]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="person-outline" size={20} color={Colors.primaryBlue} />
-              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Worker Information</Text>
+              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('common:editWorkerPayment.workerInformation')}</Text>
             </View>
 
             {/* Name */}
@@ -295,7 +295,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
                 style={[styles.textInput, { color: Colors.primaryText }]}
                 value={fullName}
                 onChangeText={setFullName}
-                placeholder="Worker name"
+                placeholder={t('common:editWorkerPayment.workerNamePlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 testID="editWorkerPayment.fullNameInput"
                 accessibilityLabel="Full name"
@@ -310,7 +310,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
                 style={[styles.textInput, { color: Colors.primaryText }]}
                 value={phone}
                 onChangeText={setPhone}
-                placeholder="Phone number"
+                placeholder={t('common:editWorkerPayment.phonePlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 keyboardType="phone-pad"
                 testID="editWorkerPayment.phoneInput"
@@ -326,7 +326,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
                 style={[styles.textInput, { color: Colors.primaryText }]}
                 value={email}
                 onChangeText={setEmail}
-                placeholder="Email address"
+                placeholder={t('common:editWorkerPayment.emailPlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -336,14 +336,14 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
             </View>
 
             {/* Trade */}
-            <Text style={[styles.fieldLabel, { color: Colors.secondaryText }]}>Trade / Specialty</Text>
+            <Text style={[styles.fieldLabel, { color: Colors.secondaryText }]}>{t('common:editWorkerPayment.tradeLabel')}</Text>
             <View style={[styles.fieldInput, { backgroundColor: Colors.lightGray || '#F3F4F6', borderColor: Colors.border }]}>
               <Ionicons name="construct-outline" size={18} color={Colors.secondaryText} />
               <TextInput
                 style={[styles.textInput, { color: Colors.primaryText }]}
                 value={trade}
                 onChangeText={setTrade}
-                placeholder="e.g. Carpentry, Electrical, Plumbing"
+                placeholder={t('common:editWorkerPayment.tradePlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 testID="editWorkerPayment.tradeInput"
                 accessibilityLabel="Trade or specialty"
@@ -431,10 +431,10 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
           <View style={[styles.card, { backgroundColor: Colors.white }]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="shield-checkmark-outline" size={20} color="#8B5CF6" />
-              <Text style={[styles.sectionTitle, { color: '#8B5CF6' }]}>Role Management</Text>
+              <Text style={[styles.sectionTitle, { color: '#8B5CF6' }]}>{t('common:editWorkerPayment.roleManagement')}</Text>
             </View>
             <Text style={[styles.deleteDescription, { color: Colors.secondaryText }]}>
-              Promote this worker to supervisor. They'll be able to manage workers, view all projects, and oversee operations.
+              {t('common:editWorkerPayment.promoteDescription')}
             </Text>
             <TouchableOpacity
               style={[styles.deleteButton, { backgroundColor: '#8B5CF6' }]}
@@ -444,7 +444,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
               accessibilityLabel="Promote to supervisor"
             >
               <Ionicons name="arrow-up-circle-outline" size={18} color="#FFF" />
-              <Text style={styles.deleteButtonText}>Promote to Supervisor</Text>
+              <Text style={styles.deleteButtonText}>{t('common:editWorkerPayment.promoteTitle')}</Text>
             </TouchableOpacity>
           </View>
           )}
@@ -457,7 +457,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
               <Text style={[styles.sectionTitle, { color: '#EF4444' }]}>{t('common:labels.dangerZone')}</Text>
             </View>
             <Text style={[styles.deleteDescription, { color: Colors.secondaryText }]}>
-              Permanently delete this worker and all associated data. This action cannot be undone.
+              {t('common:editWorkerPayment.deleteDescription')}
             </Text>
             <TouchableOpacity
               style={styles.deleteButton}
@@ -471,7 +471,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
               ) : (
                 <>
                   <Ionicons name="trash-outline" size={18} color="#FFF" />
-                  <Text style={styles.deleteButtonText}>Delete Worker</Text>
+                  <Text style={styles.deleteButtonText}>{t('common:editWorkerPayment.deleteWorkerButton')}</Text>
                 </>
               )}
             </TouchableOpacity>

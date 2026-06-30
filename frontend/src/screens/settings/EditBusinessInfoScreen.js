@@ -103,7 +103,7 @@ export default function EditBusinessInfoScreen({ navigation }) {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Photo library access is needed to upload a logo.');
+        Alert.alert(t('editBusinessInfo.permissionRequired'), t('editBusinessInfo.photoLibraryPermission'));
         return;
       }
 
@@ -119,7 +119,7 @@ export default function EditBusinessInfoScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error picking logo:', error);
-      Alert.alert('Error', 'Failed to pick image');
+      Alert.alert(tCommon('alerts.error'), t('editBusinessInfo.failedToPickImage'));
     }
   };
 
@@ -157,7 +157,7 @@ export default function EditBusinessInfoScreen({ navigation }) {
       setLogoUrl(publicUrl);
     } catch (error) {
       console.error('Error uploading logo:', error);
-      Alert.alert('Error', 'Failed to upload logo');
+      Alert.alert(tCommon('alerts.error'), t('editBusinessInfo.failedToUploadLogo'));
     } finally {
       setUploadingLogo(false);
     }
@@ -228,7 +228,7 @@ export default function EditBusinessInfoScreen({ navigation }) {
       allowLeave.current = true;
       Alert.alert(tCommon('alerts.success'), tCommon('messages.updatedSuccessfully', { item: 'Business information' }), [
         {
-          text: 'OK',
+          text: t('editBusinessInfo.ok'),
           onPress: () => navigation.goBack(),
         },
       ]);
@@ -245,7 +245,7 @@ export default function EditBusinessInfoScreen({ navigation }) {
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primaryBlue} />
-          <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>Loading...</Text>
+          <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>{t('editBusinessInfo.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -279,13 +279,13 @@ export default function EditBusinessInfoScreen({ navigation }) {
             <View style={[styles.infoBox, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue + '30' }]}>
               <Ionicons name="information-circle-outline" size={20} color={Colors.primaryBlue} />
               <Text style={[styles.infoText, { color: Colors.primaryBlue }]}>
-                This information appears on your estimates and invoices.
+                {t('editBusinessInfo.infoBoxText')}
               </Text>
             </View>
 
             {/* Logo */}
             <View style={styles.logoSection}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Business Logo</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('editBusinessInfo.businessLogo')}</Text>
               <TouchableOpacity
                 style={[styles.logoUploadArea, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}
                 onPress={handlePickLogo}
@@ -301,20 +301,20 @@ export default function EditBusinessInfoScreen({ navigation }) {
                     <Image source={{ uri: logoUrl }} style={styles.logoImage} />
                     <View style={styles.logoChangeOverlay}>
                       <Ionicons name="camera" size={16} color="#fff" />
-                      <Text style={styles.logoChangeText}>Change</Text>
+                      <Text style={styles.logoChangeText}>{t('editBusinessInfo.changeLogo')}</Text>
                     </View>
                   </View>
                 ) : (
                   <View style={styles.logoPlaceholder}>
                     <Ionicons name="image-outline" size={32} color={Colors.secondaryText} />
-                    <Text style={[styles.logoPlaceholderText, { color: Colors.secondaryText }]}>Tap to add logo</Text>
+                    <Text style={[styles.logoPlaceholderText, { color: Colors.secondaryText }]}>{t('editBusinessInfo.tapToAddLogo')}</Text>
                   </View>
                 )}
               </TouchableOpacity>
               {logoUrl && (
                 <TouchableOpacity onPress={handleRemoveLogo} style={styles.removeLogo} testID="editBusinessInfo.removeLogoButton" accessibilityLabel="Remove logo">
                   <Ionicons name="trash-outline" size={14} color="#EF4444" />
-                  <Text style={styles.removeLogoText}>Remove logo</Text>
+                  <Text style={styles.removeLogoText}>{t('editBusinessInfo.removeLogo')}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -330,7 +330,7 @@ export default function EditBusinessInfoScreen({ navigation }) {
                   borderColor: Colors.border,
                   color: Colors.primaryText
                 }]}
-                placeholder="e.g., Smith Construction"
+                placeholder={t('editBusinessInfo.businessNamePlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 value={businessName}
                 onChangeText={setBusinessName}
@@ -351,7 +351,7 @@ export default function EditBusinessInfoScreen({ navigation }) {
                   borderColor: Colors.border,
                   color: Colors.primaryText
                 }]}
-                placeholder="(555) 123-4567"
+                placeholder={t('editBusinessInfo.phonePlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 value={phone}
                 onChangeText={setPhone}
@@ -364,7 +364,7 @@ export default function EditBusinessInfoScreen({ navigation }) {
             {/* Email */}
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: Colors.primaryText }]}>
-                {t('account.email')} <Text style={[styles.optionalText, { color: Colors.secondaryText }]}>(optional)</Text>
+                {t('account.email')} <Text style={[styles.optionalText, { color: Colors.secondaryText }]}>{t('editBusinessInfo.optional')}</Text>
               </Text>
               <TextInput
                 style={[styles.input, {
@@ -372,7 +372,7 @@ export default function EditBusinessInfoScreen({ navigation }) {
                   borderColor: Colors.border,
                   color: Colors.primaryText
                 }]}
-                placeholder="your@email.com"
+                placeholder={t('editBusinessInfo.emailPlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 value={email}
                 onChangeText={setEmail}
@@ -385,7 +385,7 @@ export default function EditBusinessInfoScreen({ navigation }) {
 
             {/* Required Fields Note */}
             <Text style={[styles.requiredNote, { color: Colors.secondaryText }]}>
-              <Text style={{ color: Colors.error }}>*</Text> Required fields
+              <Text style={{ color: Colors.error }}>*</Text> {t('editBusinessInfo.requiredFields')}
             </Text>
           </View>
         </ScrollView>
@@ -415,7 +415,7 @@ export default function EditBusinessInfoScreen({ navigation }) {
             ) : (
               <>
                 <Ionicons name="checkmark-circle" size={20} color={Colors.white} />
-                <Text style={[styles.saveButtonText, { color: Colors.white }]}>Save Changes</Text>
+                <Text style={[styles.saveButtonText, { color: Colors.white }]}>{t('editBusinessInfo.saveChanges')}</Text>
               </>
             )}
           </TouchableOpacity>

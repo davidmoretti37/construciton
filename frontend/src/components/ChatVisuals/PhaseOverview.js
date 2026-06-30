@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 
@@ -9,6 +10,7 @@ import { useTheme } from '../../contexts/ThemeContext';
  * Used in AI chat responses to show phase status and progress
  */
 export default function PhaseOverview({ data, onAction }) {
+  const { t } = useTranslation('chat');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -16,7 +18,7 @@ export default function PhaseOverview({ data, onAction }) {
     return (
       <View style={[styles.card, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
         <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-          No phases configured for this project
+          {t('phaseOverview.emptyState')}
         </Text>
       </View>
     );
@@ -85,7 +87,7 @@ export default function PhaseOverview({ data, onAction }) {
               </Text>
             )}
             <Text style={[styles.title, { color: Colors.primaryText }]}>
-              Work Sections
+              {t('phaseOverview.title')}
             </Text>
           </View>
         </View>
@@ -171,7 +173,7 @@ export default function PhaseOverview({ data, onAction }) {
                   {phase.status === 'behind' && (
                     <View style={styles.behindBadge}>
                       <Ionicons name="alert-circle" size={12} color="#EF4444" />
-                      <Text style={styles.behindText}>Behind</Text>
+                      <Text style={styles.behindText}>{t('phaseOverview.behindBadge')}</Text>
                     </View>
                   )}
                   {phase.time_extensions && phase.time_extensions.length > 0 && (
@@ -189,7 +191,7 @@ export default function PhaseOverview({ data, onAction }) {
                   <View style={styles.tasksRow}>
                     <Ionicons name="list-outline" size={14} color={Colors.secondaryText} />
                     <Text style={[styles.tasksText, { color: Colors.secondaryText }]}>
-                      {phase.tasks.filter(t => t.completed).length}/{phase.tasks.length} tasks done
+                      {t('phaseOverview.tasksDone', { done: phase.tasks.filter(task => task.completed).length, total: phase.tasks.length })}
                     </Text>
                   </View>
                 )}
@@ -206,7 +208,7 @@ export default function PhaseOverview({ data, onAction }) {
           onPress={handleViewDetails}
           activeOpacity={0.7}
         >
-          <Text style={styles.actionButtonText}>View Project Details</Text>
+          <Text style={styles.actionButtonText}>{t('phaseOverview.viewDetails')}</Text>
           <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
         </TouchableOpacity>
       )}

@@ -76,7 +76,7 @@ export default function LoginScreen({ navigation }) {
             activeOpacity={0.7}
           >
             <Ionicons name="sparkles-outline" size={14} color={COLORS.primary} />
-            <Text style={styles.premiumLinkText}>See what's new</Text>
+            <Text style={styles.premiumLinkText}>{t('login.seeWhatsNew')}</Text>
           </TouchableOpacity>
 
           {/* Header */}

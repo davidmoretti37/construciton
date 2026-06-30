@@ -121,7 +121,7 @@ export default function TaskMoveModal({
           Alert.alert(
             t('alerts.success'),
             t('messages.updatedSuccessfully'),
-            [{ text: 'OK', onPress: () => { onTaskMoved?.(); onClose(); } }]
+            [{ text: t('taskMoveModal.ok'), onPress: () => { onTaskMoved?.(); onClose(); } }]
           );
         } else {
           Alert.alert(t('alerts.error'), t('messages.failedToSave'));
@@ -159,7 +159,7 @@ export default function TaskMoveModal({
           Alert.alert(
             t('alerts.success'),
             t('messages.updatedSuccessfully'),
-            [{ text: 'OK', onPress: () => { onTaskMoved?.(); onClose(); } }]
+            [{ text: t('taskMoveModal.ok'), onPress: () => { onTaskMoved?.(); onClose(); } }]
           );
         } else {
           Alert.alert(t('alerts.error'), result.errors?.join('\n') || t('messages.failedToSave'));
@@ -218,14 +218,14 @@ export default function TaskMoveModal({
               {task.title}
             </Text>
             <Text style={[styles.currentDate, { color: Colors.secondaryText }]}>
-              Currently: {task.start_date ? formatDate(new Date(task.start_date + 'T00:00:00')) : 'No date'}
+              {task.start_date ? t('taskMoveModal.currently', { date: formatDate(new Date(task.start_date + 'T00:00:00')) }) : t('taskMoveModal.noDate')}
             </Text>
           </View>
         </View>
 
         {/* Date Picker */}
         <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Move to</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('taskMoveModal.moveTo')}</Text>
 
           <TouchableOpacity
             style={[styles.dateButton, { backgroundColor: Colors.inputBackground }]}
@@ -240,7 +240,7 @@ export default function TaskMoveModal({
 
           {daysDiff !== 0 && (
             <Text style={[styles.diffText, { color: Colors.primaryBlue }]}>
-              {Math.abs(daysDiff)} day{Math.abs(daysDiff) !== 1 ? 's' : ''} {direction}
+              {`${Math.abs(daysDiff)} ${Math.abs(daysDiff) !== 1 ? t('taskMoveModal.days') : t('taskMoveModal.day')} ${daysDiff > 0 ? t('taskMoveModal.later') : t('taskMoveModal.earlier')}`}
             </Text>
           )}
 
@@ -258,7 +258,7 @@ export default function TaskMoveModal({
 
         {/* Move Mode Options */}
         <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Options</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('taskMoveModal.optionsTitle')}</Text>
 
           <TouchableOpacity
             style={[
@@ -274,10 +274,10 @@ export default function TaskMoveModal({
             />
             <View style={styles.optionText}>
               <Text style={[styles.optionTitle, { color: Colors.primaryText }]}>
-                Move this task only
+                {t('taskMoveModal.singleMoveTitle')}
               </Text>
               <Text style={[styles.optionDesc, { color: Colors.secondaryText }]}>
-                Other tasks stay where they are
+                {t('taskMoveModal.singleMoveDesc')}
               </Text>
             </View>
           </TouchableOpacity>
@@ -296,10 +296,10 @@ export default function TaskMoveModal({
             />
             <View style={styles.optionText}>
               <Text style={[styles.optionTitle, { color: Colors.primaryText }]}>
-                Move and shift all after
+                {t('taskMoveModal.cascadeMoveTitle')}
               </Text>
               <Text style={[styles.optionDesc, { color: Colors.secondaryText }]}>
-                Tasks on or after this date will shift by {Math.abs(daysDiff) || '...'} day{Math.abs(daysDiff) !== 1 ? 's' : ''}
+                {t('taskMoveModal.cascadeMoveDesc', { count: Math.abs(daysDiff) || '...', unit: Math.abs(daysDiff) !== 1 ? t('taskMoveModal.days') : t('taskMoveModal.day') })}
               </Text>
             </View>
           </TouchableOpacity>

@@ -7,6 +7,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 
@@ -17,6 +18,7 @@ const SIZE_META = {
 };
 
 export default function WidgetSizeSheet({ visible, onClose, widget, currentSize, onResize }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const styles = useMemo(() => createStyles(Colors), [Colors]);
@@ -30,7 +32,7 @@ export default function WidgetSizeSheet({ visible, onClose, widget, currentSize,
         <View style={styles.sheet}>
           <View style={styles.handle} />
           <View style={styles.content}>
-            <Text style={styles.title}>Resize Widget</Text>
+            <Text style={styles.title}>{t('widgetSizeSheet.title')}</Text>
             <Text style={styles.widgetName}>{widget.label}</Text>
 
             <View style={styles.options}>
@@ -53,8 +55,8 @@ export default function WidgetSizeSheet({ visible, onClose, widget, currentSize,
                       </Text>
                     </View>
                     <View style={styles.optionInfo}>
-                      <Text style={styles.optionName}>{meta.name}</Text>
-                      <Text style={styles.optionHint}>{meta.hint}</Text>
+                      <Text style={styles.optionName}>{t(`widgetSizeSheet.sizes.${s}.name`)}</Text>
+                      <Text style={styles.optionHint}>{t(`widgetSizeSheet.sizes.${s}.hint`)}</Text>
                     </View>
                     {selected && (
                       <Ionicons name="checkmark-circle" size={20} color={Colors.successGreen || '#10B981'} />

@@ -22,7 +22,8 @@ import { addUserService, getServiceItems } from '../../utils/storage';
 export default function AddServicePricingScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
-  const { t } = useTranslation('common');
+  const { t } = useTranslation('settings');
+  const { t: tc } = useTranslation('common');
   const { categoryId, categoryName, categoryIcon, phases = [] } = route.params;
 
   const [serviceItems, setServiceItems] = useState([]);
@@ -57,7 +58,7 @@ export default function AddServicePricingScreen({ navigation, route }) {
       setPricing(initialPricing);
     } catch (error) {
       console.error('Error loading service items:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'service details' }));
+      Alert.alert(tc('alerts.error'), tc('messages.failedToLoad', { item: 'service details' }));
     } finally {
       setLoading(false);
     }
@@ -90,12 +91,12 @@ export default function AddServicePricingScreen({ navigation, route }) {
 
   const handleDeleteItem = (itemId) => {
     Alert.alert(
-      t('alerts.cannotDelete'),
-      t('messages.confirmDeletePricing'),
+      tc('alerts.cannotDelete'),
+      tc('messages.confirmDeletePricing'),
       [
-        { text: t('buttons.cancel'), style: 'cancel' },
+        { text: tc('buttons.cancel'), style: 'cancel' },
         {
-          text: t('buttons.delete'),
+          text: tc('buttons.delete'),
           style: 'destructive',
           onPress: () => {
             setServiceItems(prev => prev.filter(i => i.id !== itemId));
@@ -112,7 +113,7 @@ export default function AddServicePricingScreen({ navigation, route }) {
 
   const handleSaveItem = () => {
     if (!editItemName.trim()) {
-      Alert.alert(t('alerts.missingInfo'), t('messages.pleaseEnter', { item: 'name' }));
+      Alert.alert(tc('alerts.missingInfo'), tc('messages.pleaseEnter', { item: 'name' }));
       return;
     }
 
@@ -162,9 +163,9 @@ export default function AddServicePricingScreen({ navigation, route }) {
       const success = await addUserService(categoryId, pricing, phases);
 
       if (success) {
-        Alert.alert(t('alerts.success'), t('messages.savedSuccessfully', { item: 'service' }), [
+        Alert.alert(tc('alerts.success'), tc('messages.savedSuccessfully', { item: 'service' }), [
           {
-            text: t('buttons.ok'),
+            text: tc('buttons.ok'),
             onPress: () => {
               // Pop back 3 screens: Pricing -> Phases -> AddService
               navigation.pop(3);
@@ -172,11 +173,11 @@ export default function AddServicePricingScreen({ navigation, route }) {
           },
         ]);
       } else {
-        Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'service' }));
+        Alert.alert(tc('alerts.error'), tc('messages.failedToSave', { item: 'service' }));
       }
     } catch (error) {
       console.error('Error saving service:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'service' }));
+      Alert.alert(tc('alerts.error'), tc('messages.failedToSave', { item: 'service' }));
     } finally {
       setSaving(false);
     }
@@ -203,7 +204,7 @@ export default function AddServicePricingScreen({ navigation, route }) {
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Set Pricing</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('addServicePricing.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -222,7 +223,7 @@ export default function AddServicePricingScreen({ navigation, route }) {
             <View style={styles.serviceInfo}>
               <Text style={[styles.serviceName, { color: Colors.primaryText }]}>{categoryName}</Text>
               <Text style={[styles.serviceSubtitle, { color: Colors.secondaryText }]}>
-                Set your default pricing for this service
+                {t('addServicePricing.subtitle')}
               </Text>
             </View>
           </View>
@@ -238,7 +239,7 @@ export default function AddServicePricingScreen({ navigation, route }) {
               <View style={[styles.emptyContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
                 <Ionicons name="pricetag-outline" size={48} color={Colors.secondaryText} />
                 <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-                  No pricing items yet. Add your first item below.
+                  {t('addServicePricing.emptyState')}
                 </Text>
               </View>
             ) : (
@@ -253,7 +254,7 @@ export default function AddServicePricingScreen({ navigation, route }) {
                           {item.name}
                         </Text>
                         <Text style={[styles.priceItemUnit, { color: Colors.secondaryText }]}>
-                          per {item.unit}
+                          {t('addServicePricing.perUnit', { unit: item.unit })}
                         </Text>
                       </View>
                       <View style={styles.itemActions}>
@@ -299,7 +300,7 @@ export default function AddServicePricingScreen({ navigation, route }) {
             >
               <Ionicons name="add-circle-outline" size={24} color={Colors.primaryBlue} />
               <Text style={[styles.addButtonText, { color: Colors.primaryBlue }]}>
-                Add Pricing Item
+                {t('addServicePricing.addPricingItem')}
               </Text>
             </TouchableOpacity>
 
@@ -307,7 +308,7 @@ export default function AddServicePricingScreen({ navigation, route }) {
             <View style={[styles.infoBox, { backgroundColor: Colors.success + '10', borderColor: Colors.success + '30' }]}>
               <Ionicons name="bulb-outline" size={20} color={Colors.success} />
               <Text style={[styles.infoText, { color: Colors.success }]}>
-                These will be your default rates for {categoryName}. You can adjust them anytime or customize pricing for individual projects.
+                {t('addServicePricing.infoText', { categoryName })}
               </Text>
             </View>
           </ScrollView>
@@ -325,7 +326,7 @@ export default function AddServicePricingScreen({ navigation, route }) {
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <>
-                <Text style={styles.buttonText}>Add Service</Text>
+                <Text style={styles.buttonText}>{t('addServicePricing.addService')}</Text>
                 <Ionicons name="checkmark-circle" size={20} color="#fff" />
               </>
             )}
@@ -343,7 +344,7 @@ export default function AddServicePricingScreen({ navigation, route }) {
         <SafeAreaView style={[styles.modalContainer, { backgroundColor: Colors.background }]}>
           <View style={[styles.modalHeader, { borderBottomColor: Colors.border }]}>
             <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>
-              {editingItem?.isNew ? 'Add Pricing Item' : 'Edit Pricing Item'}
+              {editingItem?.isNew ? t('addServicePricing.addPricingItem') : t('addServicePricing.editPricingItem')}
             </Text>
             <TouchableOpacity onPress={() => setShowEditModal(false)}>
               <Ionicons name="close" size={28} color={Colors.primaryText} />
@@ -354,11 +355,11 @@ export default function AddServicePricingScreen({ navigation, route }) {
             {/* Item Name */}
             <View style={styles.modalInputGroup}>
               <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>
-                Item Name <Text style={{ color: Colors.error }}>*</Text>
+                {t('addServicePricing.itemName')} <Text style={{ color: Colors.error }}>*</Text>
               </Text>
               <TextInput
                 style={[styles.modalInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
-                placeholder="e.g., Interior Painting"
+                placeholder={t('addServicePricing.itemNamePlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 value={editItemName}
                 onChangeText={setEditItemName}
@@ -368,7 +369,7 @@ export default function AddServicePricingScreen({ navigation, route }) {
 
             {/* Unit Selection */}
             <View style={styles.modalInputGroup}>
-              <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>Unit Type</Text>
+              <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>{t('addServicePricing.unitType')}</Text>
               <View style={styles.unitGrid}>
                 {['sq ft', 'linear ft', 'hour', 'job', 'unit', 'room'].map(unit => (
                   <TouchableOpacity
@@ -401,13 +402,13 @@ export default function AddServicePricingScreen({ navigation, route }) {
               style={[styles.modalButton, styles.cancelButton, { borderColor: Colors.border }]}
               onPress={() => setShowEditModal(false)}
             >
-              <Text style={[styles.cancelButtonText, { color: Colors.primaryText }]}>Cancel</Text>
+              <Text style={[styles.cancelButtonText, { color: Colors.primaryText }]}>{t('common:buttons.cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.modalButton, styles.saveButton, { backgroundColor: Colors.primaryBlue }]}
               onPress={handleSaveItem}
             >
-              <Text style={styles.saveButtonText}>Save</Text>
+              <Text style={styles.saveButtonText}>{t('common:buttons.save')}</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>

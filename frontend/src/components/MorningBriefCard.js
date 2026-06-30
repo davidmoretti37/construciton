@@ -6,6 +6,7 @@ import { fetchLatestBusinessInsights } from '../utils/storage/insights';
 import { useTheme } from '../contexts/ThemeContext';
 import { LightColors, getColors } from '../constants/theme';
 import { routeForBriefItem } from '../utils/notificationRouter';
+import { useTranslation } from 'react-i18next';
 
 // Phase-3 surface: top-of-home anomaly briefing. Designed to read as a
 // premium dashboard card — neutral surface, single subtle accent stripe
@@ -25,6 +26,7 @@ const KIND_META = {
 
 export default function MorningBriefCard() {
   const navigation = useNavigation();
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const [data, setData] = useState(null);
@@ -63,8 +65,8 @@ export default function MorningBriefCard() {
             <Ionicons name="checkmark" size={16} color="#10B981" />
           </View>
           <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={[styles.eyebrow, { color: textS }]}>MORNING BRIEF</Text>
-            <Text style={[styles.cleanTitle, { color: textP }]}>All clear</Text>
+            <Text style={[styles.eyebrow, { color: textS }]}>{t('morningBriefCard.eyebrow')}</Text>
+            <Text style={[styles.cleanTitle, { color: textP }]}>{t('morningBriefCard.allClear')}</Text>
           </View>
           <Text style={[styles.timestamp, { color: textS }]}>{formatRelative(data?.generated_at)}</Text>
         </View>
@@ -85,10 +87,10 @@ export default function MorningBriefCard() {
       {/* Header */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.eyebrow, { color: textS }]}>MORNING BRIEF</Text>
+          <Text style={[styles.eyebrow, { color: textS }]}>{t('morningBriefCard.eyebrow')}</Text>
           <View style={styles.titleRow}>
             <Text style={[styles.title, { color: textP }]}>
-              {data.item_count} {data.item_count === 1 ? 'thing' : 'things'} to look at
+              {t('morningBriefCard.itemsToLookAt', { count: data.item_count })}
             </Text>
           </View>
         </View>
@@ -101,7 +103,7 @@ export default function MorningBriefCard() {
           <View style={[styles.chip, { backgroundColor: '#DC262610' }]}>
             <View style={[styles.chipDot, { backgroundColor: '#DC2626' }]} />
             <Text style={[styles.chipText, { color: '#991B1B' }]}>
-              {data.high_count} urgent
+              {t('morningBriefCard.urgentChip', { count: data.high_count })}
             </Text>
           </View>
         )}
@@ -109,7 +111,7 @@ export default function MorningBriefCard() {
           <View style={[styles.chip, { backgroundColor: '#D9770610' }]}>
             <View style={[styles.chipDot, { backgroundColor: '#D97706' }]} />
             <Text style={[styles.chipText, { color: '#92400E' }]}>
-              {data.medium_count} to review
+              {t('morningBriefCard.reviewChip', { count: data.medium_count })}
             </Text>
           </View>
         )}
@@ -146,7 +148,7 @@ export default function MorningBriefCard() {
               </View>
               <View style={[styles.tag, { backgroundColor: isHigh ? '#DC262612' : '#D9770612' }]}>
                 <Text style={[styles.tagText, { color: isHigh ? '#991B1B' : '#92400E' }]}>
-                  {isHigh ? 'URGENT' : 'REVIEW'}
+                  {isHigh ? t('morningBriefCard.tagUrgent') : t('morningBriefCard.tagReview')}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={15} color={textS} style={{ marginLeft: 6, opacity: 0.5 }} />
@@ -158,7 +160,7 @@ export default function MorningBriefCard() {
       {items.length > 3 && (
         <TouchableOpacity onPress={() => setExpanded(e => !e)} style={[styles.expand, { borderTopColor: border }]}>
           <Text style={[styles.expandText, { color: textP }]}>
-            {expanded ? 'Show less' : `View ${items.length - 3} more`}
+            {expanded ? t('morningBriefCard.showLess') : t('morningBriefCard.viewMore', { count: items.length - 3 })}
           </Text>
           <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color={textP} />
         </TouchableOpacity>

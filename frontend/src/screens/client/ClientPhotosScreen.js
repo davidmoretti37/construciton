@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { fetchDashboard, fetchProjectPhotos } from '../../services/clientPortalApi';
 import { useClientProject } from '../../contexts/ClientProjectContext';
 
@@ -30,6 +31,7 @@ const C = {
 };
 
 export default function ClientPhotosScreen({ navigation }) {
+  const { t } = useTranslation('common');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
@@ -77,7 +79,7 @@ export default function ClientPhotosScreen({ navigation }) {
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="chevron-back" size={26} color={C.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Photos</Text>
+          <Text style={styles.headerTitle}>{t('clientPhotos.title')}</Text>
           <Text style={styles.headerCount}>{photos.length}</Text>
         </View>
       </SafeAreaView>
@@ -90,18 +92,18 @@ export default function ClientPhotosScreen({ navigation }) {
         {error ? (
           <View style={styles.emptyState}>
             <Ionicons name="cloud-offline-outline" size={48} color={C.border} />
-            <Text style={styles.emptyTitle}>Couldn't load photos</Text>
-            <Text style={styles.emptySub}>Something went wrong. Please try again.</Text>
+            <Text style={styles.emptyTitle}>{t('clientPhotos.errorTitle')}</Text>
+            <Text style={styles.emptySub}>{t('clientPhotos.errorSub')}</Text>
             <TouchableOpacity style={styles.retryBtn} onPress={() => { setLoading(true); loadData(); }} activeOpacity={0.8}>
               <Ionicons name="refresh" size={18} color={C.surface} />
-              <Text style={styles.retryText}>Retry</Text>
+              <Text style={styles.retryText}>{t('common:buttons.retry')}</Text>
             </TouchableOpacity>
           </View>
         ) : photos.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="images-outline" size={48} color={C.border} />
-            <Text style={styles.emptyTitle}>No photos yet</Text>
-            <Text style={styles.emptySub}>Project photos will appear here as work progresses</Text>
+            <Text style={styles.emptyTitle}>{t('clientPhotos.emptyTitle')}</Text>
+            <Text style={styles.emptySub}>{t('clientPhotos.emptySub')}</Text>
           </View>
         ) : (
           <View style={styles.grid}>
@@ -110,7 +112,7 @@ export default function ClientPhotosScreen({ navigation }) {
                 {failedUris[url] ? (
                   <View style={[styles.photo, styles.photoFallback]}>
                     <Ionicons name="image-outline" size={24} color={C.textMuted} />
-                    <Text style={styles.photoFallbackText}>Unavailable</Text>
+                    <Text style={styles.photoFallbackText}>{t('clientPhotos.photoUnavailable')}</Text>
                   </View>
                 ) : (
                   <Image
@@ -144,7 +146,7 @@ export default function ClientPhotosScreen({ navigation }) {
                 {failedUris[item] ? (
                   <View style={styles.viewerFallback}>
                     <Ionicons name="image-outline" size={48} color="#666" />
-                    <Text style={styles.viewerFallbackText}>Image unavailable</Text>
+                    <Text style={styles.viewerFallbackText}>{t('clientPhotos.imageUnavailable')}</Text>
                   </View>
                 ) : (
                   <Image
@@ -162,7 +164,7 @@ export default function ClientPhotosScreen({ navigation }) {
               <TouchableOpacity onPress={() => setShowViewer(false)} style={styles.viewerCloseBtn}>
                 <Ionicons name="close" size={24} color="#fff" />
               </TouchableOpacity>
-              <Text style={styles.viewerCount}>{viewerIndex + 1} / {photos.length}</Text>
+              <Text style={styles.viewerCount}>{t('clientPhotos.viewerCount', { current: viewerIndex + 1, total: photos.length })}</Text>
               <View style={{ width: 44 }} />
             </SafeAreaView>
           </View>

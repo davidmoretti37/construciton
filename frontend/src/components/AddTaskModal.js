@@ -231,13 +231,13 @@ export default function AddTaskModal({
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             {/* Project Selection - First */}
             <View style={styles.section}>
-              <Text style={[styles.label, { color: Colors.secondaryText }]}>Project *</Text>
+              <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('addTaskModal.projectLabel')}</Text>
               <TouchableOpacity
                 style={[styles.selector, { backgroundColor: Colors.white, borderColor: Colors.border }]}
                 onPress={() => setShowProjectPicker(!showProjectPicker)}
               >
                 <Text style={[styles.selectorText, { color: selectedProject ? Colors.primaryText : Colors.secondaryText }]}>
-                  {selectedProject ? selectedProject.name : 'Select a project'}
+                  {selectedProject ? selectedProject.name : t('addTaskModal.selectProject')}
                 </Text>
                 <Ionicons name={showProjectPicker ? "chevron-up" : "chevron-down"} size={20} color={Colors.secondaryText} />
               </TouchableOpacity>
@@ -247,7 +247,7 @@ export default function AddTaskModal({
                   {loading ? (
                     <ActivityIndicator size="small" color={Colors.primaryBlue} style={{ padding: 20 }} />
                   ) : projects.length === 0 ? (
-                    <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>No projects available</Text>
+                    <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>{t('addTaskModal.noProjects')}</Text>
                   ) : (
                     <ScrollView nestedScrollEnabled={true} showsVerticalScrollIndicator={true}>
                       {projects.map((project) => (
@@ -277,11 +277,11 @@ export default function AddTaskModal({
 
             {/* Date Range */}
             <View style={styles.section}>
-              <Text style={[styles.label, { color: Colors.secondaryText }]}>Dates</Text>
+              <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('addTaskModal.datesLabel')}</Text>
               <View style={styles.dateRow}>
                 {/* Start Date */}
                 <View style={styles.dateColumn}>
-                  <Text style={[styles.dateLabel, { color: Colors.secondaryText }]}>Start</Text>
+                  <Text style={[styles.dateLabel, { color: Colors.secondaryText }]}>{t('addTaskModal.startLabel')}</Text>
                   <View style={[styles.dateSelector, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
                     <TouchableOpacity onPress={() => setStartDate(adjustDate(startDate, -1))} style={styles.dateArrow}>
                       <Ionicons name="chevron-back" size={18} color={Colors.primaryBlue} />
@@ -295,7 +295,7 @@ export default function AddTaskModal({
 
                 {/* End Date */}
                 <View style={styles.dateColumn}>
-                  <Text style={[styles.dateLabel, { color: Colors.secondaryText }]}>End (Deadline)</Text>
+                  <Text style={[styles.dateLabel, { color: Colors.secondaryText }]}>{t('addTaskModal.endLabel')}</Text>
                   <View style={[styles.dateSelector, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
                     <TouchableOpacity onPress={() => {
                       const newEnd = adjustDate(endDate, -1);
@@ -315,7 +315,7 @@ export default function AddTaskModal({
                 <View style={[styles.multiDayBadge, { backgroundColor: Colors.primaryBlue + '15' }]}>
                   <Ionicons name="calendar-outline" size={14} color={Colors.primaryBlue} />
                   <Text style={[styles.multiDayText, { color: Colors.primaryBlue }]}>
-                    Multi-day task ({Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1} days)
+                    {t('addTaskModal.multiDayTask', { count: Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1 })}
                   </Text>
                 </View>
               )}
@@ -323,7 +323,7 @@ export default function AddTaskModal({
 
             {/* Color Tag */}
             <View style={styles.section}>
-              <Text style={[styles.label, { color: Colors.secondaryText }]}>Color Tag</Text>
+              <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('addTaskModal.colorTag')}</Text>
               <View style={styles.colorRow}>
                 {/* No color option */}
                 <TouchableOpacity
@@ -355,23 +355,23 @@ export default function AddTaskModal({
               /* Edit Mode - Single Task Form */
               <>
                 <View style={styles.section}>
-                  <Text style={[styles.label, { color: Colors.secondaryText }]}>Task Title *</Text>
+                  <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('addTaskModal.taskTitleLabel')}</Text>
                   <TextInput
                     style={[styles.input, { backgroundColor: Colors.white, color: Colors.primaryText, borderColor: Colors.border }]}
                     value={title}
                     onChangeText={setTitle}
-                    placeholder="What needs to be done?"
+                    placeholder={t('addTaskModal.taskTitlePlaceholder')}
                     placeholderTextColor={Colors.secondaryText}
                   />
                 </View>
 
                 <View style={styles.section}>
-                  <Text style={[styles.label, { color: Colors.secondaryText }]}>Description</Text>
+                  <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('addTaskModal.descriptionLabel')}</Text>
                   <TextInput
                     style={[styles.textArea, { backgroundColor: Colors.white, color: Colors.primaryText, borderColor: Colors.border }]}
                     value={description}
                     onChangeText={setDescription}
-                    placeholder="Add more details (optional)"
+                    placeholder={t('addTaskModal.descriptionPlaceholder')}
                     placeholderTextColor={Colors.secondaryText}
                     multiline
                     numberOfLines={3}
@@ -381,7 +381,7 @@ export default function AddTaskModal({
             ) : (
               /* Create Mode - Checklist */
               <View style={styles.section}>
-                <Text style={[styles.label, { color: Colors.secondaryText }]}>Tasks</Text>
+                <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('addTaskModal.tasksLabel')}</Text>
 
                 {/* Task List */}
                 {taskList.length > 0 && (
@@ -418,7 +418,7 @@ export default function AddTaskModal({
                     style={[styles.addTaskInput, { color: Colors.primaryText }]}
                     value={newTaskTitle}
                     onChangeText={setNewTaskTitle}
-                    placeholder="Add a task..."
+                    placeholder={t('addTaskModal.addTaskPlaceholder')}
                     placeholderTextColor={Colors.secondaryText}
                     onSubmitEditing={addTaskToList}
                     returnKeyType="done"
@@ -431,7 +431,7 @@ export default function AddTaskModal({
                 </View>
 
                 <Text style={[styles.hint, { color: Colors.secondaryText }]}>
-                  Press return or tap the arrow to add each task
+                  {t('addTaskModal.addTaskHint')}
                 </Text>
               </View>
             )}

@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -12,6 +13,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 export default function AlertsWidget({ alerts, size, editMode, onNavigate }) {
+  const { t } = useTranslation('common');
   const iconScale = useSharedValue(1);
 
   useEffect(() => {
@@ -44,7 +46,7 @@ export default function AlertsWidget({ alerts, size, editMode, onNavigate }) {
           style={styles.gradient}
         >
           <Ionicons name="checkmark-circle" size={20} color="#059669" />
-          <Text style={styles.allClear}>All clear</Text>
+          <Text style={styles.allClear}>{t('alertsWidget.allClear')}</Text>
         </LinearGradient>
       </View>
     );

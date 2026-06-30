@@ -17,6 +17,7 @@ import {
   View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, Alert, Image,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -52,6 +53,7 @@ const TRADES = [
 ];
 
 export default function SubProposalCreatorScreen({ navigation }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = isDark ? DarkColors : LightColors;
   const styles = makeStyles(Colors);
@@ -84,7 +86,7 @@ export default function SubProposalCreatorScreen({ navigation }) {
       const list = await api.listMyContractors();
       setContractors(list);
     } catch (e) {
-      Alert.alert('Could not load contractors', e.message || 'Try again');
+      Alert.alert(t('subProposalCreator.couldNotLoadContractors'), e.message || t('subProposalCreator.tryAgain'));
     } finally {
       setLoading(false);
     }
@@ -106,8 +108,11 @@ export default function SubProposalCreatorScreen({ navigation }) {
     const assetSize = asset.size || asset.fileSize || 0;
     if (assetSize > MAX_FILE_BYTES) {
       Alert.alert(
-        'File too large',
-        `${asset.name || asset.fileName || 'This file'} is ${(assetSize / 1024 / 1024).toFixed(1)} MB. Please attach files under 8 MB.`,
+        t('subProposalCreator.fileTooLargeTitle'),
+        t('subProposalCreator.fileTooLargeBody', {
+          name: asset.name || asset.fileName || t('subProposalCreator.thisFile'),
+          size: (assetSize / 1024 / 1024).toFixed(1),
+        }),
       );
       return;
     }
@@ -137,12 +142,12 @@ export default function SubProposalCreatorScreen({ navigation }) {
       });
       if (overTotal) {
         Alert.alert(
-          'Too many files',
-          'Your attachments exceed the 20 MB total limit. Remove a file before adding more.',
+          t('subProposalCreator.tooManyFilesTitle'),
+          t('subProposalCreator.tooManyFilesBody'),
         );
       }
     } catch (e) {
-      Alert.alert('Could not read file', e.message);
+      Alert.alert(t('subProposalCreator.couldNotReadFile'), e.message);
     }
   };
 
@@ -157,7 +162,7 @@ export default function SubProposalCreatorScreen({ navigation }) {
       });
       if (!result.canceled) for (const a of (result.assets || [])) await addPickedFile(a);
     } catch (e) {
-      Alert.alert('Could not pick file', e.message);
+      Alert.alert(t('subProposalCreator.couldNotPickFile'), e.message);
     } finally {
       pickerBusyRef.current = false;
     }
@@ -175,7 +180,7 @@ export default function SubProposalCreatorScreen({ navigation }) {
       });
       if (!result.canceled) for (const a of (result.assets || [])) await addPickedFile(a, 'image/jpeg');
     } catch (e) {
-      Alert.alert('Could not pick photo', e.message);
+      Alert.alert(t('subProposalCreator.couldNotPickPhoto'), e.message);
     } finally {
       pickerBusyRef.current = false;
     }
@@ -191,7 +196,7 @@ export default function SubProposalCreatorScreen({ navigation }) {
     // value we submit is exactly the value we show in the confirmation alert.
     const amt = Math.round(Number(String(amount).replace(/[^0-9.]/g, '')) * 100) / 100;
     if (!Number.isFinite(amt) || amt <= 0) {
-      Alert.alert('Add an amount', 'Enter a valid bid amount greater than $0 before sending.');
+      Alert.alert(t('subProposalCreator.addAnAmountTitle'), t('subProposalCreator.addAnAmountBody'));
       return;
     }
     submittingRef.current = true;
@@ -227,21 +232,27 @@ export default function SubProposalCreatorScreen({ navigation }) {
       }
 
       if (failures.length) {
+        const header = t(
+          failures.length === 1
+            ? 'subProposalCreator.proposalSentSomeFailedHeaderOne'
+            : 'subProposalCreator.proposalSentSomeFailedHeaderOther',
+          { amount: `$${amt.toLocaleString()}`, count: failures.length },
+        );
+        const list = failures.map((f) => `• ${f.name}: ${f.error}`).join('\n');
         Alert.alert(
-          'Proposal sent — some files failed',
-          `Your $${amt.toLocaleString()} proposal was sent, but ${failures.length} file${failures.length === 1 ? '' : 's'} failed to upload:\n\n` +
-            failures.map((f) => `• ${f.name}: ${f.error}`).join('\n'),
-          [{ text: 'OK', onPress: () => navigation.goBack() }],
+          t('subProposalCreator.proposalSentSomeFailedTitle'),
+          `${header}\n\n${list}`,
+          [{ text: t('subProposalCreator.ok'), onPress: () => navigation.goBack() }],
         );
       } else {
         Alert.alert(
-          'Proposal sent',
-          `Your $${amt.toLocaleString()} ${tradeLabel} proposal was sent. The contractor will see it in their bid history.`,
-          [{ text: 'OK', onPress: () => navigation.goBack() }],
+          t('subProposalCreator.proposalSentTitle'),
+          t('subProposalCreator.proposalSentBody', { amount: `$${amt.toLocaleString()}`, trade: tradeLabel }),
+          [{ text: t('subProposalCreator.ok'), onPress: () => navigation.goBack() }],
         );
       }
     } catch (e) {
-      Alert.alert('Could not send', e.message || 'Try again');
+      Alert.alert(t('subProposalCreator.couldNotSend'), e.message || t('subProposalCreator.tryAgain'));
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -264,8 +275,8 @@ export default function SubProposalCreatorScreen({ navigation }) {
           <Ionicons name="chevron-back" size={26} color={Colors.primaryText} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Send a proposal</Text>
-          <Text style={styles.headerSub}>Step {step} of 3</Text>
+          <Text style={styles.headerTitle}>{t('subProposalCreator.headerTitle')}</Text>
+          <Text style={styles.headerSub}>{t('subProposalCreator.stepOf', { step })}</Text>
         </View>
       </View>
 
@@ -286,15 +297,14 @@ export default function SubProposalCreatorScreen({ navigation }) {
             {contractors.length === 0 ? (
               <View style={styles.emptyContractors}>
                 <Ionicons name="business-outline" size={32} color={Colors.secondaryText} />
-                <Text style={styles.emptyContractorsTitle}>No contractors yet</Text>
+                <Text style={styles.emptyContractorsTitle}>{t('subProposalCreator.noContractorsTitle')}</Text>
                 <Text style={styles.emptyContractorsBody}>
-                  Once a contractor adds you or you accept an invitation, you can send them
-                  proposals from here.
+                  {t('subProposalCreator.noContractorsBody')}
                 </Text>
               </View>
             ) : (
               <>
-                <Text style={styles.label}>Send to</Text>
+                <Text style={styles.label}>{t('subProposalCreator.sendTo')}</Text>
                 {contractors.map((c) => {
                   const isSel = gcId === c.id;
                   return (
@@ -314,7 +324,7 @@ export default function SubProposalCreatorScreen({ navigation }) {
                       </View>
                       <View style={{ flex: 1, marginLeft: 12 }}>
                         <Text style={styles.contractorName} numberOfLines={1}>
-                          {c.business_name || 'Contractor'}
+                          {c.business_name || t('subProposalCreator.contractorFallback')}
                         </Text>
                         {c.business_email ? (
                           <Text style={styles.contractorMeta} numberOfLines={1}>{c.business_email}</Text>
@@ -327,7 +337,7 @@ export default function SubProposalCreatorScreen({ navigation }) {
               </>
             )}
 
-            <Text style={[styles.label, { marginTop: 22 }]}>What kind of work?</Text>
+            <Text style={[styles.label, { marginTop: 22 }]}>{t('subProposalCreator.whatKindOfWork')}</Text>
             <View style={styles.tradeGrid}>
               {TRADES.map((t) => {
                 const isActive = trade === t.key;
@@ -353,7 +363,7 @@ export default function SubProposalCreatorScreen({ navigation }) {
             {trade === 'other' && (
               <TextInput
                 style={[styles.textInput, { marginTop: 12 }]}
-                placeholder="What trade?"
+                placeholder={t('subProposalCreator.whatTradePlaceholder')}
                 placeholderTextColor={Colors.placeholder || '#9CA3AF'}
                 value={customTrade}
                 onChangeText={setCustomTrade}
@@ -367,7 +377,7 @@ export default function SubProposalCreatorScreen({ navigation }) {
               disabled={!canStep2}
               activeOpacity={0.85}
             >
-              <Text style={styles.primaryBtnText}>Continue</Text>
+              <Text style={styles.primaryBtnText}>{t('common:buttons.continue')}</Text>
               <Ionicons name="chevron-forward" size={18} color="#fff" style={{ marginLeft: 6 }} />
             </TouchableOpacity>
           </>
@@ -376,22 +386,22 @@ export default function SubProposalCreatorScreen({ navigation }) {
         {/* Step 2 — Scope */}
         {step === 2 && (
           <>
-            <Text style={styles.label}>What you're proposing</Text>
+            <Text style={styles.label}>{t('subProposalCreator.whatYoureProposing')}</Text>
             <Text style={styles.hint}>
-              Describe what you'll do, what's included, and any boundaries. Bullet points work well.
+              {t('subProposalCreator.scopeHint')}
             </Text>
             <TextInput
               style={[styles.textInput, styles.scopeBox]}
               multiline
               value={scope}
               onChangeText={setScope}
-              placeholder={'e.g.\n- Install crown molding throughout master bedroom (~120 LF)\n- Furnish all materials including primer & finish nails\n- 5-day timeline from start of work\n- Excludes painting and ceiling repair'}
+              placeholder={t('subProposalCreator.scopePlaceholder')}
               placeholderTextColor={Colors.placeholder || '#9CA3AF'}
             />
 
             <View style={styles.btnRow}>
               <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(1)} activeOpacity={0.7}>
-                <Text style={styles.secondaryBtnText}>Back</Text>
+                <Text style={styles.secondaryBtnText}>{t('common:buttons.back')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.primaryBtn, { flex: 1 }, !canStep3 && { opacity: 0.5 }]}
@@ -399,7 +409,7 @@ export default function SubProposalCreatorScreen({ navigation }) {
                 disabled={!canStep3}
                 activeOpacity={0.85}
               >
-                <Text style={styles.primaryBtnText}>Set price</Text>
+                <Text style={styles.primaryBtnText}>{t('subProposalCreator.setPrice')}</Text>
               </TouchableOpacity>
             </View>
           </>
@@ -408,7 +418,7 @@ export default function SubProposalCreatorScreen({ navigation }) {
         {/* Step 3 — Price + attachments + send */}
         {step === 3 && (
           <>
-            <Text style={styles.label}>Bid amount</Text>
+            <Text style={styles.label}>{t('subProposalCreator.bidAmount')}</Text>
             <View style={styles.amountWrap}>
               <Text style={styles.dollarSign}>$</Text>
               <TextInput
@@ -421,45 +431,45 @@ export default function SubProposalCreatorScreen({ navigation }) {
               />
             </View>
 
-            <Text style={styles.label}>Timeline (days)</Text>
+            <Text style={styles.label}>{t('subProposalCreator.timelineDays')}</Text>
             <TextInput
               style={styles.textInput}
-              placeholder="e.g. 14"
+              placeholder={t('subProposalCreator.timelinePlaceholder')}
               placeholderTextColor={Colors.placeholder || '#9CA3AF'}
               value={timelineDays}
               onChangeText={setTimelineDays}
               keyboardType="numeric"
             />
 
-            <Text style={styles.label}>Exclusions (optional)</Text>
+            <Text style={styles.label}>{t('subProposalCreator.exclusionsOptional')}</Text>
             <TextInput
               style={[styles.textInput, styles.multilineInput]}
-              placeholder="e.g. Excludes fixtures, excludes permits"
+              placeholder={t('subProposalCreator.exclusionsPlaceholder')}
               placeholderTextColor={Colors.placeholder || '#9CA3AF'}
               value={exclusions}
               onChangeText={setExclusions}
               multiline
             />
 
-            <Text style={styles.label}>Notes (optional)</Text>
+            <Text style={styles.label}>{t('subProposalCreator.notesOptional')}</Text>
             <TextInput
               style={[styles.textInput, styles.multilineInput]}
-              placeholder="Anything else the contractor should know"
+              placeholder={t('subProposalCreator.notesPlaceholder')}
               placeholderTextColor={Colors.placeholder || '#9CA3AF'}
               value={notes}
               onChangeText={setNotes}
               multiline
             />
 
-            <Text style={styles.label}>Attach files (optional)</Text>
+            <Text style={styles.label}>{t('subProposalCreator.attachFilesOptional')}</Text>
             <View style={styles.attachBtnRow}>
               <TouchableOpacity style={styles.attachBtn} onPress={pickFile} activeOpacity={0.7}>
                 <Ionicons name="document-attach-outline" size={18} color={Colors.primaryText} />
-                <Text style={styles.attachBtnText}>Pick a file</Text>
+                <Text style={styles.attachBtnText}>{t('subProposalCreator.pickAFile')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.attachBtn} onPress={pickPhoto} activeOpacity={0.7}>
                 <Ionicons name="images-outline" size={18} color={Colors.primaryText} />
-                <Text style={styles.attachBtnText}>Pick photos</Text>
+                <Text style={styles.attachBtnText}>{t('subProposalCreator.pickPhotos')}</Text>
               </TouchableOpacity>
             </View>
 
@@ -479,7 +489,7 @@ export default function SubProposalCreatorScreen({ navigation }) {
                       <View style={{ flex: 1, marginLeft: 10 }}>
                         <Text style={styles.attachName} numberOfLines={1}>{a.name}</Text>
                         <Text style={styles.attachMeta}>
-                          {isImage ? 'Photo' : 'Document'}
+                          {isImage ? t('subProposalCreator.photo') : t('subProposalCreator.document')}
                           {a.size ? ` · ${(a.size / 1024).toFixed(0)} KB` : ''}
                         </Text>
                       </View>
@@ -499,7 +509,7 @@ export default function SubProposalCreatorScreen({ navigation }) {
                 activeOpacity={0.7}
                 disabled={submitting}
               >
-                <Text style={styles.secondaryBtnText}>Back</Text>
+                <Text style={styles.secondaryBtnText}>{t('common:buttons.back')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.primaryBtn, { flex: 1 }, submitting && { opacity: 0.6 }]}
@@ -512,7 +522,7 @@ export default function SubProposalCreatorScreen({ navigation }) {
                 ) : (
                   <>
                     <Ionicons name="paper-plane" size={18} color="#fff" />
-                    <Text style={styles.primaryBtnText}>Send proposal</Text>
+                    <Text style={styles.primaryBtnText}>{t('subProposalCreator.sendProposal')}</Text>
                   </>
                 )}
               </TouchableOpacity>

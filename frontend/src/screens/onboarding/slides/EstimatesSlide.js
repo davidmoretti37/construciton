@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions, ScrollView } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -66,6 +67,7 @@ const AnimatedLineItem = ({ name, price, delay, isActive }) => {
 // Animated badge that pops in
 // NO SCALE - prevents iOS rasterization blur
 const AnimatedBadge = ({ delay, isActive }) => {
+  const { t } = useTranslation('onboarding');
   const translateY = useSharedValue(15);
   const opacity = useSharedValue(0);
 
@@ -86,12 +88,13 @@ const AnimatedBadge = ({ delay, isActive }) => {
 
   return (
     <Animated.View style={[estimateStyles.badge, animatedStyle]}>
-      <Text style={estimateStyles.badgeText}>ESTIMATE</Text>
+      <Text style={estimateStyles.badgeText}>{t('estimatesSlide.badge')}</Text>
     </Animated.View>
   );
 };
 
 const EstimateMockup = ({ isActive }) => {
+  const { t } = useTranslation('onboarding');
   const total = ESTIMATE_ITEMS.reduce((sum, item) => sum + item.price, 0);
   const [showTotal, setShowTotal] = useState(false);
 
@@ -122,7 +125,7 @@ const EstimateMockup = ({ isActive }) => {
         </View>
 
         <TypewriterText
-          text="Kitchen Remodel"
+          text={t('estimatesSlide.mockProjectName')}
           style={estimateStyles.projectName}
           speed={50}
           delay={800}
@@ -130,7 +133,7 @@ const EstimateMockup = ({ isActive }) => {
         />
 
         <TypewriterText
-          text="Client: Johnson"
+          text={t('estimatesSlide.mockClientName')}
           style={estimateStyles.clientName}
           speed={40}
           delay={1100}
@@ -159,7 +162,7 @@ const EstimateMockup = ({ isActive }) => {
 
       {/* Total with count up */}
       <View style={estimateStyles.totalRow}>
-        <Text style={estimateStyles.totalLabel}>TOTAL</Text>
+        <Text style={estimateStyles.totalLabel}>{t('estimatesSlide.totalLabel')}</Text>
         <View style={estimateStyles.totalValue}>
           <CountUpNumber
             value={total}
@@ -179,6 +182,7 @@ const EstimateMockup = ({ isActive }) => {
 };
 
 export default function EstimatesSlide({ isActive = true }) {
+  const { t } = useTranslation('onboarding');
   const [phoneReady, setPhoneReady] = useState(false);
 
   // Staggered entrance animations
@@ -207,8 +211,8 @@ export default function EstimatesSlide({ isActive = true }) {
     >
       {/* Title */}
       <Animated.View style={titleAnim}>
-        <Text style={styles.title}>Create Estimates in</Text>
-        <Text style={styles.titleAccent}>60 Seconds</Text>
+        <Text style={styles.title}>{t('estimatesSlide.title')}</Text>
+        <Text style={styles.titleAccent}>{t('estimatesSlide.titleAccent')}</Text>
       </Animated.View>
 
       {/* Phone mockup with animated content */}
@@ -223,24 +227,24 @@ export default function EstimatesSlide({ isActive = true }) {
         <Animated.View style={feature1Anim}>
           <FeatureBullet
             icon="camera"
-            title="Snap a photo of any job"
-            description="AI calculates everything automatically"
+            title={t('estimatesSlide.feature1Title')}
+            description={t('estimatesSlide.feature1Description')}
             iconColor="#60A5FA"
           />
         </Animated.View>
         <Animated.View style={feature2Anim}>
           <FeatureBullet
             icon="cash"
-            title="Accurate pricing"
-            description="Based on real-time market data"
+            title={t('estimatesSlide.feature2Title')}
+            description={t('estimatesSlide.feature2Description')}
             iconColor="#34D399"
           />
         </Animated.View>
         <Animated.View style={feature3Anim}>
           <FeatureBullet
             icon="send"
-            title="Send professional PDFs"
-            description="Win more jobs with polished estimates"
+            title={t('estimatesSlide.feature3Title')}
+            description={t('estimatesSlide.feature3Description')}
             iconColor="#A78BFA"
           />
         </Animated.View>
@@ -249,7 +253,7 @@ export default function EstimatesSlide({ isActive = true }) {
       {/* Quote */}
       <Animated.View style={quoteAnim}>
         <Text style={styles.quote}>
-          "No more guessing. No more spreadsheets."
+          {t('estimatesSlide.quote')}
         </Text>
       </Animated.View>
     </ScrollView>

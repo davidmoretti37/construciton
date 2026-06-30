@@ -31,6 +31,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
 const ENABLED = process.env.EXPO_PUBLIC_FOREMAN_TRANSPARENT_REASONING !== 'false';
 
@@ -79,6 +80,7 @@ function StatusDot({ status, size = 7 }) {
 }
 
 export default function ReasoningTrail({ toolTrail = [], planSteps = [], isStreaming = false, colors }) {
+  const { t } = useTranslation('common');
   const [expanded, setExpanded] = useState(true);
   const collapseTimer = useRef(null);
 
@@ -122,8 +124,8 @@ export default function ReasoningTrail({ toolTrail = [], planSteps = [], isStrea
     const toolCount = toolTrail.length; // count all; status is incidental
     const stepDone = planSteps.filter(s => s.status === 'completed').length;
     const summary = [
-      hasTools ? `${toolCount} tool${toolCount === 1 ? '' : 's'}` : null,
-      hasSteps ? `${stepDone}/${planSteps.length} steps` : null,
+      hasTools ? t('reasoningTrail.toolCount', { count: toolCount }) : null,
+      hasSteps ? t('reasoningTrail.steps', { done: stepDone, total: planSteps.length }) : null,
     ].filter(Boolean).join(' · ');
     return (
       <TouchableOpacity onPress={() => setExpanded(true)} style={styles.collapsedRow} activeOpacity={0.7}>
@@ -193,7 +195,7 @@ export default function ReasoningTrail({ toolTrail = [], planSteps = [], isStrea
       {!isStreaming && (
         <TouchableOpacity onPress={() => setExpanded(false)} style={styles.collapseHint} activeOpacity={0.6}>
           <Ionicons name="chevron-up" size={11} color={C.secondaryText || '#9CA3AF'} />
-          <Text style={styles.collapseHintText}>hide</Text>
+          <Text style={styles.collapseHintText}>{t('reasoningTrail.hide')}</Text>
         </TouchableOpacity>
       )}
     </View>

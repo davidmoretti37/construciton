@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { LightColors, DarkColors } from '../constants/theme';
 import * as api from '../services/subsService';
+import { useTranslation } from 'react-i18next';
 
 const DOC_TYPE_LABELS = {
   w9: 'IRS Form W-9',
@@ -30,8 +31,8 @@ const DOC_TYPE_LABELS = {
   msa: 'Master Subcontract Agreement',
 };
 
-function prettyDocType(t) {
-  return DOC_TYPE_LABELS[t] || (t || '').toUpperCase();
+function prettyDocType(docType) {
+  return DOC_TYPE_LABELS[docType] || (docType || '').toUpperCase();
 }
 
 function invStatusPill(status) {
@@ -52,6 +53,7 @@ export default function EngagementDetailScreen({ route, navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = isDark ? DarkColors : LightColors;
   const styles = makeStyles(Colors);
+  const { t } = useTranslation('common');
 
   const [engagement, setEngagement] = useState(null);
   const [compliance, setCompliance] = useState({ passes: true, blockers: [], warnings: [] });
@@ -76,18 +78,18 @@ export default function EngagementDetailScreen({ route, navigation }) {
 
   const onMarkPaid = (inv) => {
     Alert.alert(
-      'Mark as paid?',
-      `Mark this $${Number(inv.total_amount).toLocaleString()} invoice paid? The sub will be notified.`,
+      t('engagementDetail.markAsPaidTitle'),
+      t('engagementDetail.markAsPaidBody', { amount: '$' + Number(inv.total_amount).toLocaleString() }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('buttons.cancel'), style: 'cancel' },
         {
-          text: 'Mark paid',
+          text: t('engagementDetail.markPaid'),
           onPress: async () => {
             try {
               await api.markInvoicePaid(engagement_id, inv.id);
               await load();
             } catch (e) {
-              Alert.alert('Could not mark paid', e.message || 'Try again');
+              Alert.alert(t('engagementDetail.couldNotMarkPaid'), e.message || t('engagementDetail.tryAgain'));
             }
           },
         },
@@ -107,7 +109,7 @@ export default function EngagementDetailScreen({ route, navigation }) {
         fileType: 'pdf',
       });
     } catch (e) {
-      Alert.alert('Could not open', e.message || 'Try again');
+      Alert.alert(t('engagementDetail.couldNotOpen'), e.message || t('engagementDetail.tryAgain'));
     } finally {
       setOpeningInvoiceId(null);
     }
@@ -116,11 +118,11 @@ export default function EngagementDetailScreen({ route, navigation }) {
   const onSaveDates = async () => {
     const isValidDate = (s) => !s || /^\d{4}-\d{2}-\d{2}$/.test(s.trim());
     if (!isValidDate(mobDate) || !isValidDate(endDate)) {
-      Alert.alert('Invalid date', 'Use the format YYYY-MM-DD (e.g. 2026-05-15) or leave blank.');
+      Alert.alert(t('engagementDetail.invalidDateTitle'), t('engagementDetail.invalidDateBody'));
       return;
     }
     if (mobDate.trim() && endDate.trim() && mobDate.trim() > endDate.trim()) {
-      Alert.alert('Date order', 'Completion date must be on or after the mobilization date.');
+      Alert.alert(t('engagementDetail.dateOrderTitle'), t('engagementDetail.dateOrderBody'));
       return;
     }
     setSavingDates(true);
@@ -132,7 +134,7 @@ export default function EngagementDetailScreen({ route, navigation }) {
       await load();
       setDatesModalOpen(false);
     } catch (e) {
-      Alert.alert('Could not save', e.message || 'Try again');
+      Alert.alert(t('engagementDetail.couldNotSave'), e.message || t('engagementDetail.tryAgain'));
     } finally {
       setSavingDates(false);
     }
@@ -177,7 +179,7 @@ export default function EngagementDetailScreen({ route, navigation }) {
       setPaymentReference('');
       load();
     } catch (e) {
-      Alert.alert('Failed', e.message);
+      Alert.alert(t('engagementDetail.failed'), e.message);
     }
   };
 
@@ -187,9 +189,9 @@ export default function EngagementDetailScreen({ route, navigation }) {
         contract_type: 'msa',
         title: 'Master Subcontract Agreement',
       });
-      Alert.alert('Sent', 'Master Subcontract emailed to sub for signature.');
+      Alert.alert(t('engagementDetail.sentTitle'), t('engagementDetail.msaSentBody'));
     } catch (e) {
-      Alert.alert('Failed', e.message);
+      Alert.alert(t('engagementDetail.failed'), e.message);
     }
   };
 
@@ -204,7 +206,7 @@ export default function EngagementDetailScreen({ route, navigation }) {
   if (!engagement) {
     return (
       <SafeAreaView style={[styles.root, styles.center, { backgroundColor: Colors.background }]}>
-        <Text style={{ color: Colors.primaryText }}>Engagement not found</Text>
+        <Text style={{ color: Colors.primaryText }}>{t('engagementDetail.notFound')}</Text>
       </SafeAreaView>
     );
   }
@@ -216,7 +218,7 @@ export default function EngagementDetailScreen({ route, navigation }) {
           <Ionicons name="chevron-back" size={26} color={Colors.primaryText} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.heading}>{engagement.sub?.legal_name || 'Subcontractor'}</Text>
+          <Text style={styles.heading}>{engagement.sub?.legal_name || t('engagementDetail.subcontractorFallback')}</Text>
           <Text style={styles.meta}>{engagement.trade} · {engagement.status}</Text>
         </View>
       </View>
@@ -230,10 +232,10 @@ export default function EngagementDetailScreen({ route, navigation }) {
           <View style={styles.complianceCard}>
             <View style={styles.complianceHeader}>
               <Ionicons name="shield-checkmark-outline" size={16} color={Colors.secondaryText} />
-              <Text style={styles.complianceTitle}>Compliance</Text>
+              <Text style={styles.complianceTitle}>{t('engagementDetail.compliance')}</Text>
               <View style={{ flex: 1 }} />
               <Text style={styles.complianceMeta}>
-                {(compliance.blockers || []).length + (compliance.warnings || []).length} item{((compliance.blockers || []).length + (compliance.warnings || []).length) === 1 ? '' : 's'}
+                {t('engagementDetail.itemCount', { count: (compliance.blockers || []).length + (compliance.warnings || []).length })}
               </Text>
             </View>
             {[...(compliance.blockers || []), ...(compliance.warnings || [])].map((issue, idx) => {
@@ -263,7 +265,7 @@ export default function EngagementDetailScreen({ route, navigation }) {
               );
             })}
             <Text style={styles.complianceFootnote}>
-              These are heads-ups — payment isn't blocked. Tap a row to request the doc from the sub.
+              {t('engagementDetail.complianceFootnote')}
             </Text>
           </View>
         )}
@@ -271,18 +273,18 @@ export default function EngagementDetailScreen({ route, navigation }) {
         {/* Balance card */}
         {balance && (
           <View style={styles.balanceCard}>
-            <Text style={styles.balanceLabel}>Contract</Text>
+            <Text style={styles.balanceLabel}>{t('engagementDetail.contract')}</Text>
             <Text style={styles.balanceValue}>${Number(balance.contract_amount).toLocaleString()}</Text>
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceMeta}>Invoiced</Text>
+              <Text style={styles.balanceMeta}>{t('engagementDetail.invoiced')}</Text>
               <Text style={styles.balanceMeta}>${Number(balance.invoiced_amount).toLocaleString()}</Text>
             </View>
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceMeta}>Paid</Text>
+              <Text style={styles.balanceMeta}>{t('engagementDetail.paid')}</Text>
               <Text style={styles.balanceMeta}>${Number(balance.paid_amount).toLocaleString()}</Text>
             </View>
             <View style={styles.balanceRow}>
-              <Text style={[styles.balanceMeta, { fontWeight: '700' }]}>Outstanding</Text>
+              <Text style={[styles.balanceMeta, { fontWeight: '700' }]}>{t('engagementDetail.outstanding')}</Text>
               <Text style={[styles.balanceMeta, { fontWeight: '700', color: Colors.primaryText }]}>
                 ${Number(balance.outstanding).toLocaleString()}
               </Text>
@@ -301,14 +303,14 @@ export default function EngagementDetailScreen({ route, navigation }) {
           }}
         >
           <View style={{ flex: 1 }}>
-            <Text style={styles.scheduleLabel}>Schedule</Text>
+            <Text style={styles.scheduleLabel}>{t('engagementDetail.schedule')}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
               <Text style={styles.scheduleDate}>
-                {fmtDate(engagement.mobilization_date) || <Text style={styles.scheduleDatePending}>Set start</Text>}
+                {fmtDate(engagement.mobilization_date) || <Text style={styles.scheduleDatePending}>{t('engagementDetail.setStart')}</Text>}
               </Text>
               <Ionicons name="arrow-forward" size={14} color={Colors.secondaryText} style={{ marginHorizontal: 8 }} />
               <Text style={styles.scheduleDate}>
-                {fmtDate(engagement.completion_target_date) || <Text style={styles.scheduleDatePending}>Set end</Text>}
+                {fmtDate(engagement.completion_target_date) || <Text style={styles.scheduleDatePending}>{t('engagementDetail.setEnd')}</Text>}
               </Text>
             </View>
           </View>
@@ -319,34 +321,34 @@ export default function EngagementDetailScreen({ route, navigation }) {
         <View style={styles.actionRow}>
           <TouchableOpacity style={styles.actionBtn} onPress={onRequestMSA} activeOpacity={0.7}>
             <Ionicons name="document-text-outline" size={16} color={Colors.primaryText} style={{ marginRight: 6 }} />
-            <Text style={styles.actionBtnText}>Send MSA</Text>
+            <Text style={styles.actionBtnText}>{t('engagementDetail.sendMsa')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionBtn} onPress={() => setPaymentModalOpen(true)} activeOpacity={0.7}>
             <Ionicons name="cash-outline" size={16} color={Colors.primaryText} style={{ marginRight: 6 }} />
-            <Text style={styles.actionBtnText}>Record payment</Text>
+            <Text style={styles.actionBtnText}>{t('engagementDetail.recordPayment')}</Text>
           </TouchableOpacity>
         </View>
 
         {tasks.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>Tasks</Text>
-            {tasks.map((t) => {
-              const done = t.status === 'completed';
+            <Text style={styles.sectionTitle}>{t('engagementDetail.tasks')}</Text>
+            {tasks.map((task) => {
+              const done = task.status === 'completed';
               return (
-                <View key={t.id} style={styles.taskRow}>
+                <View key={task.id} style={styles.taskRow}>
                   <View style={[styles.taskCheck, done && { backgroundColor: Colors.successGreen, borderColor: Colors.successGreen }]}>
                     {done ? <Ionicons name="checkmark" size={12} color="#fff" /> : null}
                   </View>
                   <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={[styles.taskTitle, done && { color: Colors.secondaryText, textDecorationLine: 'line-through' }]} numberOfLines={2}>
-                      {t.title}
+                      {task.title}
                     </Text>
-                    {t.description ? (
-                      <Text style={styles.taskDesc} numberOfLines={2}>{t.description}</Text>
+                    {task.description ? (
+                      <Text style={styles.taskDesc} numberOfLines={2}>{task.description}</Text>
                     ) : null}
-                    {(t.start_date || t.end_date) ? (
+                    {(task.start_date || task.end_date) ? (
                       <Text style={styles.taskDates}>
-                        {fmtDate(t.start_date) || '?'}{t.end_date ? ` → ${fmtDate(t.end_date)}` : ''}
+                        {fmtDate(task.start_date) || '?'}{task.end_date ? ` → ${fmtDate(task.end_date)}` : ''}
                       </Text>
                     ) : null}
                   </View>
@@ -356,11 +358,11 @@ export default function EngagementDetailScreen({ route, navigation }) {
           </>
         )}
 
-        <Text style={styles.sectionTitle}>Invoices from sub</Text>
+        <Text style={styles.sectionTitle}>{t('engagementDetail.invoicesFromSub')}</Text>
         {invoices.length === 0 ? (
           <View style={styles.invoicesEmpty}>
             <Ionicons name="cash-outline" size={22} color={Colors.secondaryText} />
-            <Text style={styles.invoicesEmptyText}>No invoices yet — sub uploads invoices from their Jobs tab.</Text>
+            <Text style={styles.invoicesEmptyText}>{t('engagementDetail.noInvoices')}</Text>
           </View>
         ) : (
           <>
@@ -372,17 +374,17 @@ export default function EngagementDetailScreen({ route, navigation }) {
               return (
                 <View style={styles.invoiceOverview}>
                   <View style={styles.invoiceStat}>
-                    <Text style={styles.invoiceStatLabel}>Invoiced</Text>
+                    <Text style={styles.invoiceStatLabel}>{t('engagementDetail.invoiced')}</Text>
                     <Text style={styles.invoiceStatValue}>${totalInvoiced.toLocaleString()}</Text>
                   </View>
                   <View style={styles.invoiceStatSep} />
                   <View style={styles.invoiceStat}>
-                    <Text style={styles.invoiceStatLabel}>Paid</Text>
+                    <Text style={styles.invoiceStatLabel}>{t('engagementDetail.paid')}</Text>
                     <Text style={[styles.invoiceStatValue, { color: '#10B981' }]}>${totalPaid.toLocaleString()}</Text>
                   </View>
                   <View style={styles.invoiceStatSep} />
                   <View style={styles.invoiceStat}>
-                    <Text style={styles.invoiceStatLabel}>Outstanding</Text>
+                    <Text style={styles.invoiceStatLabel}>{t('engagementDetail.outstanding')}</Text>
                     <Text style={[styles.invoiceStatValue, outstanding > 0 && { color: '#F59E0B' }]}>${outstanding.toLocaleString()}</Text>
                   </View>
                 </View>
@@ -413,9 +415,9 @@ export default function EngagementDetailScreen({ route, navigation }) {
                     </View>
                     <Text style={styles.invoiceMeta} numberOfLines={1}>
                       {inv.invoice_number ? `#${inv.invoice_number}` : `#${inv.id.slice(0, 6)}`}
-                      {inv.submitted_at ? `  ·  Sent ${new Date(inv.submitted_at).toLocaleDateString()}` : ''}
-                      {inv.due_at ? `  ·  Due ${new Date(inv.due_at).toLocaleDateString()}` : ''}
-                      {inv.paid_at ? `  ·  Paid ${new Date(inv.paid_at).toLocaleDateString()}` : ''}
+                      {inv.submitted_at ? `  ·  ${t('engagementDetail.sentDate', { date: new Date(inv.submitted_at).toLocaleDateString() })}` : ''}
+                      {inv.due_at ? `  ·  ${t('engagementDetail.dueDate', { date: new Date(inv.due_at).toLocaleDateString() })}` : ''}
+                      {inv.paid_at ? `  ·  ${t('engagementDetail.paidDate', { date: new Date(inv.paid_at).toLocaleDateString() })}` : ''}
                     </Text>
                     {inv.status !== 'paid' && (
                       <TouchableOpacity
@@ -424,7 +426,7 @@ export default function EngagementDetailScreen({ route, navigation }) {
                         onPress={(e) => { e.stopPropagation?.(); onMarkPaid(inv); }}
                       >
                         <Ionicons name="checkmark-circle-outline" size={14} color="#10B981" />
-                        <Text style={styles.markPaidPillText}>Mark paid</Text>
+                        <Text style={styles.markPaidPillText}>{t('engagementDetail.markPaid')}</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -443,8 +445,8 @@ export default function EngagementDetailScreen({ route, navigation }) {
       <Modal visible={paymentModalOpen} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Record payment</Text>
-            <Text style={styles.label}>Amount</Text>
+            <Text style={styles.modalTitle}>{t('engagementDetail.recordPayment')}</Text>
+            <Text style={styles.label}>{t('engagementDetail.amount')}</Text>
             <TextInput
               value={paymentAmount}
               onChangeText={setPaymentAmount}
@@ -452,7 +454,7 @@ export default function EngagementDetailScreen({ route, navigation }) {
               keyboardType="decimal-pad"
               style={styles.input}
             />
-            <Text style={styles.label}>Method</Text>
+            <Text style={styles.label}>{t('engagementDetail.method')}</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
               {['check', 'ach', 'zelle', 'venmo', 'wire', 'cash'].map((m) => (
                 <TouchableOpacity
@@ -467,7 +469,7 @@ export default function EngagementDetailScreen({ route, navigation }) {
                 </TouchableOpacity>
               ))}
             </View>
-            <Text style={styles.label}>Reference (check #, etc.)</Text>
+            <Text style={styles.label}>{t('engagementDetail.reference')}</Text>
             <TextInput
               value={paymentReference}
               onChangeText={setPaymentReference}
@@ -476,10 +478,10 @@ export default function EngagementDetailScreen({ route, navigation }) {
             />
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
               <TouchableOpacity style={[styles.modalBtn, { backgroundColor: Colors.lightGray }]} onPress={() => setPaymentModalOpen(false)}>
-                <Text style={{ color: Colors.primaryText, fontWeight: '600' }}>Cancel</Text>
+                <Text style={{ color: Colors.primaryText, fontWeight: '600' }}>{t('buttons.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.modalBtn, { backgroundColor: Colors.successGreen }]} onPress={onRecordPayment}>
-                <Text style={{ color: '#fff', fontWeight: '700' }}>Save</Text>
+                <Text style={{ color: '#fff', fontWeight: '700' }}>{t('buttons.save')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -492,13 +494,13 @@ export default function EngagementDetailScreen({ route, navigation }) {
           <View style={[styles.scheduleSheet, { backgroundColor: Colors.cardBackground || '#fff' }]}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>Schedule this job</Text>
+              <Text style={styles.sheetTitle}>{t('engagementDetail.scheduleThisJob')}</Text>
               <TouchableOpacity onPress={() => !savingDates && setDatesModalOpen(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Ionicons name="close" size={22} color={Colors.secondaryText} />
               </TouchableOpacity>
             </View>
             <Text style={styles.sheetSubtitle}>
-              When does Lana start and when's it due? The sub sees these dates on their job package.
+              {t('engagementDetail.scheduleSubtitle')}
             </Text>
 
             {/* Mobilization */}
@@ -511,9 +513,9 @@ export default function EngagementDetailScreen({ route, navigation }) {
                 <Ionicons name="play-outline" size={16} color={Colors.primaryText} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.dateFieldLabel}>Mobilization</Text>
+                <Text style={styles.dateFieldLabel}>{t('engagementDetail.mobilization')}</Text>
                 <Text style={[styles.dateFieldValue, !mobDate && styles.dateFieldEmpty]}>
-                  {mobDate ? new Date(mobDate + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'Tap to set'}
+                  {mobDate ? new Date(mobDate + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : t('engagementDetail.tapToSet')}
                 </Text>
               </View>
               {mobDate ? (
@@ -535,9 +537,9 @@ export default function EngagementDetailScreen({ route, navigation }) {
                 <Ionicons name="flag-outline" size={16} color={Colors.primaryText} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.dateFieldLabel}>Completion</Text>
+                <Text style={styles.dateFieldLabel}>{t('engagementDetail.completion')}</Text>
                 <Text style={[styles.dateFieldValue, !endDate && styles.dateFieldEmpty]}>
-                  {endDate ? new Date(endDate + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'Tap to set'}
+                  {endDate ? new Date(endDate + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : t('engagementDetail.tapToSet')}
                 </Text>
               </View>
               {endDate ? (
@@ -573,7 +575,7 @@ export default function EngagementDetailScreen({ route, navigation }) {
                 />
                 {Platform.OS === 'ios' && (
                   <TouchableOpacity onPress={() => setPickerField(null)} style={styles.iosPickerDone}>
-                    <Text style={styles.iosPickerDoneText}>Done</Text>
+                    <Text style={styles.iosPickerDoneText}>{t('buttons.done')}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -586,7 +588,7 @@ export default function EngagementDetailScreen({ route, navigation }) {
                 disabled={savingDates}
                 activeOpacity={0.7}
               >
-                <Text style={styles.sheetCancelText}>Cancel</Text>
+                <Text style={styles.sheetCancelText}>{t('buttons.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.sheetSave, savingDates && { opacity: 0.6 }]}
@@ -597,7 +599,7 @@ export default function EngagementDetailScreen({ route, navigation }) {
                 {savingDates ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.sheetSaveText}>Save schedule</Text>
+                  <Text style={styles.sheetSaveText}>{t('engagementDetail.saveSchedule')}</Text>
                 )}
               </TouchableOpacity>
             </View>

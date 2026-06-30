@@ -46,7 +46,7 @@ export default function ContractPreview({ data, onAction }) {
 
   const sendToClientPortal = async () => {
     if (!data?.id) {
-      Alert.alert('Save First', 'Please save the contract before sending to client.');
+      Alert.alert(t('contractPreview.saveFirstTitle'), t('contractPreview.saveFirstMessage'));
       return;
     }
     if (onAction) {
@@ -60,8 +60,8 @@ export default function ContractPreview({ data, onAction }) {
 
       if (Platform.OS === 'ios') {
         const options = canSendToPortal
-          ? ['Cancel', 'Send to Client Portal', 'Share Document', 'Copy Link']
-          : ['Cancel', 'Share Document', 'Copy Link'];
+          ? [tCommon('buttons.cancel'), t('contractPreview.sendToClientPortal'), t('contract.shareDocument'), t('contract.copyLink')]
+          : [tCommon('buttons.cancel'), t('contract.shareDocument'), t('contract.copyLink')];
         ActionSheetIOS.showActionSheetWithOptions(
           { options, cancelButtonIndex: 0 },
           async (buttonIndex) => {
@@ -78,7 +78,7 @@ export default function ContractPreview({ data, onAction }) {
       } else {
         const buttons = [{ text: tCommon('buttons.cancel'), style: 'cancel' }];
         if (canSendToPortal) {
-          buttons.push({ text: 'Send to Client Portal', onPress: sendToClientPortal });
+          buttons.push({ text: t('contractPreview.sendToClientPortal'), onPress: sendToClientPortal });
         }
         buttons.push({
           text: t('contract.shareDocument'),
@@ -101,7 +101,7 @@ export default function ContractPreview({ data, onAction }) {
       if (file_type === 'image') {
         // For images, share the URL directly
         await Share.share({
-          message: `Contract: ${file_name}`,
+          message: t('contractPreview.contractShareMessage', { fileName: file_name }),
           url: file_url,
         });
       } else {
@@ -110,7 +110,7 @@ export default function ContractPreview({ data, onAction }) {
         const downloadResult = await FileSystem.downloadAsync(file_url, fileUri);
 
         await Share.share({
-          message: `Contract: ${file_name}`,
+          message: t('contractPreview.contractShareMessage', { fileName: file_name }),
           url: downloadResult.uri,
         });
       }

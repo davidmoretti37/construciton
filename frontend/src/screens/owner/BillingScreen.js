@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchBillingPreview, createInvoiceFromPlan } from '../../utils/storage/serviceRoutes';
@@ -24,6 +25,7 @@ export default function BillingScreen({ route: navRoute }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const navigation = useNavigation();
+  const { t } = useTranslation('owner');
 
   // Default period: current month
   const now = new Date();
@@ -75,29 +77,29 @@ export default function BillingScreen({ route: navRoute }) {
 
   const handleCreateInvoice = async () => {
     if (!preview || preview.total_visits === 0) {
-      Alert.alert('No Visits', 'There are no billable visits in this period.');
+      Alert.alert(t('billing.noVisitsTitle'), t('billing.noVisitsMessage'));
       return;
     }
 
     Alert.alert(
-      'Create Invoice',
-      `Create invoice for $${preview.total_amount?.toFixed(2) ?? '0.00'} (${preview.total_visits} visits)?`,
+      t('billing.createInvoiceAlertTitle'),
+      t('billing.createInvoiceConfirm', { amount: preview.total_amount?.toFixed(2) ?? '0.00', visits: preview.total_visits }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
         {
-          text: 'Create',
+          text: t('billing.createButton'),
           onPress: async () => {
             setCreating(true);
             try {
               const result = await createInvoiceFromPlan(plan.id, fromDate, toDate);
               setInvoiceCreated(result);
               Alert.alert(
-                'Invoice Created',
-                `Invoice ${result.invoice_number} for $${result.total?.toFixed(2) ?? '0.00'} — ${result.visits_invoiced} visits.`,
-                [{ text: 'OK' }]
+                t('billing.invoiceCreatedTitle'),
+                t('billing.invoiceCreatedAlertDetail', { number: result.invoice_number, amount: result.total?.toFixed(2) ?? '0.00', visits: result.visits_invoiced }),
+                [{ text: t('billing.ok') }]
               );
             } catch (e) {
-              Alert.alert('Error', e.message || 'Failed to create invoice');
+              Alert.alert(t('common:alerts.error'), e.message || t('billing.failedToCreate'));
             } finally {
               setCreating(false);
             }
@@ -108,9 +110,9 @@ export default function BillingScreen({ route: navRoute }) {
   };
 
   const billingCycleLabel = {
-    per_visit: 'Per Visit',
-    monthly: 'Monthly',
-    quarterly: 'Quarterly',
+    per_visit: t('billing.cyclePerVisit'),
+    monthly: t('billing.cycleMonthly'),
+    quarterly: t('billing.cycleQuarterly'),
   };
 
   if (!plan?.id) {
@@ -121,14 +123,14 @@ export default function BillingScreen({ route: navRoute }) {
             <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text testID="billing.title" style={[styles.headerTitle, { color: Colors.primaryText }]}>Billing</Text>
+            <Text testID="billing.title" style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('billing.title')}</Text>
           </View>
         </View>
         <View style={styles.emptyState}>
           <Ionicons name="alert-circle-outline" size={48} color={Colors.secondaryText} />
-          <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>Plan Not Found</Text>
+          <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>{t('billing.planNotFoundTitle')}</Text>
           <Text style={[styles.emptySubtitle, { color: Colors.secondaryText, textAlign: 'center' }]}>
-            No service plan was provided for billing.
+            {t('billing.planNotFoundMessage')}
           </Text>
         </View>
       </SafeAreaView>
@@ -143,7 +145,7 @@ export default function BillingScreen({ route: navRoute }) {
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text testID="billing.title" style={[styles.headerTitle, { color: Colors.primaryText }]}>Billing</Text>
+          <Text testID="billing.title" style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('billing.title')}</Text>
           <Text testID="billing.planName" style={[styles.headerSubtitle, { color: Colors.secondaryText }]} numberOfLines={1}>
             {plan?.name}
           </Text>
@@ -170,13 +172,13 @@ export default function BillingScreen({ route: navRoute }) {
             <View style={[styles.summaryCard, { backgroundColor: '#0F172A' }]}>
               <View style={styles.summaryRow}>
                 <View style={styles.summaryItem}>
-                  <Text style={styles.summaryLabel}>Total Visits</Text>
+                  <Text style={styles.summaryLabel}>{t('billing.summaryTotalVisits')}</Text>
                   <Text testID="billing.totalVisits" style={styles.summaryValue}>{preview.total_visits}</Text>
                 </View>
                 <View style={[styles.summaryDivider, { backgroundColor: 'rgba(255,255,255,0.1)' }]} />
                 <View style={styles.summaryItem}>
                   <Text style={styles.summaryLabel}>
-                    {billingCycleLabel[preview.billing_cycle] || 'Rate'}
+                    {billingCycleLabel[preview.billing_cycle] || t('billing.cycleRate')}
                   </Text>
                   <Text testID="billing.rate" style={styles.summaryValue}>
                     ${preview.rate?.toFixed(2)}
@@ -184,7 +186,7 @@ export default function BillingScreen({ route: navRoute }) {
                 </View>
                 <View style={[styles.summaryDivider, { backgroundColor: 'rgba(255,255,255,0.1)' }]} />
                 <View style={styles.summaryItem}>
-                  <Text style={styles.summaryLabel}>Total Due</Text>
+                  <Text style={styles.summaryLabel}>{t('billing.summaryTotalDue')}</Text>
                   <Text testID="billing.totalDue" style={[styles.summaryValue, { color: '#6EE7B7' }]}>
                     ${preview.total_amount?.toFixed(2)}
                   </Text>
@@ -195,7 +197,7 @@ export default function BillingScreen({ route: navRoute }) {
             {/* Location breakdown */}
             {preview.locations && preview.locations.length > 0 && (
               <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
-                <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>By Location</Text>
+                <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('billing.byLocation')}</Text>
                 {preview.locations.map((loc, i) => (
                   <View key={i} testID={`billing.row.${loc.location_id ?? i}`} style={[styles.locationRow, { borderColor: Colors.border }]}>
                     <View style={{ flex: 1 }}>
@@ -204,7 +206,7 @@ export default function BillingScreen({ route: navRoute }) {
                       </Text>
                     </View>
                     <Text style={[styles.locationCount, { color: Colors.secondaryText }]}>
-                      {loc.visit_count} visit{loc.visit_count !== 1 ? 's' : ''}
+                      {t('billing.visitCount', { count: loc.visit_count })}
                     </Text>
                   </View>
                 ))}
@@ -215,9 +217,9 @@ export default function BillingScreen({ route: navRoute }) {
             {preview.total_visits === 0 && (
               <View style={styles.emptyState}>
                 <Ionicons name="receipt-outline" size={48} color={Colors.secondaryText} />
-                <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>No Billable Visits</Text>
+                <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>{t('billing.noBillableVisitsTitle')}</Text>
                 <Text style={[styles.emptySubtitle, { color: Colors.secondaryText }]}>
-                  No completed, unbilled visits found for this period.
+                  {t('billing.noBillableVisitsMessage')}
                 </Text>
               </View>
             )}
@@ -237,7 +239,7 @@ export default function BillingScreen({ route: navRoute }) {
                   <>
                     <Ionicons name="document-text" size={20} color="#fff" />
                     <Text style={styles.createBtnText}>
-                      Create Invoice — ${preview.total_amount?.toFixed(2)}
+                      {t('billing.createInvoiceAmount', { amount: preview.total_amount?.toFixed(2) })}
                     </Text>
                   </>
                 )}
@@ -249,7 +251,7 @@ export default function BillingScreen({ route: navRoute }) {
               <View style={[styles.successCard, { backgroundColor: '#ECFDF5' }]}>
                 <Ionicons name="checkmark-circle" size={24} color="#059669" />
                 <View>
-                  <Text testID="billing.successTitle" style={styles.successTitle}>Invoice Created</Text>
+                  <Text testID="billing.successTitle" style={styles.successTitle}>{t('billing.invoiceCreatedTitle')}</Text>
                   <Text testID="billing.invoiceDetail" style={styles.successDetail}>
                     {invoiceCreated.invoice_number} — ${invoiceCreated.total?.toFixed(2)}
                   </Text>
@@ -261,14 +263,14 @@ export default function BillingScreen({ route: navRoute }) {
           <View style={styles.emptyState}>
             <Ionicons name="cloud-offline-outline" size={48} color={Colors.secondaryText} />
             <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>
-              {loadError ? 'Failed to Load' : 'No Data'}
+              {loadError ? t('billing.failedToLoad') : t('billing.noData')}
             </Text>
             <Text style={[styles.emptySubtitle, { color: Colors.secondaryText, textAlign: 'center' }]}>
-              Failed to load billing preview
+              {t('billing.failedToLoadMessage')}
             </Text>
             <TouchableOpacity testID="billing.retryButton" accessibilityLabel="Retry" style={styles.retryBtn} onPress={loadPreview}>
               <Ionicons name="refresh" size={18} color="#fff" />
-              <Text style={styles.createBtnText}>Retry</Text>
+              <Text style={styles.createBtnText}>{t('common:buttons.retry')}</Text>
             </TouchableOpacity>
           </View>
         )}

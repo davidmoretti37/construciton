@@ -412,7 +412,7 @@ export default function OwnerDashboardScreen() {
         icon: 'time',
         color: ACCENT.warning,
         bg: `${ACCENT.warning}12`,
-        text: `${forgottenCount} team member${forgottenCount > 1 ? 's' : ''} may have forgotten to clock out (${names}${forgottenCount > 3 ? '...' : ''})`,
+        text: t('ownerDashboard.forgottenClockout', { count: forgottenCount, names: `${names}${forgottenCount > 3 ? '...' : ''}` }),
         onPress: () => navigation.navigate('ClockOuts'),
       });
     }
@@ -782,11 +782,11 @@ export default function OwnerDashboardScreen() {
       {editMode && (
         <View style={styles.editHeader}>
           <TouchableOpacity testID="ownerDashboard.resetButton" accessibilityLabel="Reset dashboard layout" onPress={handleReset}>
-            <Text style={styles.editHeaderReset}>Reset</Text>
+            <Text style={styles.editHeaderReset}>{t('ownerDashboard.editReset')}</Text>
           </TouchableOpacity>
-          <Text testID="ownerDashboard.editHeaderTitle" style={styles.editHeaderTitle}>Editing Dashboard</Text>
+          <Text testID="ownerDashboard.editHeaderTitle" style={styles.editHeaderTitle}>{t('ownerDashboard.editingDashboard')}</Text>
           <TouchableOpacity testID="ownerDashboard.doneButton" accessibilityLabel="Done editing" onPress={exitEditMode}>
-            <Text style={styles.editHeaderDone}>Done</Text>
+            <Text style={styles.editHeaderDone}>{t('common:buttons.done')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -818,7 +818,7 @@ export default function OwnerDashboardScreen() {
                 <View style={styles.addSlotIconCircle}>
                   <Ionicons name="add" size={20} color="#FFFFFF" />
                 </View>
-                <Text style={styles.addSlotText}>Add a widget</Text>
+                <Text style={styles.addSlotText}>{t('ownerDashboard.addWidget')}</Text>
                 <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.85)" />
               </TouchableOpacity>
               <View style={{ height: 100 }} />
@@ -846,8 +846,8 @@ export default function OwnerDashboardScreen() {
             >
               <Ionicons name="alert-circle" size={18} color={ACCENT.error} />
               <View style={styles.errorTextWrap}>
-                <Text style={styles.errorTitle}>Couldn't load dashboard</Text>
-                <Text style={styles.errorSubtitle}>Some stats may be out of date. Tap to retry.</Text>
+                <Text style={styles.errorTitle}>{t('ownerDashboard.errorTitle')}</Text>
+                <Text style={styles.errorSubtitle}>{t('ownerDashboard.errorSubtitle')}</Text>
               </View>
               <Ionicons name="refresh" size={18} color={ACCENT.error} />
             </TouchableOpacity>
@@ -863,32 +863,32 @@ export default function OwnerDashboardScreen() {
             style={styles.companyCard}
           >
             <View style={styles.companyHeader}>
-              <Text testID="ownerDashboard.companyName" style={styles.companyName}>{businessName || 'My Company'}</Text>
+              <Text testID="ownerDashboard.companyName" style={styles.companyName}>{businessName || t('ownerDashboard.myCompanyFallback')}</Text>
             </View>
 
             <View style={styles.companyStats}>
               <View style={styles.companyStat}>
-                <Text style={styles.companyStatLabel}>Overhead</Text>
+                <Text style={styles.companyStatLabel}>{t('ownerDashboard.statOverhead')}</Text>
                 <Text testID="ownerDashboard.overheadAmount" style={[styles.companyStatValue, { color: '#FCA5A5' }]}>
                   ${Math.round(monthlyOverhead).toLocaleString('en-US')}
                 </Text>
-                <Text style={styles.companyStatSuffix}>/month</Text>
+                <Text style={styles.companyStatSuffix}>{t('ownerDashboard.perMonth')}</Text>
               </View>
               <View style={styles.companyStatDivider} />
               <View style={styles.companyStat}>
-                <Text style={styles.companyStatLabel}>Revenue</Text>
+                <Text style={styles.companyStatLabel}>{t('ownerDashboard.statRevenue')}</Text>
                 <Text testID="ownerDashboard.revenueAmount" style={[styles.companyStatValue, { color: '#6EE7B7' }]}>
                   ${Math.round(pnl.revenue).toLocaleString('en-US')}
                 </Text>
-                <Text style={styles.companyStatSuffix}>all time</Text>
+                <Text style={styles.companyStatSuffix}>{t('ownerDashboard.allTime')}</Text>
               </View>
               <View style={styles.companyStatDivider} />
               <View style={styles.companyStat}>
-                <Text style={styles.companyStatLabel}>Gross Profit</Text>
+                <Text style={styles.companyStatLabel}>{t('ownerDashboard.statGrossProfit')}</Text>
                 <Text testID="ownerDashboard.grossProfitAmount" style={[styles.companyStatValue, { color: pnl.profit >= 0 ? '#6EE7B7' : '#FCA5A5' }]}>
                   ${Math.round(pnl.profit).toLocaleString('en-US')}
                 </Text>
-                <Text style={styles.companyStatSuffix}>all time</Text>
+                <Text style={styles.companyStatSuffix}>{t('ownerDashboard.allTime')}</Text>
               </View>
             </View>
 
@@ -900,12 +900,12 @@ export default function OwnerDashboardScreen() {
                   const isModerate = ratio >= 20 && ratio < 35;
                   const color = isHealthy ? '#6EE7B7' : isModerate ? '#FBBF24' : '#FCA5A5';
                   const bgColor = isHealthy ? 'rgba(16,185,129,0.15)' : isModerate ? 'rgba(251,191,36,0.15)' : 'rgba(244,63,94,0.15)';
-                  const label = isHealthy ? 'Healthy' : isModerate ? 'Moderate' : 'High';
+                  const label = isHealthy ? t('ownerDashboard.overheadLabelHealthy') : isModerate ? t('ownerDashboard.overheadLabelModerate') : t('ownerDashboard.overheadLabelHigh');
                   return (
                     <View style={[styles.companyRatioPill, { backgroundColor: bgColor }]}>
                       <View style={[styles.companyRatioDot, { backgroundColor: color }]} />
                       <Text testID="ownerDashboard.overheadRatio" style={[styles.companyRatioText, { color }]}>
-                        Overhead {ratio}% — {label}
+                        {t('ownerDashboard.overheadRatioDisplay', { ratio, label })}
                       </Text>
                     </View>
                   );
@@ -914,7 +914,7 @@ export default function OwnerDashboardScreen() {
             )}
 
             <View style={styles.companyBadge}>
-              <Text style={styles.companyBadgeText}>Manage Overhead</Text>
+              <Text style={styles.companyBadgeText}>{t('ownerDashboard.manageOverhead')}</Text>
               <Ionicons name="chevron-forward" size={13} color="#38BDF8" />
             </View>
           </TouchableOpacity>

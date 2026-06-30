@@ -11,11 +11,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchDashboard } from '../../services/clientPortalApi';
 
 export default function ClientMessagesListScreen({ navigation }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const [loading, setLoading] = useState(true);
@@ -49,7 +51,7 @@ export default function ClientMessagesListScreen({ navigation }) {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
       <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Messages</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('clientMessagesList.title')}</Text>
       </View>
 
       <ScrollView
@@ -59,8 +61,8 @@ export default function ClientMessagesListScreen({ navigation }) {
         {projects.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="chatbubbles-outline" size={64} color={Colors.secondaryText} />
-            <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>No conversations</Text>
-            <Text style={[styles.emptySubtext, { color: Colors.secondaryText }]}>Messages will appear when you have active projects</Text>
+            <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>{t('clientMessagesList.emptyTitle')}</Text>
+            <Text style={[styles.emptySubtext, { color: Colors.secondaryText }]}>{t('clientMessagesList.emptySubtext')}</Text>
           </View>
         ) : (
           projects.map((project) => (
@@ -74,7 +76,7 @@ export default function ClientMessagesListScreen({ navigation }) {
                 <Ionicons name={project.isServicePlan ? 'leaf' : 'briefcase'} size={20} color={project.isServicePlan ? '#059669' : '#2563EB'} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.projectName, { color: Colors.primaryText }]} numberOfLines={1}>{businessName || 'Your Contractor'}</Text>
+                <Text style={[styles.projectName, { color: Colors.primaryText }]} numberOfLines={1}>{businessName || t('clientMessagesList.yourContractor')}</Text>
                 <Text style={[styles.tapToChat, { color: Colors.secondaryText }]} numberOfLines={1}>{project.name}</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />

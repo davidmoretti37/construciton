@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   View,
   Text,
@@ -59,6 +60,7 @@ const ACTION_CONFIG = {
 };
 
 const QuickActionSheet = ({ visible, actionType, onClose, onSubmit, onPhotoExtract }) => {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const insets = useSafeAreaInsets();
@@ -134,18 +136,18 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit, onPhotoExtra
    */
   const handleSnap = async () => {
     const promptCopy = actionType === 'project'
-      ? 'Take a photo of a project brief, sketch, or notes — we\'ll pull out client, scope, phases, and amount.'
-      : 'Take a photo of a blueprint, sketch, or handwritten notes — we\'ll extract line items.';
-    Alert.alert('Snap to extract', promptCopy, [
-      { text: 'Take Photo', onPress: async () => {
+      ? t('quickActionSheet.snapPromptProject')
+      : t('quickActionSheet.snapPromptEstimate');
+    Alert.alert(t('quickActionSheet.snapToExtract'), promptCopy, [
+      { text: t('quickActionSheet.takePhoto'), onPress: async () => {
         const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
         if (!result.canceled && result.assets?.[0]) await runPhotoExtract(result.assets[0].uri);
       }},
-      { text: 'Choose from Gallery', onPress: async () => {
+      { text: t('quickActionSheet.chooseFromGallery'), onPress: async () => {
         const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
         if (!result.canceled && result.assets?.[0]) await runPhotoExtract(result.assets[0].uri);
       }},
-      { text: 'Cancel', style: 'cancel' },
+      { text: t('common:buttons.cancel'), style: 'cancel' },
     ]);
   };
 
@@ -158,7 +160,7 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit, onPhotoExtra
       if (actionType === 'estimate') {
         const r = await analyzeBlueprintForEstimate(base64);
         if (!r || !Array.isArray(r.items) || r.items.length === 0) {
-          Alert.alert('Nothing extracted', 'I couldn\'t pull line items from that photo. Try a clearer image, or describe it instead.');
+          Alert.alert(t('quickActionSheet.nothingExtracted'), t('quickActionSheet.nothingExtractedBodyEstimate'));
           return;
         }
         const items = r.items.map((it) => ({
@@ -172,7 +174,7 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit, onPhotoExtra
       } else if (actionType === 'project') {
         const r = await analyzeNotesForProject(base64);
         if (!r || (!r.projectName && !r.client && !r.task)) {
-          Alert.alert('Nothing extracted', 'I couldn\'t pull project details from that photo. Try a clearer image, or describe it instead.');
+          Alert.alert(t('quickActionSheet.nothingExtracted'), t('quickActionSheet.nothingExtractedBodyProject'));
           return;
         }
         // Map to the chatExtractedData shape ProjectBuilder hydrates from
@@ -194,7 +196,7 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit, onPhotoExtra
       setInputText('');
       if (actionType) AsyncStorage.removeItem(`@quickaction_draft_${actionType}`);
     } catch (e) {
-      Alert.alert('Couldn\'t read photo', 'Try a clearer image, or describe it manually.');
+      Alert.alert(t('quickActionSheet.couldntReadPhoto'), t('quickActionSheet.couldntReadPhotoBody'));
     } finally {
       setExtractingPhoto(false);
     }
@@ -223,7 +225,7 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit, onPhotoExtra
     try {
       const { status } = await Audio.requestPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Please allow microphone access to use voice input.');
+        Alert.alert(t('quickActionSheet.permissionRequired'), t('quickActionSheet.microphonePermissionBody'));
         return;
       }
 
@@ -247,7 +249,7 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit, onPhotoExtra
       setIsRecording(true);
     } catch (error) {
       console.error('Failed to start recording:', error);
-      Alert.alert('Error', 'Could not start recording');
+      Alert.alert(t('common:alerts.error'), t('quickActionSheet.errorStartRecording'));
     }
   };
 
@@ -317,14 +319,14 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit, onPhotoExtra
         // Append transcribed text to existing input
         setInputText(prev => prev ? `${prev} ${text}` : text);
       } else {
-        Alert.alert('No Speech Detected', 'Could not detect any speech. Please try again.');
+        Alert.alert(t('quickActionSheet.noSpeechDetected'), t('quickActionSheet.noSpeechDetectedBody'));
       }
     } catch (error) {
       console.error('Transcription error:', error);
       if (error.name === 'AbortError') {
-        Alert.alert('Timeout', 'Transcription took too long. Please try again.');
+        Alert.alert(t('quickActionSheet.transcriptionTimeout'), t('quickActionSheet.transcriptionTimeoutBody'));
       } else {
-        Alert.alert('Error', 'Could not transcribe audio');
+        Alert.alert(t('common:alerts.error'), t('quickActionSheet.transcriptionErrorBody'));
       }
     } finally {
       setIsTranscribing(false);
@@ -411,10 +413,10 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit, onPhotoExtra
                 )}
                 <Text style={{ color: OWNER_PRIMARY, fontSize: 13, fontWeight: '600' }}>
                   {extractingPhoto
-                    ? 'Reading photo…'
+                    ? t('quickActionSheet.readingPhoto')
                     : actionType === 'project'
-                      ? 'Snap project brief / sketch / notes instead'
-                      : 'Snap blueprint / sketch / notes instead'}
+                      ? t('quickActionSheet.snapProjectBrief')
+                      : t('quickActionSheet.snapBlueprint')}
                 </Text>
               </TouchableOpacity>
             )}
@@ -448,13 +450,13 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit, onPhotoExtra
                     <Animated.View style={pulseAnimatedStyle}>
                       <View style={styles.recordingIndicator}>
                         <Ionicons name="mic" size={32} color="#EF4444" />
-                        <Text style={styles.recordingText}>Recording...</Text>
+                        <Text style={styles.recordingText}>{t('quickActionSheet.recording')}</Text>
                       </View>
                     </Animated.View>
                   ) : (
                     <View style={styles.transcribingIndicator}>
                       <OrbitalLoader size={40} color={OWNER_PRIMARY} />
-                      <Text style={[styles.transcribingText, { color: OWNER_PRIMARY }]}>Transcribing...</Text>
+                      <Text style={[styles.transcribingText, { color: OWNER_PRIMARY }]}>{t('quickActionSheet.transcribing')}</Text>
                     </View>
                   )}
                 </View>
@@ -474,12 +476,12 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit, onPhotoExtra
                     </TouchableOpacity>
                     <Ionicons name="document-text-outline" size={12} color={Colors.tertiaryText || Colors.secondaryText} />
                     <Text style={[styles.notesHint, { color: Colors.tertiaryText || Colors.secondaryText }]}>
-                      Notes saved
+                      {t('quickActionSheet.notesSaved')}
                     </Text>
                   </View>
                 ) : (
                   <Text style={[styles.helperText, { color: Colors.secondaryText }]} numberOfLines={1}>
-                    Notes
+                    {t('quickActionSheet.notes')}
                   </Text>
                 )}
 
@@ -528,7 +530,7 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit, onPhotoExtra
                           { color: inputText.trim() && !isTranscribing ? '#fff' : Colors.secondaryText },
                         ]}
                       >
-                        Send
+                        {t('quickActionSheet.send')}
                       </Text>
                     </TouchableOpacity>
                   )}

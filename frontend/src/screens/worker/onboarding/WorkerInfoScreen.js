@@ -57,7 +57,7 @@ const ROLES = [
 export default function WorkerInfoScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
-  const { t } = useTranslation('common');
+  const { t } = useTranslation('workers');
 
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
@@ -86,11 +86,11 @@ export default function WorkerInfoScreen({ navigation }) {
   const handleContinue = () => {
     // Validation
     if (!fullName.trim()) {
-      Alert.alert(t('alerts.requiredField'), t('messages.pleaseEnterName'));
+      Alert.alert(t('workerInfo.requiredField'), t('workerInfo.pleaseEnterName'));
       return;
     }
     if (!phone.trim()) {
-      Alert.alert(t('alerts.requiredField'), t('messages.pleaseEnterPhone'));
+      Alert.alert(t('workerInfo.requiredField'), t('workerInfo.pleaseEnterPhone'));
       return;
     }
 
@@ -117,10 +117,10 @@ export default function WorkerInfoScreen({ navigation }) {
           {/* Header */}
           <Animated.View style={[styles.header, headerAnim]}>
             <Text style={[styles.title, { color: Colors.primaryText }]}>
-              Your Information
+              {t('workerInfo.title')}
             </Text>
             <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>
-              Tell us a bit about yourself
+              {t('workerInfo.subtitle')}
             </Text>
           </Animated.View>
 
@@ -128,12 +128,12 @@ export default function WorkerInfoScreen({ navigation }) {
           <View style={styles.form}>
             {/* Full Name */}
             <Animated.View style={[styles.inputGroup, field1Anim]}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Full Name *</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('workerInfo.fullNameLabel')}</Text>
               <View style={[styles.inputContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
                 <Ionicons name="person-outline" size={20} color={Colors.secondaryText} />
                 <TextInput
                   style={[styles.input, { color: Colors.primaryText }]}
-                  placeholder="John Doe"
+                  placeholder={t('workerInfo.fullNamePlaceholder')}
                   placeholderTextColor={Colors.secondaryText}
                   value={fullName}
                   onChangeText={setFullName}
@@ -144,12 +144,12 @@ export default function WorkerInfoScreen({ navigation }) {
 
             {/* Phone */}
             <Animated.View style={[styles.inputGroup, field2Anim]}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Phone Number *</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('workerInfo.phoneLabel')}</Text>
               <View style={[styles.inputContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
                 <Ionicons name="call-outline" size={20} color={Colors.secondaryText} />
                 <TextInput
                   style={[styles.input, { color: Colors.primaryText }]}
-                  placeholder="(555) 123-4567"
+                  placeholder={t('workerInfo.phonePlaceholder')}
                   placeholderTextColor={Colors.secondaryText}
                   value={phone}
                   onChangeText={setPhone}
@@ -160,7 +160,7 @@ export default function WorkerInfoScreen({ navigation }) {
 
             {/* Role in Company */}
             <Animated.View style={[styles.inputGroup, field3Anim]}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Role in Company</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('workerInfo.roleLabel')}</Text>
               <TouchableOpacity
                 style={[styles.inputContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}
                 onPress={() => setShowRoleModal(true)}
@@ -173,7 +173,7 @@ export default function WorkerInfoScreen({ navigation }) {
 
             {/* Trade/Specialty */}
             <Animated.View style={[styles.inputGroup, field4Anim]}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Trade / Specialty</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('workerInfo.tradeLabel')}</Text>
               <TouchableOpacity
                 style={[styles.inputContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}
                 onPress={() => setShowTradeModal(true)}
@@ -194,7 +194,7 @@ export default function WorkerInfoScreen({ navigation }) {
               onPress={handleContinue}
               activeOpacity={0.8}
             >
-              <Text style={styles.buttonText}>Continue</Text>
+              <Text style={styles.buttonText}>{t('common:buttons.continue')}</Text>
               <Ionicons name="arrow-forward" size={20} color="#fff" />
             </TouchableOpacity>
           </Animated.View>
@@ -207,7 +207,7 @@ export default function WorkerInfoScreen({ navigation }) {
               <View style={[styles.dot, { backgroundColor: Colors.lightGray }]} />
             </View>
             <Text style={[styles.progressText, { color: Colors.secondaryText }]}>
-              Step 2 of 3
+              {t('workerInfo.stepProgress')}
             </Text>
           </Animated.View>
         </ScrollView>
@@ -223,7 +223,7 @@ export default function WorkerInfoScreen({ navigation }) {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: Colors.white }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Select Role</Text>
+              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>{t('workerInfo.selectRole')}</Text>
               <TouchableOpacity onPress={() => setShowRoleModal(false)}>
                 <Ionicons name="close" size={24} color={Colors.secondaryText} />
               </TouchableOpacity>
@@ -264,7 +264,7 @@ export default function WorkerInfoScreen({ navigation }) {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: Colors.white }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Select Trade</Text>
+              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>{t('workerInfo.selectTrade')}</Text>
               <TouchableOpacity onPress={() => {
                 setShowCustomTradeInput(false);
                 setShowTradeModal(false);
@@ -304,7 +304,7 @@ export default function WorkerInfoScreen({ navigation }) {
                 >
                   <View style={styles.otherOptionRow}>
                     <Ionicons name="add-circle-outline" size={20} color={WORKER_GREEN} />
-                    <Text style={[styles.modalOptionText, { color: WORKER_GREEN, fontWeight: '600' }]}>Other</Text>
+                    <Text style={[styles.modalOptionText, { color: WORKER_GREEN, fontWeight: '600' }]}>{t('workerInfo.otherTrade')}</Text>
                   </View>
                   {trade === 'custom' && <Ionicons name="checkmark" size={24} color={WORKER_GREEN} />}
                 </TouchableOpacity>
@@ -313,7 +313,7 @@ export default function WorkerInfoScreen({ navigation }) {
                   <View style={[styles.customTradeInputContainer, { borderColor: WORKER_GREEN, backgroundColor: Colors.white }]}>
                     <TextInput
                       style={[styles.customTradeInput, { color: Colors.primaryText }]}
-                      placeholder="Enter your trade"
+                      placeholder={t('workerInfo.customTradePlaceholder')}
                       placeholderTextColor={Colors.secondaryText}
                       value={customTradeName}
                       onChangeText={setCustomTradeName}
@@ -333,7 +333,7 @@ export default function WorkerInfoScreen({ navigation }) {
                       setShowTradeModal(false);
                     }}
                   >
-                    <Text style={styles.customTradeDoneText}>Done</Text>
+                    <Text style={styles.customTradeDoneText}>{t('common:buttons.done')}</Text>
                   </TouchableOpacity>
                 </View>
               )}

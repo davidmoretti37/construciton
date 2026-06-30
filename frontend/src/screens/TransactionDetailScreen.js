@@ -41,7 +41,7 @@ export default function TransactionDetailScreen({ navigation, route }) {
   const categoryConfig = CATEGORY_CONFIG[transaction.category] || CATEGORY_CONFIG.other;
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'Unknown date';
+    if (!dateString) return t('transactionDetail.unknownDate');
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
       weekday: 'long',
@@ -74,7 +74,7 @@ export default function TransactionDetailScreen({ navigation, route }) {
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <Text testID="transactionDetail.headerTitle" style={[styles.headerTitle, { color: Colors.primaryText }]}>
-          {isExpense ? 'Expense Details' : 'Income Details'}
+          {isExpense ? t('transactionDetail.expenseDetails') : t('transactionDetail.incomeDetails')}
         </Text>
         {isOwner ? (
           <TouchableOpacity testID="transactionDetail.editButton" accessibilityLabel="Edit transaction" onPress={handleEdit} style={styles.editButton}>
@@ -92,7 +92,7 @@ export default function TransactionDetailScreen({ navigation, route }) {
         {/* Amount Card */}
         <View style={[styles.amountCard, { backgroundColor: isExpense ? '#DC2626' : '#10B981' }]}>
           <Text style={styles.amountLabel}>
-            {isExpense ? 'Expense Amount' : 'Income Amount'}
+            {isExpense ? t('transactionDetail.expenseAmount') : t('transactionDetail.incomeAmount')}
           </Text>
           <Text testID="transactionDetail.amountValue" style={styles.amountValue}>
             {isExpense ? '-' : '+'}{formatCurrency(transaction.amount)}
@@ -104,7 +104,7 @@ export default function TransactionDetailScreen({ navigation, route }) {
         {transaction.receipt_url && (
           <View style={[styles.section, { backgroundColor: Colors.white }]}>
             <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-              Receipt
+              {t('transactionDetail.receipt')}
             </Text>
             <TouchableOpacity
               testID="transactionDetail.receiptImageButton"
@@ -119,7 +119,7 @@ export default function TransactionDetailScreen({ navigation, route }) {
               />
               <View style={styles.tapToViewOverlay}>
                 <Ionicons name="expand" size={16} color="#fff" />
-                <Text style={styles.tapToViewText}>Tap to view full size</Text>
+                <Text style={styles.tapToViewText}>{t('transactionDetail.tapToViewFullSize')}</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -128,10 +128,10 @@ export default function TransactionDetailScreen({ navigation, route }) {
         {/* Description */}
         <View style={[styles.section, { backgroundColor: Colors.white }]}>
           <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-            Description
+            {t('transactionDetail.description')}
           </Text>
           <Text testID="transactionDetail.descriptionText" style={[styles.descriptionText, { color: Colors.primaryText }]}>
-            {transaction.description || 'No description'}
+            {transaction.description || t('transactionDetail.noDescription')}
           </Text>
         </View>
 
@@ -139,7 +139,7 @@ export default function TransactionDetailScreen({ navigation, route }) {
         <View style={[styles.section, { backgroundColor: Colors.white }]}>
           {/* Category */}
           <View style={styles.detailRow}>
-            <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>Category</Text>
+            <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>{t('transactionDetail.category')}</Text>
             <View style={[styles.categoryBadge, { backgroundColor: categoryConfig.color + '20' }]}>
               <Ionicons name={categoryConfig.icon} size={16} color={categoryConfig.color} />
               <Text testID="transactionDetail.categoryValue" style={[styles.categoryText, { color: categoryConfig.color }]}>
@@ -150,10 +150,10 @@ export default function TransactionDetailScreen({ navigation, route }) {
 
           {/* Type */}
           <View style={[styles.detailRow, { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.md }]}>
-            <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>Type</Text>
+            <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>{t('transactionDetail.type')}</Text>
             <View style={[styles.typeBadge, { backgroundColor: isExpense ? '#FEE2E2' : '#D1FAE5' }]}>
               <Text testID="transactionDetail.typeValue" style={[styles.typeText, { color: isExpense ? '#DC2626' : '#10B981' }]}>
-                {isExpense ? 'Expense' : 'Income'}
+                {isExpense ? t('transactionDetail.expense') : t('transactionDetail.income')}
               </Text>
             </View>
           </View>
@@ -161,7 +161,7 @@ export default function TransactionDetailScreen({ navigation, route }) {
           {/* Payment Method */}
           {transaction.payment_method && (
             <View style={[styles.detailRow, { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.md }]}>
-              <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>Payment Method</Text>
+              <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>{t('transactionDetail.paymentMethod')}</Text>
               <Text testID="transactionDetail.paymentMethodValue" style={[styles.detailValue, { color: Colors.primaryText }]}>
                 {transaction.payment_method.charAt(0).toUpperCase() + transaction.payment_method.slice(1)}
               </Text>
@@ -171,7 +171,7 @@ export default function TransactionDetailScreen({ navigation, route }) {
           {/* Worker (if applicable) */}
           {transaction.workers?.full_name && (
             <View style={[styles.detailRow, { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.md }]}>
-              <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>Worker</Text>
+              <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>{t('transactionDetail.worker')}</Text>
               <View style={styles.workerBadge}>
                 <Ionicons name="person" size={16} color={Colors.primaryBlue} />
                 <Text testID="transactionDetail.workerValue" style={[styles.workerText, { color: Colors.primaryText }]}>
@@ -184,11 +184,11 @@ export default function TransactionDetailScreen({ navigation, route }) {
           {/* Auto-generated indicator */}
           {transaction.is_auto_generated && (
             <View style={[styles.detailRow, { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.md }]}>
-              <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>Source</Text>
+              <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>{t('transactionDetail.source')}</Text>
               <View style={styles.autoBadge}>
                 <Ionicons name="flash" size={14} color="#F59E0B" />
                 <Text style={[styles.autoText, { color: '#F59E0B' }]}>
-                  Auto-generated
+                  {t('transactionDetail.autoGenerated')}
                 </Text>
               </View>
             </View>
@@ -199,7 +199,7 @@ export default function TransactionDetailScreen({ navigation, route }) {
         {lineItems.length > 0 && (
           <View style={[styles.section, { backgroundColor: Colors.white }]}>
             <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-              Line Items
+              {t('transactionDetail.lineItems')}
             </Text>
             {lineItems.map((item, index) => (
               <View
@@ -216,7 +216,7 @@ export default function TransactionDetailScreen({ navigation, route }) {
                   </Text>
                   {item.quantity && item.quantity > 1 && (
                     <Text style={[styles.lineItemQty, { color: Colors.secondaryText }]}>
-                      Qty: {item.quantity} × ${parseFloat(item.unitPrice || 0).toFixed(2)}
+                      {t('transactionDetail.qty', { quantity: item.quantity, unitPrice: parseFloat(item.unitPrice || 0).toFixed(2) })}
                     </Text>
                   )}
                 </View>
@@ -232,7 +232,7 @@ export default function TransactionDetailScreen({ navigation, route }) {
         {transaction.notes && (
           <View style={[styles.section, { backgroundColor: Colors.white }]}>
             <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-              Notes
+              {t('transactionDetail.notes')}
             </Text>
             <Text style={[styles.notesText, { color: Colors.secondaryText }]}>
               {transaction.notes}
@@ -243,13 +243,13 @@ export default function TransactionDetailScreen({ navigation, route }) {
         {/* Metadata */}
         <View style={[styles.metadataSection, { backgroundColor: Colors.lightBackground }]}>
           <Text style={[styles.metadataText, { color: Colors.secondaryText }]}>
-            Created on {new Date(transaction.created_at).toLocaleDateString('en-US', {
+            {t('transactionDetail.createdOn', { date: new Date(transaction.created_at).toLocaleDateString('en-US', {
               year: 'numeric',
               month: 'short',
               day: 'numeric',
               hour: 'numeric',
               minute: '2-digit'
-            })}
+            }) })}
           </Text>
         </View>
 

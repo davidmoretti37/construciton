@@ -52,7 +52,7 @@ const FONT_STYLES = [
 ];
 
 export default function EditInvoiceSetupScreen({ navigation }) {
-  const { t } = useTranslation('common');
+  const { t } = useTranslation('settings');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const insets = useSafeAreaInsets();
@@ -203,7 +203,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error loading invoice data:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'invoice settings' }));
+      Alert.alert(t('common:alerts.error'), t('editInvoiceSetup.failedToLoad'));
     } finally {
       setLoading(false);
     }
@@ -220,7 +220,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(t('permissions.denied'), t('permissions.photoLibraryRequired'));
+        Alert.alert(t('editInvoiceSetup.permissionDeniedTitle'), t('editInvoiceSetup.photoLibraryRequired'));
         return;
       }
 
@@ -237,7 +237,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error picking logo:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToSelect', { item: 'logo' }));
+      Alert.alert(t('common:alerts.error'), t('editInvoiceSetup.failedToSelectLogo'));
     }
   };
 
@@ -275,7 +275,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
       setLogoUrl(publicUrl);
     } catch (error) {
       console.error('Error uploading logo:', error);
-      Alert.alert(t('alerts.uploadFailed'), t('messages.failedToUpload', { item: 'logo' }));
+      Alert.alert(t('editInvoiceSetup.uploadFailedTitle'), t('editInvoiceSetup.failedToUploadLogo'));
     } finally {
       setUploadingLogo(false);
     }
@@ -345,22 +345,22 @@ export default function EditInvoiceSetupScreen({ navigation }) {
     // check an enabled-but-empty method is silently dropped from paymentInfo.
     const missing = [];
     if (enabledPayments.zelle && !zelleInfo.trim()) {
-      missing.push('Zelle is enabled but the email/phone is empty');
+      missing.push(t('editInvoiceSetup.zelleMissing'));
     }
     if (enabledPayments.bank && (!bankName.trim() || !accountNumber.trim())) {
-      missing.push('Bank Transfer is enabled but Bank Name or Account Number is empty');
+      missing.push(t('editInvoiceSetup.bankMissing'));
     }
     if (enabledPayments.paypal && !paypalInfo.trim()) {
-      missing.push('PayPal is enabled but the email/link is empty');
+      missing.push(t('editInvoiceSetup.paypalMissing'));
     }
     if (enabledPayments.venmo && !venmoInfo.trim()) {
-      missing.push('Venmo is enabled but the username/phone is empty');
+      missing.push(t('editInvoiceSetup.venmoMissing'));
     }
     if (enabledPayments.cashapp && !cashAppInfo.trim()) {
-      missing.push('Cash App is enabled but the $cashtag is empty');
+      missing.push(t('editInvoiceSetup.cashappMissing'));
     }
     if (missing.length > 0) {
-      Alert.alert(t('alerts.missingInfo'), missing.join('\n'));
+      Alert.alert(t('editInvoiceSetup.missingInfoTitle'), missing.join('\n'));
       return;
     }
 
@@ -411,18 +411,18 @@ export default function EditInvoiceSetupScreen({ navigation }) {
       const success = await updateBusinessInfo(updatedBusinessInfo);
 
       if (success) {
-        Alert.alert(t('alerts.success'), t('messages.savedSuccessfully', { item: 'Invoice settings' }), [
+        Alert.alert(t('common:alerts.success'), t('editInvoiceSetup.savedSuccessfully'), [
           {
-            text: t('alerts.ok'),
+            text: t('editInvoiceSetup.ok'),
             onPress: () => navigation.goBack(),
           },
         ]);
       } else {
-        Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'invoice settings' }));
+        Alert.alert(t('common:alerts.error'), t('editInvoiceSetup.failedToSave'));
       }
     } catch (error) {
       console.error('Error saving invoice settings:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToSaveChanges'));
+      Alert.alert(t('common:alerts.error'), t('editInvoiceSetup.failedToSaveChanges'));
     } finally {
       setSaving(false);
     }
@@ -433,7 +433,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primaryBlue} />
-          <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>Loading...</Text>
+          <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>{t('common:status.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -445,7 +445,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Invoice Setup</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('editInvoiceSetup.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -460,7 +460,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
         >
           {/* Logo Section */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Business Logo</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('editInvoiceSetup.businessLogo')}</Text>
 
             <TouchableOpacity
               style={[styles.logoContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}
@@ -475,7 +475,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
                 <View style={styles.logoPlaceholder}>
                   <Ionicons name="image-outline" size={48} color={Colors.secondaryText} />
                   <Text style={[styles.logoPlaceholderText, { color: Colors.secondaryText }]}>
-                    Tap to upload logo
+                    {t('editInvoiceSetup.tapToUploadLogo')}
                   </Text>
                 </View>
               )}
@@ -486,16 +486,16 @@ export default function EditInvoiceSetupScreen({ navigation }) {
                 style={[styles.removeButton, { backgroundColor: '#EF4444' + '10' }]}
                 onPress={() => setLogoUrl(null)}
               >
-                <Text style={[styles.removeButtonText, { color: '#EF4444' }]}>Remove Logo</Text>
+                <Text style={[styles.removeButtonText, { color: '#EF4444' }]}>{t('editInvoiceSetup.removeLogo')}</Text>
               </TouchableOpacity>
             )}
           </View>
 
           {/* Accent Color */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Accent Color</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('editInvoiceSetup.accentColor')}</Text>
             <Text style={[styles.label, { color: Colors.secondaryText, marginTop: 0 }]}>
-              Choose your brand color for headings
+              {t('editInvoiceSetup.accentColorHint')}
             </Text>
             <View style={styles.colorGrid}>
               {ACCENT_COLORS.map((color) => (
@@ -519,7 +519,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
 
           {/* Font Style */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Font Style</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('editInvoiceSetup.fontStyle')}</Text>
             {FONT_STYLES.map((font) => (
               <TouchableOpacity
                 key={font.id}
@@ -550,29 +550,29 @@ export default function EditInvoiceSetupScreen({ navigation }) {
 
           {/* Business Information */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Business Information</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('editInvoiceSetup.businessInformation')}</Text>
 
-            <Text style={[styles.label, { color: Colors.secondaryText }]}>Business Name</Text>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('editInvoiceSetup.businessName')}</Text>
             <TextInput
               style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
               value={businessName}
               onChangeText={setBusinessName}
-              placeholder="Enter business name"
+              placeholder={t('editInvoiceSetup.businessNamePlaceholder')}
               placeholderTextColor={Colors.secondaryText}
             />
 
-            <Text style={[styles.label, { color: Colors.secondaryText }]}>Address</Text>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('editInvoiceSetup.address')}</Text>
             <TextInput
               style={[styles.input, styles.multilineInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
               value={businessAddress}
               onChangeText={setBusinessAddress}
-              placeholder="123 Main St, City, State 12345"
+              placeholder={t('editInvoiceSetup.addressPlaceholder')}
               placeholderTextColor={Colors.secondaryText}
               multiline
               numberOfLines={2}
             />
 
-            <Text style={[styles.label, { color: Colors.secondaryText }]}>Phone</Text>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('editInvoiceSetup.phone')}</Text>
             <TextInput
               style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
               value={businessPhone}
@@ -582,12 +582,12 @@ export default function EditInvoiceSetupScreen({ navigation }) {
               keyboardType="phone-pad"
             />
 
-            <Text style={[styles.label, { color: Colors.secondaryText }]}>Email</Text>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('editInvoiceSetup.email')}</Text>
             <TextInput
               style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
               value={businessEmail}
               onChangeText={setBusinessEmail}
-              placeholder="contact@business.com"
+              placeholder={t('editInvoiceSetup.emailPlaceholder')}
               placeholderTextColor={Colors.secondaryText}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -596,7 +596,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
 
           {/* Payment Terms */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Payment Terms</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('editInvoiceSetup.paymentTerms')}</Text>
 
             <View style={styles.termsGrid}>
               {PAYMENT_TERMS.map((term) => (
@@ -624,9 +624,9 @@ export default function EditInvoiceSetupScreen({ navigation }) {
 
           {/* Payment Methods */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Payment Methods</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('editInvoiceSetup.paymentMethods')}</Text>
             <Text style={[styles.sectionSubtitle, { color: Colors.secondaryText }]}>
-              Select and configure your accepted payment methods
+              {t('editInvoiceSetup.paymentMethodsHint')}
             </Text>
 
             {/* Zelle */}
@@ -650,7 +650,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
               <View style={styles.paymentInput}>
                 <TextInput
                   style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
-                  placeholder="Email or phone for Zelle"
+                  placeholder={t('editInvoiceSetup.zellePlaceholder')}
                   placeholderTextColor={Colors.secondaryText}
                   value={zelleInfo}
                   onChangeText={setZelleInfo}
@@ -670,23 +670,23 @@ export default function EditInvoiceSetupScreen({ navigation }) {
                     size={24}
                     color={enabledPayments.bank ? Colors.primaryBlue : Colors.secondaryText}
                   />
-                  <Text style={[styles.paymentMethodName, { color: Colors.primaryText }]}>Bank Transfer / Wire</Text>
+                  <Text style={[styles.paymentMethodName, { color: Colors.primaryText }]}>{t('editInvoiceSetup.bankTransferWire')}</Text>
                 </View>
               </View>
             </TouchableOpacity>
 
             {enabledPayments.bank && (
               <View style={styles.paymentInput}>
-                <Text style={[styles.label, { color: Colors.secondaryText }]}>Bank Name</Text>
+                <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('editInvoiceSetup.bankName')}</Text>
                 <TextInput
                   style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
-                  placeholder="e.g., Chase Bank"
+                  placeholder={t('editInvoiceSetup.bankNamePlaceholder')}
                   placeholderTextColor={Colors.secondaryText}
                   value={bankName}
                   onChangeText={setBankName}
                 />
 
-                <Text style={[styles.label, { color: Colors.secondaryText }]}>Account Number</Text>
+                <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('editInvoiceSetup.accountNumber')}</Text>
                 <TextInput
                   style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
                   placeholder="123456789"
@@ -696,7 +696,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
                   keyboardType="number-pad"
                 />
 
-                <Text style={[styles.label, { color: Colors.secondaryText }]}>ACH Routing (Optional)</Text>
+                <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('editInvoiceSetup.achRouting')}</Text>
                 <TextInput
                   style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
                   placeholder="021000021"
@@ -706,7 +706,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
                   keyboardType="number-pad"
                 />
 
-                <Text style={[styles.label, { color: Colors.secondaryText }]}>Wire Routing (Optional)</Text>
+                <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('editInvoiceSetup.wireRouting')}</Text>
                 <TextInput
                   style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
                   placeholder="021000021"
@@ -739,7 +739,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
               <View style={styles.paymentInput}>
                 <TextInput
                   style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
-                  placeholder="PayPal email or link"
+                  placeholder={t('editInvoiceSetup.paypalPlaceholder')}
                   placeholderTextColor={Colors.secondaryText}
                   value={paypalInfo}
                   onChangeText={setPaypalInfo}
@@ -768,7 +768,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
               <View style={styles.paymentInput}>
                 <TextInput
                   style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
-                  placeholder="@username or phone"
+                  placeholder={t('editInvoiceSetup.venmoPlaceholder')}
                   placeholderTextColor={Colors.secondaryText}
                   value={venmoInfo}
                   onChangeText={setVenmoInfo}
@@ -797,7 +797,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
               <View style={styles.paymentInput}>
                 <TextInput
                   style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
-                  placeholder="$cashtag"
+                  placeholder={t('editInvoiceSetup.cashAppPlaceholder')}
                   placeholderTextColor={Colors.secondaryText}
                   value={cashAppInfo}
                   onChangeText={setCashAppInfo}
@@ -808,15 +808,15 @@ export default function EditInvoiceSetupScreen({ navigation }) {
 
           {/* Footer Text */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Footer Text</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('editInvoiceSetup.footerText')}</Text>
             <Text style={[styles.label, { color: Colors.secondaryText }]}>
-              Thank you message or additional notes
+              {t('editInvoiceSetup.footerTextHint')}
             </Text>
             <TextInput
               style={[styles.input, styles.multilineInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
               value={footerText}
               onChangeText={setFooterText}
-              placeholder="Thank you for your business!"
+              placeholder={t('editInvoiceSetup.footerTextPlaceholder')}
               placeholderTextColor={Colors.secondaryText}
               multiline
               numberOfLines={3}
@@ -825,14 +825,14 @@ export default function EditInvoiceSetupScreen({ navigation }) {
 
           {/* Preview Section */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Preview Invoice</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('editInvoiceSetup.previewInvoice')}</Text>
 
             <TouchableOpacity
               style={[styles.previewButton, { backgroundColor: Colors.primaryBlue }]}
               onPress={() => setShowPreview(true)}
             >
               <Ionicons name="eye-outline" size={20} color="#fff" />
-              <Text style={styles.previewButtonText}>Preview Invoice PDF</Text>
+              <Text style={styles.previewButtonText}>{t('editInvoiceSetup.previewInvoicePdf')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -858,7 +858,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
             ) : (
               <>
                 <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                <Text style={styles.saveButtonText}>Save Changes</Text>
+                <Text style={styles.saveButtonText}>{t('editInvoiceSetup.saveChanges')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -876,7 +876,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
             <TouchableOpacity onPress={() => setShowPreview(false)} style={styles.backButton}>
               <Ionicons name="close" size={24} color={Colors.primaryText} />
             </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Invoice Preview</Text>
+            <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('editInvoiceSetup.invoicePreview')}</Text>
             <View style={{ width: 40 }} />
           </View>
           {showPreview && (
@@ -893,7 +893,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
               renderError={() => (
                 <View style={styles.previewLoading}>
                   <Text style={[styles.previewErrorText, { color: Colors.secondaryText }]}>
-                    Unable to load invoice preview.
+                    {t('editInvoiceSetup.unableToLoadPreview')}
                   </Text>
                 </View>
               )}

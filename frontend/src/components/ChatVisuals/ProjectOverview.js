@@ -1,12 +1,14 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export default function ProjectOverview({ data, onAction }) {
   if (!data?.projects?.length && !data?.summary?.total) return null;
 
+  const { t } = useTranslation('chat');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const styles = createStyles(Colors);
@@ -35,11 +37,11 @@ export default function ProjectOverview({ data, onAction }) {
   };
 
   const getStatusLabel = (status, isOverdue, daysRemaining) => {
-    if (isOverdue) return `OVERDUE by ${Math.abs(daysRemaining)} days`;
-    if (status === 'behind') return 'Behind Schedule';
-    if (status === 'over-budget') return 'Over Budget';
-    if (status === 'on-track') return daysRemaining > 0 ? `${daysRemaining} days left` : 'On Track';
-    return 'In Progress';
+    if (isOverdue) return t('projectOverview.statusOverdue', { days: Math.abs(daysRemaining) });
+    if (status === 'behind') return t('projectOverview.statusBehind');
+    if (status === 'over-budget') return t('projectOverview.statusOverBudget');
+    if (status === 'on-track') return daysRemaining > 0 ? t('projectOverview.statusDaysLeft', { days: daysRemaining }) : t('projectOverview.statusOnTrack');
+    return t('projectOverview.statusInProgress');
   };
 
   return (
@@ -49,11 +51,11 @@ export default function ProjectOverview({ data, onAction }) {
         <View style={styles.headerLeft}>
           <Ionicons name="list-outline" size={20} color={Colors.primaryBlue} />
           <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>
-            Project Overview
+            {t('projectOverview.headerTitle')}
           </Text>
         </View>
         <Text style={[styles.projectCount, { color: Colors.secondaryText }]}>
-          {summary.total} {summary.total === 1 ? 'project' : 'projects'}
+          {t('projectOverview.projectCount', { count: summary.total })}
         </Text>
       </View>
 
@@ -64,7 +66,7 @@ export default function ProjectOverview({ data, onAction }) {
             <View style={styles.summaryItem}>
               <Ionicons name="checkmark-circle" size={16} color="#10B981" />
               <Text style={[styles.summaryText, { color: '#10B981' }]}>
-                {summary.onTrack} on track
+                {t('projectOverview.summaryOnTrack', { count: summary.onTrack })}
               </Text>
             </View>
           )}
@@ -72,7 +74,7 @@ export default function ProjectOverview({ data, onAction }) {
             <View style={styles.summaryItem}>
               <Ionicons name="warning" size={16} color="#F59E0B" />
               <Text style={[styles.summaryText, { color: '#F59E0B' }]}>
-                {summary.behind} behind
+                {t('projectOverview.summaryBehind', { count: summary.behind })}
               </Text>
             </View>
           )}
@@ -80,7 +82,7 @@ export default function ProjectOverview({ data, onAction }) {
             <View style={styles.summaryItem}>
               <Ionicons name="alert-circle" size={16} color="#EF4444" />
               <Text style={[styles.summaryText, { color: '#EF4444' }]}>
-                {summary.overdue} overdue
+                {t('projectOverview.summaryOverdue', { count: summary.overdue })}
               </Text>
             </View>
           )}
@@ -131,7 +133,7 @@ export default function ProjectOverview({ data, onAction }) {
                   <View style={styles.metric}>
                     <Ionicons name="checkmark-circle-outline" size={14} color={Colors.secondaryText} />
                     <Text style={[styles.metricText, { color: Colors.secondaryText }]}>
-                      {project.percentComplete}% complete
+                      {t('projectOverview.percentComplete', { percent: project.percentComplete })}
                     </Text>
                   </View>
 
@@ -147,7 +149,9 @@ export default function ProjectOverview({ data, onAction }) {
                         styles.metricText,
                         { color: project.profit >= 0 ? '#10B981' : '#EF4444' }
                       ]}>
-                        {formatCurrency(Math.abs(project.profit))} {project.profit >= 0 ? 'profit' : 'loss'}
+                        {project.profit >= 0
+                          ? t('projectOverview.profitAmount', { amount: formatCurrency(Math.abs(project.profit)) })
+                          : t('projectOverview.lossAmount', { amount: formatCurrency(Math.abs(project.profit)) })}
                       </Text>
                     </View>
                   )}
@@ -156,7 +160,7 @@ export default function ProjectOverview({ data, onAction }) {
                 {/* Last Activity */}
                 {project.lastActivity && (
                   <Text style={[styles.lastActivity, { color: Colors.secondaryText }]}>
-                    Last update: {project.lastActivity}
+                    {t('projectOverview.lastUpdate', { date: project.lastActivity })}
                   </Text>
                 )}
               </View>

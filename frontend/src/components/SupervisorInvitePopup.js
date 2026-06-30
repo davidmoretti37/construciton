@@ -22,7 +22,7 @@ const SUPERVISOR_BLUE = '#2563EB';
 const OWNER_PURPLE = '#7C3AED';
 
 const SupervisorInvitePopup = ({ invites, onComplete }) => {
-  const { t } = useTranslation('owner');
+  const { t } = useTranslation('common');
   const { user, refreshProfile } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -37,17 +37,17 @@ const SupervisorInvitePopup = ({ invites, onComplete }) => {
   const formatPayment = () => {
     const { payment_type, hourly_rate, daily_rate, weekly_salary, project_rate } = currentInvite;
     switch (payment_type) {
-      case 'hourly': return `$${hourly_rate || 0}/hour`;
-      case 'daily': return `$${daily_rate || 0}/day`;
-      case 'weekly': return `$${weekly_salary || 0}/week`;
-      case 'project_based': return `$${project_rate || 0}/project`;
+      case 'hourly': return t('supervisorInvitePopup.paymentHourly', { amount: hourly_rate || 0 });
+      case 'daily': return t('supervisorInvitePopup.paymentDaily', { amount: daily_rate || 0 });
+      case 'weekly': return t('supervisorInvitePopup.paymentWeekly', { amount: weekly_salary || 0 });
+      case 'project_based': return t('supervisorInvitePopup.paymentProject', { amount: project_rate || 0 });
       default: return null;
     }
   };
 
   const handleAccept = async () => {
     if (!user?.id) {
-      Alert.alert('Error', 'User not authenticated');
+      Alert.alert(t('common:alerts.error'), t('supervisorInvitePopup.errorNotAuthenticated'));
       return;
     }
 
@@ -66,11 +66,11 @@ const SupervisorInvitePopup = ({ invites, onComplete }) => {
           onComplete(true); // true = accepted at least one invite
         }
       } else {
-        Alert.alert('Error', result?.error || 'Failed to accept invitation');
+        Alert.alert(t('common:alerts.error'), result?.error || t('supervisorInvitePopup.errorAcceptFailed'));
       }
     } catch (error) {
       console.error('Error accepting supervisor invite:', error);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      Alert.alert(t('common:alerts.error'), t('supervisorInvitePopup.errorGeneric'));
     } finally {
       setLoading(false);
     }
@@ -78,7 +78,7 @@ const SupervisorInvitePopup = ({ invites, onComplete }) => {
 
   const handleReject = async () => {
     if (!user?.id) {
-      Alert.alert('Error', 'User not authenticated');
+      Alert.alert(t('common:alerts.error'), t('supervisorInvitePopup.errorNotAuthenticated'));
       return;
     }
 
@@ -94,11 +94,11 @@ const SupervisorInvitePopup = ({ invites, onComplete }) => {
           onComplete(false); // false = rejected all invites
         }
       } else {
-        Alert.alert('Error', result?.error || 'Failed to reject invitation');
+        Alert.alert(t('common:alerts.error'), result?.error || t('supervisorInvitePopup.errorRejectFailed'));
       }
     } catch (error) {
       console.error('Error rejecting supervisor invite:', error);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      Alert.alert(t('common:alerts.error'), t('supervisorInvitePopup.errorGeneric'));
     } finally {
       setLoading(false);
     }
@@ -119,11 +119,11 @@ const SupervisorInvitePopup = ({ invites, onComplete }) => {
               <Ionicons name="briefcase" size={32} color={OWNER_PURPLE} />
             </View>
             <Text style={styles.title}>
-              {t('supervisorInvite.title', 'Supervisor Invitation')}
+              {t('supervisorInvitePopup.title')}
             </Text>
             {invites.length > 1 && (
               <Text style={styles.counter}>
-                {currentIndex + 1} of {invites.length}
+                {t('supervisorInvitePopup.counter', { current: currentIndex + 1, total: invites.length })}
               </Text>
             )}
           </View>
@@ -131,7 +131,7 @@ const SupervisorInvitePopup = ({ invites, onComplete }) => {
           {/* Owner Info */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>
-              {t('supervisorInvite.from', 'FROM BUSINESS OWNER')}
+              {t('supervisorInvitePopup.from')}
             </Text>
             <View style={styles.ownerCard}>
               <View style={styles.ownerAvatar}>
@@ -141,7 +141,7 @@ const SupervisorInvitePopup = ({ invites, onComplete }) => {
               </View>
               <View style={styles.ownerInfo}>
                 <Text style={styles.ownerName}>
-                  {currentInvite.owner?.business_name || 'Business Owner'}
+                  {currentInvite.owner?.business_name || t('supervisorInvitePopup.defaultOwnerName')}
                 </Text>
                 {currentInvite.owner?.business_phone && (
                   <Text style={styles.ownerPhone}>
@@ -155,20 +155,20 @@ const SupervisorInvitePopup = ({ invites, onComplete }) => {
           {/* Invitation Details */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>
-              {t('supervisorInvite.details', 'INVITATION DETAILS')}
+              {t('supervisorInvitePopup.details')}
             </Text>
             <View style={styles.detailRow}>
               <Ionicons name="mail" size={20} color="#6B7280" />
               <Text style={styles.detailLabel}>
-                {t('supervisorInvite.invitedAs', 'Invited as:')}
+                {t('supervisorInvitePopup.invitedAs')}
               </Text>
-              <Text style={styles.detailValue}>Supervisor</Text>
+              <Text style={styles.detailValue}>{t('supervisorInvitePopup.roleSupervisor')}</Text>
             </View>
             {currentInvite.full_name && (
               <View style={styles.detailRow}>
                 <Ionicons name="person" size={20} color="#6B7280" />
                 <Text style={styles.detailLabel}>
-                  {t('supervisorInvite.name', 'Name:')}
+                  {t('supervisorInvitePopup.name')}
                 </Text>
                 <Text style={styles.detailValue}>{currentInvite.full_name}</Text>
               </View>
@@ -177,7 +177,7 @@ const SupervisorInvitePopup = ({ invites, onComplete }) => {
               <View style={styles.detailRow}>
                 <Ionicons name="cash" size={20} color="#10B981" />
                 <Text style={styles.detailLabel}>
-                  {t('supervisorInvite.payment', 'Payment:')}
+                  {t('supervisorInvitePopup.payment')}
                 </Text>
                 <Text style={[styles.detailValue, { color: '#10B981' }]}>{formatPayment()}</Text>
               </View>
@@ -188,7 +188,7 @@ const SupervisorInvitePopup = ({ invites, onComplete }) => {
           <View style={styles.messageContainer}>
             <Ionicons name="information-circle" size={20} color={OWNER_PURPLE} />
             <Text style={styles.message}>
-              {t('supervisorInvite.message', 'By accepting, you will join this company as a supervisor. You\'ll be able to manage projects, workers, and track finances.')}
+              {t('supervisorInvitePopup.message')}
             </Text>
           </View>
 
@@ -205,7 +205,7 @@ const SupervisorInvitePopup = ({ invites, onComplete }) => {
                 <>
                   <Ionicons name="close-circle" size={20} color="#EF4444" />
                   <Text style={styles.rejectButtonText}>
-                    {t('supervisorInvite.reject', 'Decline')}
+                    {t('supervisorInvitePopup.reject')}
                   </Text>
                 </>
               )}
@@ -222,7 +222,7 @@ const SupervisorInvitePopup = ({ invites, onComplete }) => {
                 <>
                   <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
                   <Text style={styles.acceptButtonText}>
-                    {t('supervisorInvite.accept', 'Accept')}
+                    {t('supervisorInvitePopup.accept')}
                   </Text>
                 </>
               )}

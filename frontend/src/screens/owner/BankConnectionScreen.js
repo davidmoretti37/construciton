@@ -120,7 +120,7 @@ export default function BankConnectionScreen() {
       await Linking.openURL(url);
     } catch (error) {
       setConnecting(false);
-      Alert.alert(t('common:alerts.error'), error.message || 'Failed to start bank connection');
+      Alert.alert(t('common:alerts.error'), error.message || t('bankConnection.failedConnect'));
     }
   };
 
@@ -160,7 +160,7 @@ export default function BankConnectionScreen() {
                 );
                 loadAccounts();
               } catch (error) {
-                Alert.alert(t('bank.importError'), error.message || 'Failed to import CSV');
+                Alert.alert(t('bank.importError'), error.message || t('bankConnection.failedImportCSV'));
               } finally {
                 setUploading(false);
               }
@@ -173,7 +173,7 @@ export default function BankConnectionScreen() {
       );
     } catch (error) {
       setUploading(false);
-      Alert.alert(t('common:alerts.error'), error.message || 'Failed to pick file');
+      Alert.alert(t('common:alerts.error'), error.message || t('bankConnection.failedPickFile'));
     }
   };
 
@@ -187,7 +187,7 @@ export default function BankConnectionScreen() {
       );
       loadAccounts();
     } catch (error) {
-      Alert.alert(t('bank.syncError'), error.message || 'Failed to sync account');
+      Alert.alert(t('bank.syncError'), error.message || t('bankConnection.failedSync'));
     } finally {
       setSyncing(prev => ({ ...prev, [accountId]: false }));
     }
@@ -196,7 +196,7 @@ export default function BankConnectionScreen() {
   const handleSyncAll = async () => {
     const syncableAccounts = accounts.filter(a => !a.is_manual);
     if (syncableAccounts.length === 0) {
-      Alert.alert('No Accounts', 'No connected bank accounts to sync.');
+      Alert.alert(t('bankConnection.noAccountsTitle'), t('bankConnection.noAccountsSync'));
       return;
     }
     setSyncingAll(true);
@@ -217,9 +217,10 @@ export default function BankConnectionScreen() {
     }
     setSyncingAll(false);
     loadAccounts();
+    const errorPart = errors > 0 ? t('bankConnection.syncAllErrors', { count: errors }) : '';
     Alert.alert(
-      'Sync Complete',
-      `${syncableAccounts.length} accounts synced\n${totalAdded} new transactions\n${totalMatched} auto-matched${errors > 0 ? `\n${errors} errors` : ''}`
+      t('bankConnection.syncCompleteTitle'),
+      t('bankConnection.syncAllResult', { count: syncableAccounts.length, added: totalAdded, matched: totalMatched }) + errorPart
     );
   };
 
@@ -237,7 +238,7 @@ export default function BankConnectionScreen() {
               await disconnectAccount(accountId);
               loadAccounts();
             } catch (error) {
-              Alert.alert(t('common:alerts.error'), error.message || 'Failed to disconnect account');
+              Alert.alert(t('common:alerts.error'), error.message || t('bankConnection.failedDisconnect'));
             }
           },
         },
@@ -247,7 +248,7 @@ export default function BankConnectionScreen() {
 
   const handleImportRange = async () => {
     if (!isFreshStart && (!monthsBack || parseInt(monthsBack, 10) < 1)) {
-      Alert.alert('Enter months', 'Please enter how many months back to import.');
+      Alert.alert(t('bankConnection.enterMonths'), t('bankConnection.enterMonthsDesc'));
       return;
     }
 
@@ -263,15 +264,15 @@ export default function BankConnectionScreen() {
       Alert.alert(
         t('bank.accountConnected'),
         isFreshStart
-          ? 'Your account is connected! Transactions will be tracked from now on.'
-          : `Imported transactions from the last ${monthsBack} month${parseInt(monthsBack, 10) > 1 ? 's' : ''}.`,
+          ? t('bankConnection.accountConnectedFresh')
+          : t('bankConnection.accountConnectedImported', { count: parseInt(monthsBack, 10) }),
         [
-          { text: 'Review', onPress: () => navigation.navigate('BankReconciliation') },
-          { text: 'OK' },
+          { text: t('bankConnection.review'), onPress: () => navigation.navigate('BankReconciliation') },
+          { text: t('common:buttons.ok') },
         ]
       );
     } catch (error) {
-      Alert.alert('Import Error', error.message || 'Failed to import transactions');
+      Alert.alert(t('bankConnection.importError'), error.message || t('bankConnection.failedImport'));
     } finally {
       setImportLoading(false);
     }
@@ -328,11 +329,11 @@ export default function BankConnectionScreen() {
   };
 
   const formatAccountType = (type, subtype) => {
-    if (type === 'credit') return 'CREDIT CARD';
-    if (subtype === 'checking') return 'CHECKING';
-    if (subtype === 'savings') return 'SAVINGS';
-    if (subtype === 'money_market') return 'MONEY MARKET';
-    return (type || 'ACCOUNT').toUpperCase();
+    if (type === 'credit') return t('bankConnection.creditCard');
+    if (subtype === 'checking') return t('bankConnection.checking');
+    if (subtype === 'savings') return t('bankConnection.savings');
+    if (subtype === 'money_market') return t('bankConnection.moneyMarket');
+    return t('bankConnection.account');
   };
 
   if (loading) {
@@ -403,7 +404,7 @@ export default function BankConnectionScreen() {
               ) : (
                 <Ionicons name="refresh" size={22} color="#10B981" />
               )}
-              <Text style={[styles.csvButtonText, { color: '#10B981' }]}>Refresh All Accounts</Text>
+              <Text style={[styles.csvButtonText, { color: '#10B981' }]}>{t('bankConnection.refreshAllAccounts')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -453,14 +454,14 @@ export default function BankConnectionScreen() {
                     return isExpired ? (
                       <View style={styles.walletExpired}>
                         <Ionicons name="link-outline" size={14} color="#FCA5A5" />
-                        <Text style={styles.walletExpiredText}>Connection expired — reconnect this account</Text>
+                        <Text style={styles.walletExpiredText}>{t('bankConnection.connectionExpired')}</Text>
                         <TouchableOpacity
                           style={styles.walletReconnectBtn}
                           onPress={() => {
                             handleDisconnect(account.id, account.institution_name);
                           }}
                         >
-                          <Text style={styles.walletReconnectText}>Remove & Reconnect</Text>
+                          <Text style={styles.walletReconnectText}>{t('bankConnection.removeAndReconnect')}</Text>
                         </TouchableOpacity>
                       </View>
                     ) : (
@@ -525,10 +526,10 @@ export default function BankConnectionScreen() {
           <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }} keyboardShouldPersistTaps="handled" bounces={false}>
           <View style={[styles.modalContent, { backgroundColor: Colors.cardBackground }]}>
             <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>
-              How far back should we import?
+              {t('bankConnection.importModalTitle')}
             </Text>
             <Text style={[styles.modalSubtitle, { color: Colors.secondaryText }]}>
-              Choose to start fresh or import past transactions
+              {t('bankConnection.importModalSubtitle')}
             </Text>
 
             <View style={styles.rangeOptions}>
@@ -551,8 +552,8 @@ export default function BankConnectionScreen() {
                 </View>
                 <Ionicons name="flash-outline" size={20} color={isFreshStart ? OWNER_COLORS.primary : Colors.secondaryText} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.rangeLabel, { color: Colors.primaryText }]}>Fresh Start</Text>
-                  <Text style={[styles.rangeDesc, { color: Colors.secondaryText }]}>Track from today — no past transactions</Text>
+                  <Text style={[styles.rangeLabel, { color: Colors.primaryText }]}>{t('bankConnection.freshStart')}</Text>
+                  <Text style={[styles.rangeDesc, { color: Colors.secondaryText }]}>{t('bankConnection.freshStartDesc')}</Text>
                 </View>
               </TouchableOpacity>
 
@@ -575,27 +576,27 @@ export default function BankConnectionScreen() {
                 </View>
                 <Ionicons name="calendar-outline" size={20} color={!isFreshStart ? OWNER_COLORS.primary : Colors.secondaryText} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.rangeLabel, { color: Colors.primaryText }]}>Import Past Transactions</Text>
-                  <Text style={[styles.rangeDesc, { color: Colors.secondaryText }]}>Choose how many months to go back</Text>
+                  <Text style={[styles.rangeLabel, { color: Colors.primaryText }]}>{t('bankConnection.importPastTransactions')}</Text>
+                  <Text style={[styles.rangeDesc, { color: Colors.secondaryText }]}>{t('bankConnection.importPastDesc')}</Text>
                 </View>
               </TouchableOpacity>
 
               {/* Month Input — only visible when not fresh start */}
               {!isFreshStart && (
                 <View style={[styles.monthInputRow, { borderColor: Colors.border }]}>
-                  <Text style={[styles.monthInputLabel, { color: Colors.primaryText }]}>Months back:</Text>
+                  <Text style={[styles.monthInputLabel, { color: Colors.primaryText }]}>{t('bankConnection.monthsBack')}</Text>
                   <TextInput
                     style={[styles.monthInput, { color: Colors.primaryText, borderColor: OWNER_COLORS.primary }]}
                     value={monthsBack}
                     onChangeText={(text) => setMonthsBack(text.replace(/[^0-9]/g, ''))}
                     keyboardType="number-pad"
-                    placeholder="e.g. 6"
+                    placeholder={t('bankConnection.monthsPlaceholder')}
                     placeholderTextColor={Colors.secondaryText}
                     maxLength={2}
                     autoFocus
                   />
                   <Text style={[styles.monthInputHint, { color: Colors.secondaryText }]}>
-                    {monthsBack ? `${parseInt(monthsBack, 10) * 30} days` : ''}
+                    {monthsBack ? t('bankConnection.daysHint', { count: parseInt(monthsBack, 10) * 30 }) : ''}
                   </Text>
                 </View>
               )}
@@ -609,11 +610,11 @@ export default function BankConnectionScreen() {
               {importLoading ? (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                   <ActivityIndicator color="#FFF" size="small" />
-                  <Text style={styles.importButtonText}>Importing transactions...</Text>
+                  <Text style={styles.importButtonText}>{t('bankConnection.importing')}</Text>
                 </View>
               ) : (
                 <Text style={styles.importButtonText}>
-                  {isFreshStart ? 'Start Fresh' : 'Import Transactions'}
+                  {isFreshStart ? t('bankConnection.startFresh') : t('bankConnection.importTransactions')}
                 </Text>
               )}
             </TouchableOpacity>

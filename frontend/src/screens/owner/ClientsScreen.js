@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 import AuditTrail from '../../components/AuditTrail';
 
@@ -23,6 +24,7 @@ function formatCurrency(amount) {
 }
 
 export default function ClientsScreen({ navigation }) {
+  const { t } = useTranslation('owner');
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -67,7 +69,7 @@ export default function ClientsScreen({ navigation }) {
           <TouchableOpacity testID="clients.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={24} color="#111827" />
           </TouchableOpacity>
-          <Text testID="clients.headerTitle" style={styles.headerTitle}>Clients</Text>
+          <Text testID="clients.headerTitle" style={styles.headerTitle}>{t('clients.title')}</Text>
         </View>
         <ActivityIndicator size="large" color="#3B82F6" style={{ marginTop: 40 }} />
       </SafeAreaView>
@@ -81,7 +83,7 @@ export default function ClientsScreen({ navigation }) {
         <TouchableOpacity testID="clients.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color="#111827" />
         </TouchableOpacity>
-        <Text testID="clients.headerTitle" style={styles.headerTitle}>Clients</Text>
+        <Text testID="clients.headerTitle" style={styles.headerTitle}>{t('clients.title')}</Text>
         <Text testID="clients.headerCount" style={styles.headerCount}>{clients.length}</Text>
       </View>
 
@@ -95,7 +97,7 @@ export default function ClientsScreen({ navigation }) {
             style={styles.searchInput}
             value={search}
             onChangeText={setSearch}
-            placeholder="Search clients..."
+            placeholder={t('clients.searchPlaceholder')}
             placeholderTextColor="#9CA3AF"
           />
           {search.length > 0 && (
@@ -116,7 +118,7 @@ export default function ClientsScreen({ navigation }) {
           <View style={styles.empty}>
             <Ionicons name="people-outline" size={48} color="#D1D5DB" />
             <Text testID="clients.emptyText" style={styles.emptyText}>
-              {search ? 'No clients match your search.' : 'No clients yet. Share a project to add your first client.'}
+              {search ? t('clients.emptySearch') : t('clients.emptyDefault')}
             </Text>
           </View>
         ) : (
@@ -136,7 +138,7 @@ export default function ClientsScreen({ navigation }) {
                 {client.has_portal_access && (
                   <View style={styles.portalBadge}>
                     <View style={styles.portalDot} />
-                    <Text testID={`clients.row.${client.id}.portalBadge`} style={styles.portalText}>Portal</Text>
+                    <Text testID={`clients.row.${client.id}.portalBadge`} style={styles.portalText}>{t('clients.portalBadge')}</Text>
                   </View>
                 )}
               </View>
@@ -145,21 +147,21 @@ export default function ClientsScreen({ navigation }) {
               <View style={styles.statsRow}>
                 <View style={styles.stat}>
                   <Text testID={`clients.row.${client.id}.projectCount`} style={styles.statValue}>{client.project_count}</Text>
-                  <Text style={styles.statLabel}>Projects</Text>
+                  <Text style={styles.statLabel}>{t('clients.statsProjects')}</Text>
                 </View>
                 <View style={styles.stat}>
                   <Text testID={`clients.row.${client.id}.serviceCount`} style={styles.statValue}>{client.service_plan_count}</Text>
-                  <Text style={styles.statLabel}>Services</Text>
+                  <Text style={styles.statLabel}>{t('clients.statsServices')}</Text>
                 </View>
                 <View style={styles.stat}>
                   <Text testID={`clients.row.${client.id}.revenue`} style={[styles.statValue, { color: '#059669' }]}>
                     {formatCurrency(client.total_revenue)}
                   </Text>
-                  <Text style={styles.statLabel}>Revenue</Text>
+                  <Text style={styles.statLabel}>{t('clients.statsRevenue')}</Text>
                 </View>
                 <View style={styles.stat}>
                   <Text testID={`clients.row.${client.id}.contract`} style={styles.statValue}>{formatCurrency(client.total_contract)}</Text>
-                  <Text style={styles.statLabel}>Contract</Text>
+                  <Text style={styles.statLabel}>{t('clients.statsContract')}</Text>
                 </View>
               </View>
 
@@ -173,7 +175,7 @@ export default function ClientsScreen({ navigation }) {
                     onPress={() => Linking.openURL(`tel:${client.phone}`)}
                   >
                     <Ionicons name="call-outline" size={16} color="#3B82F6" />
-                    <Text style={styles.actionLabel}>Call</Text>
+                    <Text style={styles.actionLabel}>{t('clients.actionCall')}</Text>
                   </TouchableOpacity>
                 )}
                 {client.email && (
@@ -184,7 +186,7 @@ export default function ClientsScreen({ navigation }) {
                     onPress={() => Linking.openURL(`mailto:${client.email}`)}
                   >
                     <Ionicons name="mail-outline" size={16} color="#3B82F6" />
-                    <Text style={styles.actionLabel}>Email</Text>
+                    <Text style={styles.actionLabel}>{t('clients.actionEmail')}</Text>
                   </TouchableOpacity>
                 )}
                 {client.phone && (
@@ -195,7 +197,7 @@ export default function ClientsScreen({ navigation }) {
                     onPress={() => Linking.openURL(`sms:${client.phone}`)}
                   >
                     <Ionicons name="chatbubble-outline" size={16} color="#3B82F6" />
-                    <Text style={styles.actionLabel}>Text</Text>
+                    <Text style={styles.actionLabel}>{t('clients.actionText')}</Text>
                   </TouchableOpacity>
                 )}
               </View>

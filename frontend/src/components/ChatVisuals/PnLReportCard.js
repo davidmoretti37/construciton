@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { CATEGORY_LABELS, CATEGORY_COLORS } from '../../utils/financialReportUtils';
@@ -22,6 +23,7 @@ const fmtRange = (startStr, endStr) => {
 };
 
 export default function PnLReportCard({ data, onAction }) {
+  const { t } = useTranslation('chat');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const [downloading, setDownloading] = useState(false);
@@ -69,11 +71,11 @@ export default function PnLReportCard({ data, onAction }) {
       await generatePnLPDFFromAgent(safe);
       onAction?.({ type: 'download-pnl-pdf', data: safe });
     } catch (e) {
-      Alert.alert('Could not export', e?.message || 'Failed to generate the P&L PDF.');
+      Alert.alert(t('pnLReportCard.exportErrorTitle'), e?.message || t('pnLReportCard.exportErrorBody'));
     } finally {
       setDownloading(false);
     }
-  }, [downloading, safe, onAction]);
+  }, [downloading, safe, onAction, t]);
 
   return (
     <View style={[styles.container, { backgroundColor: Colors.cardBackground || Colors.white, borderColor: Colors.border }]}>
@@ -83,11 +85,11 @@ export default function PnLReportCard({ data, onAction }) {
           <View style={styles.titleRow}>
             <Ionicons name="trending-up" size={18} color={Colors.primaryBlue} />
             <Text style={[styles.title, { color: Colors.primaryText }]}>
-              Profit & Loss
+              {t('pnLReportCard.title')}
             </Text>
           </View>
           <Text style={[styles.subtitle, { color: Colors.secondaryText }]} numberOfLines={1}>
-            {scope === 'project' && projectName ? projectName : 'Company-wide'}
+            {scope === 'project' && projectName ? projectName : t('pnLReportCard.companyWide')}
           </Text>
           <Text style={[styles.range, { color: Colors.placeholderText || Colors.secondaryText }]} numberOfLines={1}>
             {fmtRange(startDate, endDate)}
@@ -95,7 +97,7 @@ export default function PnLReportCard({ data, onAction }) {
         </View>
         <View style={[styles.marginPill, { backgroundColor: marginHealthColor + '18', borderColor: marginHealthColor + '40' }]}>
           <Text style={[styles.marginPillText, { color: marginHealthColor }]}>
-            {grossMargin.toFixed(1)}% margin
+            {t('pnLReportCard.marginPercent', { percent: grossMargin.toFixed(1) })}
           </Text>
         </View>
       </View>
@@ -103,19 +105,19 @@ export default function PnLReportCard({ data, onAction }) {
       {/* Top-line metrics */}
       <View style={styles.metricsGrid}>
         <View style={[styles.metricCell, { borderRightColor: Colors.border, borderBottomColor: Colors.border }]}>
-          <Text style={[styles.metricLabel, { color: Colors.secondaryText }]}>Revenue</Text>
+          <Text style={[styles.metricLabel, { color: Colors.secondaryText }]}>{t('pnLReportCard.revenue')}</Text>
           <Text style={[styles.metricValue, { color: Colors.primaryText }]}>{fmtCurrency(revenue)}</Text>
         </View>
         <View style={[styles.metricCell, { borderBottomColor: Colors.border }]}>
-          <Text style={[styles.metricLabel, { color: Colors.secondaryText }]}>Costs</Text>
+          <Text style={[styles.metricLabel, { color: Colors.secondaryText }]}>{t('pnLReportCard.costs')}</Text>
           <Text style={[styles.metricValue, { color: Colors.primaryText }]}>{fmtCurrency(costs)}</Text>
         </View>
         <View style={[styles.metricCell, { borderRightColor: Colors.border }]}>
-          <Text style={[styles.metricLabel, { color: Colors.secondaryText }]}>Gross Profit</Text>
+          <Text style={[styles.metricLabel, { color: Colors.secondaryText }]}>{t('pnLReportCard.grossProfit')}</Text>
           <Text style={[styles.metricValue, { color: profitColor }]}>{fmtCurrency(grossProfit)}</Text>
         </View>
         <View style={styles.metricCell}>
-          <Text style={[styles.metricLabel, { color: Colors.secondaryText }]}>Net Profit</Text>
+          <Text style={[styles.metricLabel, { color: Colors.secondaryText }]}>{t('pnLReportCard.netProfit')}</Text>
           <Text style={[styles.metricValue, { color: netColor }]}>{fmtCurrency(netProfit)}</Text>
         </View>
       </View>
@@ -123,7 +125,7 @@ export default function PnLReportCard({ data, onAction }) {
       {/* Cost breakdown bar */}
       {costSegments.length > 0 && (
         <View style={[styles.section, { borderTopColor: Colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Cost Breakdown</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('pnLReportCard.costBreakdown')}</Text>
           <View style={[styles.barTrack, { backgroundColor: Colors.lightGray }]}>
             {costSegments.map((s) => (
               <View key={s.cat} style={{ flex: s.pct, height: '100%', backgroundColor: s.color }} />
@@ -151,13 +153,13 @@ export default function PnLReportCard({ data, onAction }) {
         <View style={[styles.subRow, { borderTopColor: Colors.border }]}>
           {overhead > 0 && (
             <View style={styles.subItem}>
-              <Text style={[styles.subLabel, { color: Colors.secondaryText }]}>Overhead</Text>
+              <Text style={[styles.subLabel, { color: Colors.secondaryText }]}>{t('pnLReportCard.overhead')}</Text>
               <Text style={[styles.subValue, { color: Colors.primaryText }]}>{fmtCurrency(overhead)}</Text>
             </View>
           )}
           {outstandingReceivables > 0 && (
             <View style={styles.subItem}>
-              <Text style={[styles.subLabel, { color: Colors.secondaryText }]}>AR Outstanding</Text>
+              <Text style={[styles.subLabel, { color: Colors.secondaryText }]}>{t('pnLReportCard.arOutstanding')}</Text>
               <Text style={[styles.subValue, { color: Colors.primaryText }]}>{fmtCurrency(outstandingReceivables)}</Text>
             </View>
           )}
@@ -167,7 +169,7 @@ export default function PnLReportCard({ data, onAction }) {
       {/* Per-project breakdown (only when company-wide or explicitly requested) */}
       {Array.isArray(projectBreakdowns) && projectBreakdowns.length > 0 && scope !== 'project' && (
         <View style={[styles.section, { borderTopColor: Colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>By Project</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('pnLReportCard.byProject')}</Text>
           {projectBreakdowns.slice(0, 6).map((p) => {
             const pProfit = Number(p.grossProfit) || 0;
             const pColor = pProfit >= 0 ? '#10B981' : '#EF4444';
@@ -178,13 +180,13 @@ export default function PnLReportCard({ data, onAction }) {
                     {p.name}
                   </Text>
                   <Text style={[styles.projectMeta, { color: Colors.secondaryText }]}>
-                    Rev {fmtCurrency(p.revenue)} · Cost {fmtCurrency(p.costs)}
+                    {t('pnLReportCard.projectMeta', { revenue: fmtCurrency(p.revenue), costs: fmtCurrency(p.costs) })}
                   </Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
                   <Text style={[styles.projectProfit, { color: pColor }]}>{fmtCurrency(pProfit)}</Text>
                   <Text style={[styles.projectMargin, { color: Colors.secondaryText }]}>
-                    {p.grossMargin?.toFixed(1) || 0}% margin
+                    {t('pnLReportCard.marginPercent', { percent: p.grossMargin?.toFixed(1) || 0 })}
                   </Text>
                 </View>
               </View>
@@ -192,7 +194,7 @@ export default function PnLReportCard({ data, onAction }) {
           })}
           {projectBreakdowns.length > 6 && (
             <Text style={[styles.moreNote, { color: Colors.secondaryText }]}>
-              +{projectBreakdowns.length - 6} more projects in the PDF
+              {t('pnLReportCard.moreProjects', { count: projectBreakdowns.length - 6 })}
             </Text>
           )}
         </View>
@@ -211,7 +213,7 @@ export default function PnLReportCard({ data, onAction }) {
           ) : (
             <>
               <Ionicons name="download-outline" size={18} color="#fff" />
-              <Text style={styles.primaryBtnText}>Download PDF</Text>
+              <Text style={styles.primaryBtnText}>{t('pnLReportCard.downloadPdf')}</Text>
             </>
           )}
         </TouchableOpacity>

@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -20,6 +21,7 @@ export default function NonWorkingDatesManager({
   onRemoveDate,
   disabled = false,
 }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -65,20 +67,20 @@ export default function NonWorkingDatesManager({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={[styles.label, { color: Colors.secondaryText }]}>Days Off</Text>
+        <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('nonWorkingDatesManager.daysOff')}</Text>
         <TouchableOpacity
           style={[styles.addButton, { backgroundColor: Colors.primaryBlue }]}
           onPress={() => setShowPicker(true)}
           disabled={disabled}
         >
           <Ionicons name="add" size={18} color="#fff" />
-          <Text style={styles.addButtonText}>Add Date</Text>
+          <Text style={styles.addButtonText}>{t('nonWorkingDatesManager.addDate')}</Text>
         </TouchableOpacity>
       </View>
 
       {sortedDates.length === 0 ? (
         <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-          No days off scheduled. Tap "Add Date" to mark specific dates as non-working.
+          {t('nonWorkingDatesManager.emptyText')}
         </Text>
       ) : (
         <View style={styles.datesList}>
@@ -116,11 +118,11 @@ export default function NonWorkingDatesManager({
           <View style={[styles.modalContent, { backgroundColor: Colors.cardBackground }]}>
             <View style={[styles.modalHeader, { borderBottomColor: Colors.border }]}>
               <TouchableOpacity onPress={handleCancelPicker}>
-                <Text style={[styles.modalCancel, { color: Colors.errorRed }]}>Cancel</Text>
+                <Text style={[styles.modalCancel, { color: Colors.errorRed }]}>{t('common:buttons.cancel')}</Text>
               </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Select Day Off</Text>
+              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>{t('nonWorkingDatesManager.selectDayOff')}</Text>
               <TouchableOpacity onPress={handleConfirmDate}>
-                <Text style={[styles.modalConfirm, { color: Colors.primaryBlue }]}>Add</Text>
+                <Text style={[styles.modalConfirm, { color: Colors.primaryBlue }]}>{t('common:buttons.add')}</Text>
               </TouchableOpacity>
             </View>
 
@@ -137,7 +139,7 @@ export default function NonWorkingDatesManager({
             </View>
 
             <Text style={[styles.pickerHint, { color: Colors.secondaryText }]}>
-              This date will be skipped when shifting tasks
+              {t('nonWorkingDatesManager.pickerHint')}
             </Text>
           </View>
         </View>

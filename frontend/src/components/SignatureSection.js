@@ -28,7 +28,7 @@ export default function SignatureSection({
   defaultSignerPhone = '',
   canRequest = true,
 }) {
-  const { t } = useTranslation();
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const [status, setStatus] = useState(null);
@@ -58,7 +58,7 @@ export default function SignatureSection({
 
   const handleSubmitRequest = async () => {
     if (!signerEmail || !signerEmail.includes('@')) {
-      Alert.alert(t('esign.invalid_email_title', 'Email required'), t('esign.invalid_email_body', 'Enter a valid email so the signer can receive the signing link.'));
+      Alert.alert(t('signatureSection.invalidEmailTitle'), t('signatureSection.invalidEmailBody'));
       return;
     }
     setSubmitting(true);
@@ -75,7 +75,7 @@ export default function SignatureSection({
       // Offer share sheet
       showSignatureSendOptions(signerPhone, result.signingUrl, result.documentTitle || documentType);
     } catch (err) {
-      Alert.alert(t('common.error', 'Error'), err.message || 'Failed');
+      Alert.alert(t('common:alerts.error'), err.message || t('signatureSection.failed'));
     } finally {
       setSubmitting(false);
     }
@@ -84,19 +84,19 @@ export default function SignatureSection({
   const handleCancel = async () => {
     if (!status?.signatureId) return;
     Alert.alert(
-      t('esign.cancel_request', 'Cancel signature request'),
-      t('esign.cancel_request_confirm', 'The signing link will stop working immediately.'),
+      t('signatureSection.cancelRequestTitle'),
+      t('signatureSection.cancelRequestConfirm'),
       [
-        { text: t('common.no', 'No'), style: 'cancel' },
+        { text: t('signatureSection.no'), style: 'cancel' },
         {
-          text: t('common.yes', 'Yes'),
+          text: t('signatureSection.yes'),
           style: 'destructive',
           onPress: async () => {
             try {
               await cancelSignatureRequest(status.signatureId);
               await load();
             } catch (err) {
-              Alert.alert(t('common.error', 'Error'), err.message || 'Failed');
+              Alert.alert(t('common:alerts.error'), err.message || t('signatureSection.failed'));
             }
           },
         },
@@ -118,17 +118,17 @@ export default function SignatureSection({
       <View style={[styles.card, { backgroundColor: surface, borderColor: border }]}>
         <View style={styles.header}>
           <Ionicons name="create-outline" size={18} color={textS} />
-          <Text style={[styles.headerTitle, { color: textP }]}>{t('esign.signature', 'Signature')}</Text>
+          <Text style={[styles.headerTitle, { color: textP }]}>{t('signatureSection.title')}</Text>
         </View>
         <Text style={[styles.subtle, { color: textS }]}>
-          {t('esign.no_request_hint', 'Send a signing link to the customer for a binding e-signature.')}
+          {t('signatureSection.noRequestHint')}
         </Text>
         <TouchableOpacity
           onPress={() => setShowRequest(true)}
           style={[styles.btnPrimary, { backgroundColor: '#1E40AF' }]}
         >
           <Ionicons name="paper-plane-outline" size={14} color="#fff" />
-          <Text style={styles.btnPrimaryText}>{t('esign.request_signature', 'Request signature')}</Text>
+          <Text style={styles.btnPrimaryText}>{t('signatureSection.requestSignature')}</Text>
         </TouchableOpacity>
         {renderRequestModal()}
       </View>
@@ -149,16 +149,16 @@ export default function SignatureSection({
   const isDeclined = status.status === 'declined';
   const isExpired = status.status === 'expired';
 
-  const tag = isSigned ? { label: 'SIGNED', color: '#15803D', bg: '#16A34A14' } :
-              isPending ? { label: 'PENDING', color: '#92400E', bg: '#D9770614' } :
-              isDeclined ? { label: 'DECLINED', color: '#991B1B', bg: '#DC262614' } :
-              { label: 'EXPIRED', color: '#475569', bg: '#64748B14' };
+  const tag = isSigned ? { label: t('signatureSection.statusSigned'), color: '#15803D', bg: '#16A34A14' } :
+              isPending ? { label: t('signatureSection.statusPending'), color: '#92400E', bg: '#D9770614' } :
+              isDeclined ? { label: t('signatureSection.statusDeclined'), color: '#991B1B', bg: '#DC262614' } :
+              { label: t('signatureSection.statusExpired'), color: '#475569', bg: '#64748B14' };
 
   return (
     <View style={[styles.card, { backgroundColor: surface, borderColor: border }]}>
       <View style={styles.header}>
         <Ionicons name="create-outline" size={18} color={textS} />
-        <Text style={[styles.headerTitle, { color: textP }]}>{t('esign.signature', 'Signature')}</Text>
+        <Text style={[styles.headerTitle, { color: textP }]}>{t('signatureSection.title')}</Text>
         <View style={[styles.tag, { backgroundColor: tag.bg }]}>
           <Text style={[styles.tagText, { color: tag.color }]}>{tag.label}</Text>
         </View>
@@ -166,7 +166,7 @@ export default function SignatureSection({
 
       {(status.signerName || status.signerEmail) && (
         <View style={styles.row}>
-          <Text style={[styles.rowLabel, { color: textS }]}>{t('esign.signer', 'Signer')}</Text>
+          <Text style={[styles.rowLabel, { color: textS }]}>{t('signatureSection.signer')}</Text>
           <Text style={[styles.rowValue, { color: textP }]} numberOfLines={1}>
             {status.signerName || '—'}{status.signerEmail ? ` · ${status.signerEmail}` : ''}
           </Text>
@@ -175,7 +175,7 @@ export default function SignatureSection({
 
       {isSigned && status.signedAt && (
         <View style={styles.row}>
-          <Text style={[styles.rowLabel, { color: textS }]}>{t('esign.signed_at', 'Signed at')}</Text>
+          <Text style={[styles.rowLabel, { color: textS }]}>{t('signatureSection.signedAt')}</Text>
           <Text style={[styles.rowValue, { color: textP }]}>{new Date(status.signedAt).toLocaleString()}</Text>
         </View>
       )}
@@ -186,7 +186,7 @@ export default function SignatureSection({
           style={[styles.linkRow, { borderColor: border }]}
         >
           <Ionicons name="document-text-outline" size={16} color="#1E40AF" />
-          <Text style={[styles.linkText]}>{t('esign.view_signed_pdf', 'View signed PDF')}</Text>
+          <Text style={[styles.linkText]}>{t('signatureSection.viewSignedPdf')}</Text>
           <Ionicons name="open-outline" size={14} color="#1E40AF" />
         </TouchableOpacity>
       )}
@@ -194,7 +194,7 @@ export default function SignatureSection({
       {isSigned && (
         <TouchableOpacity onPress={() => setShowAudit(s => !s)} style={styles.auditToggle}>
           <Text style={[styles.auditText, { color: textS }]}>
-            {showAudit ? t('esign.hide_audit', 'Hide audit trail') : t('esign.show_audit', 'Show audit trail')}
+            {showAudit ? t('signatureSection.hideAudit') : t('signatureSection.showAudit')}
           </Text>
           <Ionicons name={showAudit ? 'chevron-up' : 'chevron-down'} size={14} color={textS} />
         </TouchableOpacity>
@@ -222,7 +222,7 @@ export default function SignatureSection({
             onPress={handleCancel}
             style={[styles.btnSecondary, { borderColor: border }]}
           >
-            <Text style={[styles.btnSecondaryText, { color: textS }]}>{t('esign.cancel_request_short', 'Cancel')}</Text>
+            <Text style={[styles.btnSecondaryText, { color: textS }]}>{t('common:buttons.cancel')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -233,7 +233,7 @@ export default function SignatureSection({
           style={[styles.btnPrimary, { backgroundColor: '#1E40AF' }]}
         >
           <Ionicons name="refresh" size={14} color="#fff" />
-          <Text style={styles.btnPrimaryText}>{t('esign.request_again', 'Request again')}</Text>
+          <Text style={styles.btnPrimaryText}>{t('signatureSection.requestAgain')}</Text>
         </TouchableOpacity>
       )}
 
@@ -249,18 +249,18 @@ export default function SignatureSection({
           <View style={[styles.modalCard, { backgroundColor: surface }]}>
             <ScrollView keyboardShouldPersistTaps="handled">
               <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: textP }]}>{t('esign.request_signature', 'Request signature')}</Text>
+                <Text style={[styles.modalTitle, { color: textP }]}>{t('signatureSection.requestSignature')}</Text>
                 <TouchableOpacity onPress={() => setShowRequest(false)}>
                   <Ionicons name="close" size={22} color={textS} />
                 </TouchableOpacity>
               </View>
               <Text style={[styles.subtle, { color: textS, marginBottom: 16 }]}>
-                {t('esign.request_subtle', 'We\'ll email a single-use signing link valid for 7 days.')}
+                {t('signatureSection.requestSubtle')}
               </Text>
 
-              <Field label={t('esign.signer_name', 'Signer name')} value={signerName} onChange={setSignerName} placeholder="Jane Doe" textP={textP} textS={textS} border={border} />
-              <Field label={t('esign.signer_email', 'Email')} value={signerEmail} onChange={setSignerEmail} placeholder="signer@example.com" keyboardType="email-address" autoCapitalize="none" textP={textP} textS={textS} border={border} />
-              <Field label={t('esign.signer_phone', 'Phone (optional)')} value={signerPhone} onChange={setSignerPhone} placeholder="(555) 555-5555" keyboardType="phone-pad" textP={textP} textS={textS} border={border} />
+              <Field label={t('signatureSection.signerName')} value={signerName} onChange={setSignerName} placeholder={t('signatureSection.placeholderName')} textP={textP} textS={textS} border={border} />
+              <Field label={t('signatureSection.signerEmail')} value={signerEmail} onChange={setSignerEmail} placeholder="signer@example.com" keyboardType="email-address" autoCapitalize="none" textP={textP} textS={textS} border={border} />
+              <Field label={t('signatureSection.signerPhone')} value={signerPhone} onChange={setSignerPhone} placeholder={t('signatureSection.placeholderPhone')} keyboardType="phone-pad" textP={textP} textS={textS} border={border} />
 
               <TouchableOpacity
                 onPress={handleSubmitRequest}
@@ -270,7 +270,7 @@ export default function SignatureSection({
                 {submitting ? <ActivityIndicator size="small" color="#fff" /> : (
                   <>
                     <Ionicons name="paper-plane-outline" size={14} color="#fff" />
-                    <Text style={styles.btnPrimaryText}>{t('esign.send_link', 'Send link')}</Text>
+                    <Text style={styles.btnPrimaryText}>{t('signatureSection.sendLink')}</Text>
                   </>
                 )}
               </TouchableOpacity>

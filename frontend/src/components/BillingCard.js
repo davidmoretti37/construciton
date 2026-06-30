@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabase';
 import {
   fetchProjectBilling, sendDrawNow, nudgeInvoice, resendChangeOrder, billChangeOrderNow,
@@ -61,18 +62,20 @@ const STATUS_PILL = {
 };
 
 function StatusPill({ status }) {
+  const { t } = useTranslation('common');
   // Match raw_status first, then status keyword inside the string
   const key = STATUS_PILL[status] ? status :
     (Object.keys(STATUS_PILL).find(k => String(status || '').toLowerCase().includes(k)) || 'pending');
   const cfg = STATUS_PILL[key] || STATUS_PILL.pending;
   return (
     <View style={[styles.pill, { backgroundColor: cfg.bg }]}>
-      <Text style={[styles.pillText, { color: cfg.text }]}>{cfg.label}</Text>
+      <Text style={[styles.pillText, { color: cfg.text }]}>{t(`billingCard.status.${key}`)}</Text>
     </View>
   );
 }
 
 function EventRow({ event, onAction, onOpen, isAction, projectHasInvoice, projectHasDraws, onBillAll, onSetUpDraws, billedEstimateIds, drawsSetUpEstimateIds }) {
+  const { t } = useTranslation('common');
   const visual = SOURCE_VISUAL[event.source] || SOURCE_VISUAL.invoice;
   // Optimistic suppression — the user just resolved this estimate (billed
   // it or sent it to set-up-draws), so don't render its row at all while
@@ -94,13 +97,17 @@ function EventRow({ event, onAction, onOpen, isAction, projectHasInvoice, projec
   // Build the meta line — what makes this row actionable
   let metaLine = null;
   if (event.source === 'invoice' && event.days_overdue > 0) {
-    metaLine = `${event.days_overdue} days overdue · ${fmt$(event.amount_due)} due`;
+    metaLine = t('billingCard.daysOverdueMeta', { count: event.days_overdue, amount: fmt$(event.amount_due) });
   } else if (event.source === 'change_order' && event.raw_status && ['pending_client','viewed'].includes(event.raw_status)) {
     metaLine = event.status; // already formatted "awaiting client (Nd)"
   } else if (event.source === 'change_order' && event.schedule_impact_days) {
-    metaLine = `${event.schedule_impact_days > 0 ? '+' : ''}${event.schedule_impact_days} day${Math.abs(event.schedule_impact_days) === 1 ? '' : 's'}`;
+    const absVal = Math.abs(event.schedule_impact_days);
+    const prefix = event.schedule_impact_days > 0 ? '+' : '';
+    metaLine = absVal === 1
+      ? t('billingCard.scheduleImpactSingular', { prefix, count: event.schedule_impact_days })
+      : t('billingCard.scheduleImpactPlural', { prefix, count: event.schedule_impact_days });
   } else if (event.source === 'draw' && event.trigger_type === 'change_order_approved' && event.co_id) {
-    metaLine = 'Change order';
+    metaLine = t('billingCard.changeOrderMetaLine');
   } else if (event.source === 'draw' && event.invoice?.invoice_number) {
     metaLine = event.invoice.invoice_number;
   }
@@ -156,7 +163,7 @@ function EventRow({ event, onAction, onOpen, isAction, projectHasInvoice, projec
       {/* Accepted estimate prompt — owner picks how to bill */}
       {isAcceptedEstimateNeedingAction && (
         <View style={styles.acceptedPrompt}>
-          <Text style={styles.acceptedPromptTitle}>Client accepted — how do you want to bill?</Text>
+          <Text style={styles.acceptedPromptTitle}>{t('billingCard.acceptedPromptTitle')}</Text>
           <View style={styles.acceptedPromptButtons}>
             <TouchableOpacity
               testID={`billingCard.row.${event.id}.billAll`}
@@ -166,7 +173,7 @@ function EventRow({ event, onAction, onOpen, isAction, projectHasInvoice, projec
               activeOpacity={0.7}
             >
               <Ionicons name="receipt-outline" size={14} color={C.primary} />
-              <Text style={styles.acceptedBtnSecondaryText}>Bill it all now</Text>
+              <Text style={styles.acceptedBtnSecondaryText}>{t('billingCard.billItAllNow')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               testID={`billingCard.row.${event.id}.setUpDraws`}
@@ -176,7 +183,7 @@ function EventRow({ event, onAction, onOpen, isAction, projectHasInvoice, projec
               activeOpacity={0.7}
             >
               <Ionicons name="cash-outline" size={14} color="#fff" />
-              <Text style={styles.acceptedBtnPrimaryText}>Set up draws</Text>
+              <Text style={styles.acceptedBtnPrimaryText}>{t('billingCard.setUpDraws')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -196,6 +203,7 @@ function ctaTextStyleFor(_action) {
 }
 
 export default function BillingCard({ project, navigation, onRefresh, onOpenEstimate }) {
+  const { t } = useTranslation('common');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [historyExpanded, setHistoryExpanded] = useState(false);
@@ -253,11 +261,11 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
           // Confirmation modal — sending an invoice is a real-world action
           const confirmed = await new Promise((resolve) => {
             Alert.alert(
-              'Send invoice?',
-              `Generate an invoice for ${event.label}: ${fmt$$(event.amount)}\n${event.description}\n\nThe client will be emailed automatically.`,
+              t('billingCard.sendInvoiceTitle'),
+              t('billingCard.sendInvoiceBody', { label: event.label, amount: fmt$$(event.amount), description: event.description }),
               [
-                { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-                { text: 'Send', style: 'default', onPress: () => resolve(true) },
+                { text: t('common:buttons.cancel'), style: 'cancel', onPress: () => resolve(false) },
+                { text: t('billingCard.sendButton'), style: 'default', onPress: () => resolve(true) },
               ]
             );
           });
@@ -267,10 +275,10 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
           // email side might have failed (no client_email, Resend down, etc.).
           if (result?.ok) {
             const inv = result.invoice;
-            const headline = result.emailSent ? 'Draw invoice sent' : 'Draw invoice created';
+            const headline = result.emailSent ? t('billingCard.drawInvoiceSentTitle') : t('billingCard.drawInvoiceCreatedTitle');
             const detail = result.emailSent
-              ? `${inv?.invoice_number || 'Invoice'} for ${fmt$$(inv?.total)} emailed to client.`
-              : (result.emailError || 'Email could not be delivered. Open the invoice to resend.');
+              ? t('billingCard.drawInvoiceSentDetail', { invoiceNumber: inv?.invoice_number || t('billingCard.invoice'), amount: fmt$$(inv?.total) })
+              : (result.emailError || t('billingCard.emailDeliveryFailed'));
             Alert.alert(headline, detail);
           }
           break;
@@ -288,11 +296,11 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
         default:
           break;
       }
-      if (result?.error) Alert.alert('Action failed', result.error);
+      if (result?.error) Alert.alert(t('billingCard.actionFailed'), result.error);
       await load();
       onRefresh?.();
     } catch (e) {
-      Alert.alert('Action failed', e.message || 'Something went wrong');
+      Alert.alert(t('billingCard.actionFailed'), e.message || t('billingCard.somethingWentWrong'));
     } finally {
       setBusyAction(null);
     }
@@ -318,7 +326,7 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
   const handleBillAll = async (event) => {
     if (busyAction) return;
     if (!event?.source_id) {
-      Alert.alert('Cannot bill', 'No estimate is linked to this row.');
+      Alert.alert(t('billingCard.cannotBillTitle'), t('billingCard.noEstimateLinked'));
       return;
     }
     setBusyAction(event.id);
@@ -342,12 +350,12 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
         onRefresh?.();
       } else {
         Alert.alert(
-          "Couldn't create invoice",
-          'The estimate may already be converted, or the data is missing fields. Open the estimate directly and try from there.'
+          t('billingCard.couldNotCreateInvoiceTitle'),
+          t('billingCard.couldNotCreateInvoiceBody')
         );
       }
     } catch (e) {
-      Alert.alert('Error', e?.message || 'Failed to create invoice');
+      Alert.alert(t('common:alerts.error'), e?.message || t('billingCard.failedToCreateInvoice'));
     } finally {
       setBusyAction(null);
     }
@@ -368,7 +376,7 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
     try {
       navigation.navigate('ProjectBuilder', { fromEstimateId: event.source_id });
     } catch (e) {
-      Alert.alert('Not available', "Couldn't open the project builder from here.");
+      Alert.alert(t('billingCard.notAvailableTitle'), t('billingCard.couldNotOpenBuilder'));
     }
   };
 
@@ -392,9 +400,9 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
       <View style={[styles.card, { paddingVertical: 18 }]}>
         <View style={styles.headerRow}>
           <Ionicons name="cash-outline" size={18} color={C.green} />
-          <Text style={styles.headerTitle}>Billing</Text>
+          <Text style={styles.headerTitle}>{t('billingCard.title')}</Text>
         </View>
-        <Text style={styles.emptyMsg}>No billing data yet — create an estimate or draw schedule to start.</Text>
+        <Text style={styles.emptyMsg}>{t('billingCard.noBillingData')}</Text>
       </View>
     );
   }
@@ -435,11 +443,11 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
           <Ionicons name="cash-outline" size={16} color={C.green} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text testID="billingCard.title" style={styles.headerTitle}>Billing</Text>
+          <Text testID="billingCard.title" style={styles.headerTitle}>{t('billingCard.title')}</Text>
           <Text testID="billingCard.contractSubtitle" style={styles.headerSubtitle}>
-            Contract {fmt$(rollup.contract_amount)}
-            {contractDelta > 0 ? `  (was ${fmt$(rollup.base_contract)})` : ''}
-            {' · '}{Math.round(drawnPct)}% drawn
+            {t('billingCard.contractAmount', { amount: fmt$(rollup.contract_amount) })}
+            {contractDelta > 0 ? `  ${t('billingCard.wasOriginalAmount', { amount: fmt$(rollup.base_contract) })}` : ''}
+            {' · '}{t('billingCard.drawnPercent', { pct: Math.round(drawnPct) })}
           </Text>
         </View>
       </View>
@@ -454,17 +462,17 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
       {/* Quick stats */}
       <View style={styles.statsRow}>
         <View style={styles.stat}>
-          <Text style={styles.statLabel}>Drawn</Text>
+          <Text style={styles.statLabel}>{t('billingCard.statDrawn')}</Text>
           <Text testID="billingCard.drawnAmount" style={styles.statValue}>{fmt$(rollup.drawn_to_date)}</Text>
         </View>
         <View style={styles.statSep} />
         <View style={styles.stat}>
-          <Text style={styles.statLabel}>Collected</Text>
+          <Text style={styles.statLabel}>{t('billingCard.statCollected')}</Text>
           <Text testID="billingCard.collectedAmount" style={[styles.statValue, { color: C.green }]}>{fmt$(rollup.collected)}</Text>
         </View>
         <View style={styles.statSep} />
         <View style={styles.stat}>
-          <Text style={styles.statLabel}>Outstanding</Text>
+          <Text style={styles.statLabel}>{t('billingCard.statOutstanding')}</Text>
           <Text testID="billingCard.outstandingAmount" style={[styles.statValue, rollup.outstanding > 0 && { color: C.amberDark }]}>
             {fmt$(rollup.outstanding)}
           </Text>
@@ -476,7 +484,7 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
         <View style={styles.zone}>
           <View style={styles.zoneHeader}>
             <Ionicons name="alert-circle" size={14} color={C.red} />
-            <Text testID="billingCard.actionRequiredLabel" style={[styles.zoneLabel, { color: C.red }]}>Action required ({action.length})</Text>
+            <Text testID="billingCard.actionRequiredLabel" style={[styles.zoneLabel, { color: C.red }]}>{t('billingCard.actionRequired', { count: action.length })}</Text>
           </View>
           {action.map((event) => (
             <EventRow
@@ -501,7 +509,7 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
         <View style={styles.zone}>
           <View style={styles.zoneHeader}>
             <Ionicons name="time-outline" size={14} color={C.textSec} />
-            <Text testID="billingCard.upcomingLabel" style={styles.zoneLabel}>Upcoming ({upcoming.length})</Text>
+            <Text testID="billingCard.upcomingLabel" style={styles.zoneLabel}>{t('billingCard.upcoming', { count: upcoming.length })}</Text>
           </View>
           {upcoming.map((event) => (
             <EventRow
@@ -533,7 +541,7 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
               name={historyExpanded ? 'chevron-down' : 'chevron-forward'}
               size={14} color={C.textMuted}
             />
-            <Text testID="billingCard.historyLabel" style={styles.zoneLabel}>History ({history.length})</Text>
+            <Text testID="billingCard.historyLabel" style={styles.zoneLabel}>{t('billingCard.history', { count: history.length })}</Text>
           </TouchableOpacity>
           {historyExpanded && history.map((event) => (
             <EventRow
@@ -553,7 +561,7 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
 
       {action.length === 0 && upcoming.length === 0 && history.length === 0 && (
         <Text style={styles.emptyMsg}>
-          Nothing yet. Create an estimate, draw schedule, or change order in chat.
+          {t('billingCard.emptyMessage')}
         </Text>
       )}
     </View>

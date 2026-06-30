@@ -23,6 +23,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../../constants/theme';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -33,6 +34,7 @@ import { API_URL } from '../../../config/api';
 const SUB_VIOLET = '#8B5CF6';
 
 export default function SubWelcomeScreen() {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { user, refreshProfile } = useAuth();
@@ -58,13 +60,13 @@ export default function SubWelcomeScreen() {
       if (res.ok && json.invited) {
         setInvite({
           subOrganizationId: json.sub_organization_id,
-          legalName: json.legal_name || 'your contractor',
+          legalName: json.legal_name || t('subWelcome.yourContractor'),
         });
       } else {
         setInvite(null);
       }
     } catch (e) {
-      setError(e.message || 'Could not check for invitations.');
+      setError(e.message || t('subWelcome.errorCheckInvite'));
     } finally {
       setChecking(false);
     }
@@ -96,7 +98,7 @@ export default function SubWelcomeScreen() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(json.error || 'Failed to accept invitation');
+        throw new Error(json.error || t('subWelcome.errorAcceptFailed'));
       }
 
       // Mark onboarded so App.js routes to the portal.
@@ -112,7 +114,7 @@ export default function SubWelcomeScreen() {
       await refreshProfile();
       if (onComplete) onComplete();
     } catch (e) {
-      setError(e.message || 'Something went wrong. Try again.');
+      setError(e.message || t('subWelcome.errorTryAgain'));
     } finally {
       setAccepting(false);
     }
@@ -124,7 +126,7 @@ export default function SubWelcomeScreen() {
         <View style={[styles.content, { justifyContent: 'center' }]}>
           <ActivityIndicator size="large" color={SUB_VIOLET} />
           <Text style={[styles.subtitle, { color: Colors.secondaryText, marginTop: 16 }]}>
-            Checking for invitations...
+            {t('subWelcome.checkingInvitations')}
           </Text>
         </View>
       </SafeAreaView>
@@ -136,7 +138,7 @@ export default function SubWelcomeScreen() {
       {onGoBack && (
         <TouchableOpacity style={styles.backButton} onPress={onGoBack} activeOpacity={0.7}>
           <Ionicons name="arrow-back" size={22} color={Colors.primaryText} />
-          <Text style={[styles.backText, { color: Colors.primaryText }]}>Back</Text>
+          <Text style={[styles.backText, { color: Colors.primaryText }]}>{t('common:buttons.back')}</Text>
         </TouchableOpacity>
       )}
 
@@ -148,24 +150,24 @@ export default function SubWelcomeScreen() {
         {invite ? (
           <>
             <Text style={[styles.title, { color: Colors.primaryText }]}>
-              You've been invited!
+              {t('subWelcome.invited')}
             </Text>
             <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>
               <Text style={{ fontWeight: '700', color: Colors.primaryText }}>
                 {invite.legalName}
-              </Text>{' '}
-              is set up on Sylk and has invited you ({user?.email}) as their subcontractor.
+              </Text>
+              {t('subWelcome.invitedSubtitleSuffix', { email: user?.email })}
             </Text>
 
             <View style={[styles.card, { backgroundColor: Colors.cardBackground || '#fff' }]}>
               <Text style={[styles.cardHeader, { color: Colors.primaryText }]}>
-                What you'll get
+                {t('subWelcome.whatYoullGet')}
               </Text>
               {[
-                { icon: 'document-text-outline', text: 'Compliance vault — COI, W-9, licenses, all in one place' },
-                { icon: 'mail-outline', text: 'Inbox — every doc request, contract, and bid invite' },
-                { icon: 'cash-outline', text: 'Send invoices and track payments from your contractors' },
-                { icon: 'rocket-outline', text: 'Run your own jobs through Sylk later (optional)' },
+                { icon: 'document-text-outline', text: t('subWelcome.feature1') },
+                { icon: 'mail-outline', text: t('subWelcome.feature2') },
+                { icon: 'cash-outline', text: t('subWelcome.feature3') },
+                { icon: 'rocket-outline', text: t('subWelcome.feature4') },
               ].map((f) => (
                 <View key={f.icon} style={styles.featureRow}>
                   <Ionicons name={f.icon} size={20} color={SUB_VIOLET} />
@@ -189,20 +191,19 @@ export default function SubWelcomeScreen() {
               {accepting ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.primaryButtonText}>Accept invitation</Text>
+                <Text style={styles.primaryButtonText}>{t('subWelcome.acceptInvitation')}</Text>
               )}
             </TouchableOpacity>
           </>
         ) : (
           <>
             <Text style={[styles.title, { color: Colors.primaryText }]}>
-              Waiting for an invitation
+              {t('subWelcome.waitingTitle')}
             </Text>
             <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>
-              We didn't find an invitation for{' '}
-              <Text style={{ fontWeight: '700', color: Colors.primaryText }}>{user?.email}</Text>.
-              {'\n\n'}Ask the contractor who's hiring you to invite you on Sylk using this exact
-              email. Once they do, tap Refresh below.
+              {t('subWelcome.noInviteBefore')}{' '}
+              <Text style={{ fontWeight: '700', color: Colors.primaryText }}>{user?.email}</Text>
+              {t('subWelcome.noInviteAfter')}
             </Text>
 
             {error && (
@@ -214,7 +215,7 @@ export default function SubWelcomeScreen() {
               onPress={checkForInvite}
               activeOpacity={0.85}
             >
-              <Text style={styles.primaryButtonText}>Refresh</Text>
+              <Text style={styles.primaryButtonText}>{t('subWelcome.refresh')}</Text>
             </TouchableOpacity>
 
             {onGoBack && (
@@ -224,7 +225,7 @@ export default function SubWelcomeScreen() {
                 activeOpacity={0.7}
               >
                 <Text style={[styles.secondaryButtonText, { color: Colors.primaryText }]}>
-                  Pick a different role
+                  {t('subWelcome.pickDifferentRole')}
                 </Text>
               </TouchableOpacity>
             )}

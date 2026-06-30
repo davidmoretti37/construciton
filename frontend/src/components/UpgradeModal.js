@@ -24,7 +24,7 @@ import { useTranslation } from 'react-i18next';
 export default function UpgradeModal({ visible, onClose }) {
   const { isDark } = useTheme();
   const Colors = getColors(isDark) || LightColors;
-  const { t } = useTranslation();
+  const { t } = useTranslation('common');
   const [loading, setLoading] = useState(false);
 
   const {
@@ -97,7 +97,7 @@ export default function UpgradeModal({ visible, onClose }) {
           <View style={[styles.usageBar, { backgroundColor: Colors.background }]}>
             <View style={styles.usageRow}>
               <Text style={[styles.usageLabel, { color: Colors.secondaryText }]}>
-                Active projects
+                {t('upgradeModal.activeProjects')}
               </Text>
               <Text style={[styles.usageValue, { color: Colors.primaryText }]}>
                 {activeProjectCount} / {getProjectLimitDisplay()}
@@ -124,14 +124,14 @@ export default function UpgradeModal({ visible, onClose }) {
               </Text>
               <View style={[styles.upgradeBadge, { backgroundColor: Colors.primaryBlue }]}>
                 <Text style={styles.upgradeBadgeText}>
-                  {nextPlan.limit === 'Unlimited' ? 'Unlimited' : `${nextPlan.limit} projects`}
+                  {nextPlan.limit === 'Unlimited' ? t('upgradeModal.unlimited') : t('upgradeModal.projectsCount', { count: nextPlan.limit })}
                 </Text>
               </View>
             </View>
             <Text style={[styles.upgradePrice, { color: Colors.primaryBlue }]}>
               ${nextPlan.price}
               <Text style={[styles.upgradePeriod, { color: Colors.secondaryText }]}>
-                /month
+                {t('upgradeModal.perMonth')}
               </Text>
             </Text>
           </View>

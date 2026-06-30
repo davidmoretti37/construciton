@@ -170,7 +170,7 @@ export default function TwilioSetupScreen({ navigation }) {
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primaryBlue} />
-          <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>Loading...</Text>
+          <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>{t('twilioSetup.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -183,7 +183,7 @@ export default function TwilioSetupScreen({ navigation }) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>SMS/WhatsApp Setup</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('twilioSetup.headerTitle')}</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -205,35 +205,35 @@ export default function TwilioSetupScreen({ navigation }) {
         <View style={[styles.infoBanner, { backgroundColor: Colors.primaryBlue + '15', borderColor: Colors.primaryBlue + '30' }]}>
           <Ionicons name="information-circle" size={24} color={Colors.primaryBlue} />
           <Text style={[styles.infoText, { color: Colors.primaryText }]}>
-            Connect your Twilio account to enable client messaging via SMS and WhatsApp
+            {t('twilioSetup.infoBannerText')}
           </Text>
         </View>
 
         {/* Instructions */}
         <View style={[styles.section, { backgroundColor: Colors.lightGray }]}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>How to Get Twilio Credentials</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('twilioSetup.howToGetCredentials')}</Text>
           <View style={styles.step}>
             <Text style={[styles.stepNumber, { color: Colors.primaryBlue }]}>1</Text>
             <Text style={[styles.stepText, { color: Colors.secondaryText }]}>
-              Create a free account at twilio.com/try-twilio
+              {t('twilioSetup.step1')}
             </Text>
           </View>
           <View style={styles.step}>
             <Text style={[styles.stepNumber, { color: Colors.primaryBlue }]}>2</Text>
             <Text style={[styles.stepText, { color: Colors.secondaryText }]}>
-              Buy a phone number ($1-2/month)
+              {t('twilioSetup.step2')}
             </Text>
           </View>
           <View style={styles.step}>
             <Text style={[styles.stepNumber, { color: Colors.primaryBlue }]}>3</Text>
             <Text style={[styles.stepText, { color: Colors.secondaryText }]}>
-              Find Account SID and Auth Token in your Twilio Console
+              {t('twilioSetup.step3')}
             </Text>
           </View>
           <View style={styles.step}>
             <Text style={[styles.stepNumber, { color: Colors.primaryBlue }]}>4</Text>
             <Text style={[styles.stepText, { color: Colors.secondaryText }]}>
-              Enter credentials below and test the connection
+              {t('twilioSetup.step4')}
             </Text>
           </View>
         </View>
@@ -241,7 +241,7 @@ export default function TwilioSetupScreen({ navigation }) {
         {/* Form */}
         <View style={styles.form}>
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: Colors.primaryText }]}>Account SID</Text>
+            <Text style={[styles.label, { color: Colors.primaryText }]}>{t('twilioSetup.accountSidLabel')}</Text>
             <TextInput
               style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
               placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
@@ -252,15 +252,15 @@ export default function TwilioSetupScreen({ navigation }) {
               autoCorrect={false}
             />
             <Text style={[styles.helperText, { color: Colors.secondaryText }]}>
-              Found in Twilio Console → Account Info
+              {t('twilioSetup.accountSidHelper')}
             </Text>
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: Colors.primaryText }]}>Auth Token</Text>
+            <Text style={[styles.label, { color: Colors.primaryText }]}>{t('twilioSetup.authTokenLabel')}</Text>
             <TextInput
               style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
-              placeholder="Enter your Twilio Auth Token"
+              placeholder={t('twilioSetup.authTokenPlaceholder')}
               placeholderTextColor={Colors.placeholderText}
               value={authToken}
               onChangeText={setAuthToken}
@@ -271,22 +271,22 @@ export default function TwilioSetupScreen({ navigation }) {
               textContentType="oneTimeCode"
             />
             <Text style={[styles.helperText, { color: Colors.secondaryText }]}>
-              Click "Show" next to Auth Token in Twilio Console
+              {t('twilioSetup.authTokenHelper')}
             </Text>
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: Colors.primaryText }]}>Twilio Phone Number</Text>
+            <Text style={[styles.label, { color: Colors.primaryText }]}>{t('twilioSetup.phoneNumberLabel')}</Text>
             <TextInput
               style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
-              placeholder="+1 234 567 8900"
+              placeholder={t('twilioSetup.phoneNumberPlaceholder')}
               placeholderTextColor={Colors.placeholderText}
               value={phoneNumber}
               onChangeText={setPhoneNumber}
               keyboardType="phone-pad"
             />
             <Text style={[styles.helperText, { color: Colors.secondaryText }]}>
-              Include country code (e.g., +1 for US)
+              {t('twilioSetup.phoneNumberHelper')}
             </Text>
           </View>
         </View>
@@ -303,7 +303,7 @@ export default function TwilioSetupScreen({ navigation }) {
             ) : (
               <>
                 <Ionicons name="flash-outline" size={20} color={Colors.primaryBlue} />
-                <Text style={[styles.buttonText, { color: Colors.primaryBlue }]}>Test Connection</Text>
+                <Text style={[styles.buttonText, { color: Colors.primaryBlue }]}>{t('twilioSetup.testConnection')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -318,7 +318,7 @@ export default function TwilioSetupScreen({ navigation }) {
             ) : (
               <>
                 <Ionicons name="checkmark-circle-outline" size={20} color={Colors.white} />
-                <Text style={[styles.buttonText, { color: Colors.white }]}>Save Configuration</Text>
+                <Text style={[styles.buttonText, { color: Colors.white }]}>{t('twilioSetup.saveConfiguration')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -330,19 +330,16 @@ export default function TwilioSetupScreen({ navigation }) {
               disabled={isSaving || isTesting}
             >
               <Ionicons name="trash-outline" size={20} color={Colors.error} />
-              <Text style={[styles.buttonText, { color: Colors.error }]}>Clear All</Text>
+              <Text style={[styles.buttonText, { color: Colors.error }]}>{t('twilioSetup.clearAll')}</Text>
             </TouchableOpacity>
           )}
         </View>
 
         {/* Help Section */}
         <View style={[styles.helpSection, { backgroundColor: Colors.lightGray }]}>
-          <Text style={[styles.helpTitle, { color: Colors.primaryText }]}>Need Help?</Text>
+          <Text style={[styles.helpTitle, { color: Colors.primaryText }]}>{t('twilioSetup.needHelp')}</Text>
           <Text style={[styles.helpText, { color: Colors.secondaryText }]}>
-            • Make sure your Twilio account is active{'\n'}
-            • Verify you copied the Account SID and Auth Token correctly{'\n'}
-            • Test the connection before saving{'\n'}
-            • Cost: ~$2-3/month for phone number + messages
+            {t('twilioSetup.helpText')}
           </Text>
         </View>
       </ScrollView>

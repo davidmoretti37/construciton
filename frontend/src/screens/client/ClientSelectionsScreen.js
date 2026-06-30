@@ -17,6 +17,7 @@ import { fetchDashboard, selectMaterial } from '../../services/clientPortalApi';
 import { useClientProject } from '../../contexts/ClientProjectContext';
 import { supabase } from '../../lib/supabase';
 import { API_URL } from '../../config/api';
+import { useTranslation } from 'react-i18next';
 
 const portalFetchSelections = async (projectId) => {
   const { data: { session } } = await supabase.auth.getSession();
@@ -43,6 +44,7 @@ const STATUS_MAP = {
 };
 
 export default function ClientSelectionsScreen({ navigation }) {
+  const { t } = useTranslation('common');
   const { selectedProjectId, setProjects } = useClientProject();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -90,10 +92,10 @@ export default function ClientSelectionsScreen({ navigation }) {
       // Route through the portal endpoint (service-role + ownership check). A
       // direct supabase write is blocked by RLS ('Owners manage') → 0 rows.
       await selectMaterial(selectionId, optionIndex);
-      Alert.alert('Selection Submitted', 'Your contractor will confirm availability.');
+      Alert.alert(t('clientSelections.alertSubmittedTitle'), t('clientSelections.alertSubmittedBody'));
       loadData();
     } catch (e) {
-      Alert.alert('Error', e.message || 'Failed to submit selection');
+      Alert.alert(t('common:alerts.error'), e.message || t('clientSelections.alertErrorBody'));
     } finally {
       setSubmitting(false);
       setSubmittingKey(null);
@@ -119,7 +121,7 @@ export default function ClientSelectionsScreen({ navigation }) {
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="chevron-back" size={26} color={C.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Selections</Text>
+          <Text style={styles.headerTitle}>{t('clientSelections.title')}</Text>
           <View style={{ width: 26 }} />
         </View>
       </SafeAreaView>
@@ -134,17 +136,17 @@ export default function ClientSelectionsScreen({ navigation }) {
           <View style={styles.summaryRow}>
             {pending.length > 0 && (
               <View style={[styles.summaryChip, { backgroundColor: C.amberLight }]}>
-                <Text style={[styles.summaryChipText, { color: C.amberText }]}>{pending.length} Pending</Text>
+                <Text style={[styles.summaryChipText, { color: C.amberText }]}>{t('clientSelections.pendingCount', { count: pending.length })}</Text>
               </View>
             )}
             {reviewed.length > 0 && (
               <View style={[styles.summaryChip, { backgroundColor: C.blueBg }]}>
-                <Text style={[styles.summaryChipText, { color: C.blue }]}>{reviewed.length} In Review</Text>
+                <Text style={[styles.summaryChipText, { color: C.blue }]}>{t('clientSelections.inReviewCount', { count: reviewed.length })}</Text>
               </View>
             )}
             {confirmed.length > 0 && (
               <View style={[styles.summaryChip, { backgroundColor: C.greenBg }]}>
-                <Text style={[styles.summaryChipText, { color: C.greenText }]}>{confirmed.length} Confirmed</Text>
+                <Text style={[styles.summaryChipText, { color: C.greenText }]}>{t('clientSelections.confirmedCount', { count: confirmed.length })}</Text>
               </View>
             )}
           </View>
@@ -153,27 +155,27 @@ export default function ClientSelectionsScreen({ navigation }) {
         {error ? (
           <View style={styles.emptyState}>
             <Ionicons name="cloud-offline-outline" size={48} color={C.border} />
-            <Text style={styles.emptyTitle}>Couldn't load selections</Text>
-            <Text style={styles.emptySub}>Pull to retry, or tap the button below</Text>
+            <Text style={styles.emptyTitle}>{t('clientSelections.errorTitle')}</Text>
+            <Text style={styles.emptySub}>{t('clientSelections.errorSub')}</Text>
             <TouchableOpacity
               style={styles.retryButton}
               onPress={() => { setLoading(true); loadData(); }}
               activeOpacity={0.7}
             >
-              <Text style={styles.retryButtonText}>Retry</Text>
+              <Text style={styles.retryButtonText}>{t('clientSelections.retry')}</Text>
             </TouchableOpacity>
           </View>
         ) : !hasProject ? (
           <View style={styles.emptyState}>
             <Ionicons name="home-outline" size={48} color={C.border} />
-            <Text style={styles.emptyTitle}>No active project found</Text>
-            <Text style={styles.emptySub}>Selections will appear here once your contractor sets up a project for you</Text>
+            <Text style={styles.emptyTitle}>{t('clientSelections.noProjectTitle')}</Text>
+            <Text style={styles.emptySub}>{t('clientSelections.noProjectSub')}</Text>
           </View>
         ) : selections.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="color-palette-outline" size={48} color={C.border} />
-            <Text style={styles.emptyTitle}>No selections yet</Text>
-            <Text style={styles.emptySub}>Material and finish choices will appear here when your contractor adds them</Text>
+            <Text style={styles.emptyTitle}>{t('clientSelections.emptyTitle')}</Text>
+            <Text style={styles.emptySub}>{t('clientSelections.emptySub')}</Text>
           </View>
         ) : (
           selections.map((sel) => {
@@ -200,7 +202,7 @@ export default function ClientSelectionsScreen({ navigation }) {
                       </View>
                       {daysUntilDue !== null && daysUntilDue <= 7 && isPending && (
                         <Text style={styles.dueWarning}>
-                          {daysUntilDue <= 0 ? 'Overdue' : `${daysUntilDue}d left`}
+                          {daysUntilDue <= 0 ? t('clientSelections.overdue') : t('clientSelections.daysLeft', { count: daysUntilDue })}
                         </Text>
                       )}
                     </View>
@@ -235,7 +237,7 @@ export default function ClientSelectionsScreen({ navigation }) {
                             <Image source={{ uri: option.image_url }} style={styles.optionImage} resizeMode="cover" />
                           )}
                           <View style={styles.optionInfo}>
-                            <Text style={styles.optionName}>{option.name || option.title || `Option ${i + 1}`}</Text>
+                            <Text style={styles.optionName}>{option.name || option.title || t('clientSelections.optionFallback', { number: i + 1 })}</Text>
                             {option.description && <Text style={styles.optionDesc} numberOfLines={2}>{option.description}</Text>}
                             {priceText && <Text style={styles.optionPrice}>{priceText}</Text>}
                           </View>
@@ -246,7 +248,7 @@ export default function ClientSelectionsScreen({ navigation }) {
                               <Ionicons name="checkmark-circle" size={24} color={C.amber} />
                             </View>
                           ) : (
-                            isPending && <Text style={styles.selectLabel}>Select</Text>
+                            isPending && <Text style={styles.selectLabel}>{t('clientSelections.select')}</Text>
                           )}
                         </TouchableOpacity>
                       );
@@ -255,7 +257,7 @@ export default function ClientSelectionsScreen({ navigation }) {
                 )}
 
                 {isExpanded && options.length === 0 && (
-                  <Text style={styles.noOptions}>Options will be added by your contractor</Text>
+                  <Text style={styles.noOptions}>{t('clientSelections.noOptions')}</Text>
                 )}
               </View>
             );

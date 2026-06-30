@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   View,
   Text,
@@ -30,6 +31,7 @@ import DailyChecklistSection from '../../components/DailyChecklistSection';
 import ScheduleView from '../../components/ScheduleView';
 
 export default function TodaysWorkScreen() {
+  const { t } = useTranslation('workers');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const navigation = useNavigation();
@@ -170,7 +172,7 @@ export default function TodaysWorkScreen() {
 
     } catch (e) {
       console.error('[TodaysWork] Load error:', e);
-      Alert.alert('Error', 'Failed to load today\'s work. Pull down to refresh.');
+      Alert.alert(t('common:alerts.error'), t('todaysWork.loadError'));
     } finally {
       setLoading(false);
     }
@@ -215,7 +217,7 @@ export default function TodaysWorkScreen() {
         ...p,
         tasks: p.tasks.map(t => t.id === task.id ? { ...t, status: task.status } : t),
       })));
-      Alert.alert('Error', 'Failed to update task.');
+      Alert.alert(t('common:alerts.error'), t('todaysWork.updateTaskError'));
     }
   };
 
@@ -227,13 +229,13 @@ export default function TodaysWorkScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
         <View style={styles.header}>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Schedule</Text>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('todaysWork.schedule')}</Text>
           <View style={styles.toggleRow}>
             <TouchableOpacity style={[styles.toggleBtn, { backgroundColor: Colors.lightGray }]} onPress={() => setViewMode('today')}>
-              <Text style={[styles.toggleText, { color: Colors.secondaryText }]}>Today</Text>
+              <Text style={[styles.toggleText, { color: Colors.secondaryText }]}>{t('todaysWork.toggleToday')}</Text>
             </TouchableOpacity>
             <View style={[styles.toggleBtn, { backgroundColor: '#059669' }]}>
-              <Text style={[styles.toggleText, { color: '#fff' }]}>Calendar</Text>
+              <Text style={[styles.toggleText, { color: '#fff' }]}>{t('todaysWork.toggleCalendar')}</Text>
             </View>
           </View>
         </View>
@@ -247,19 +249,19 @@ export default function TodaysWorkScreen() {
       {/* Header — matches My Projects polished style */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Today's Work</Text>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('todaysWork.title')}</Text>
           <Text style={[styles.headerSub, { color: Colors.secondaryText }]}>
             {totalItems > 0
-              ? `${completedItems}/${totalItems} items done · ${new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`
-              : `Nothing due today · ${new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`}
+              ? `${t('todaysWork.headerSummary', { completed: completedItems, total: totalItems })} · ${new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`
+              : `${t('todaysWork.nothingDueToday')} · ${new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`}
           </Text>
         </View>
         <View style={styles.toggleRow}>
           <View style={[styles.toggleBtn, { backgroundColor: '#059669' }]}>
-            <Text style={[styles.toggleText, { color: '#fff' }]}>Today</Text>
+            <Text style={[styles.toggleText, { color: '#fff' }]}>{t('todaysWork.toggleToday')}</Text>
           </View>
           <TouchableOpacity style={[styles.toggleBtn, { backgroundColor: Colors.lightGray }]} onPress={() => setViewMode('calendar')}>
-            <Text style={[styles.toggleText, { color: Colors.secondaryText }]}>Calendar</Text>
+            <Text style={[styles.toggleText, { color: Colors.secondaryText }]}>{t('todaysWork.toggleCalendar')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -284,11 +286,11 @@ export default function TodaysWorkScreen() {
           {projectCards.length === 0 && planCards.length === 0 && (
             <View style={styles.empty}>
               <Ionicons name="sunny-outline" size={48} color={Colors.secondaryText + '60'} />
-              <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>Nothing scheduled</Text>
-              <Text style={[styles.emptySub, { color: Colors.secondaryText }]}>No tasks or visits for today</Text>
+              <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>{t('todaysWork.emptyTitle')}</Text>
+              <Text style={[styles.emptySub, { color: Colors.secondaryText }]}>{t('todaysWork.emptySub')}</Text>
               <TouchableOpacity style={styles.calLink} onPress={() => setViewMode('calendar')}>
                 <Ionicons name="calendar-outline" size={16} color="#059669" />
-                <Text style={styles.calLinkText}>View Calendar</Text>
+                <Text style={styles.calLinkText}>{t('todaysWork.viewCalendar')}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -313,7 +315,7 @@ export default function TodaysWorkScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.cardTitle, { color: Colors.primaryText }]} numberOfLines={1}>{proj.name}</Text>
                     {totalItems > 0 && (
-                      <Text style={[styles.cardMeta, { color: Colors.secondaryText }]}>{doneItems}/{totalItems} items</Text>
+                      <Text style={[styles.cardMeta, { color: Colors.secondaryText }]}>{t('todaysWork.itemsCount', { done: doneItems, total: totalItems })}</Text>
                     )}
                   </View>
                   {proj.location && (
@@ -329,7 +331,7 @@ export default function TodaysWorkScreen() {
                     {/* Today's Phase Tasks — distributed by the scheduler */}
                     <View style={styles.sectionLabel}>
                       <Ionicons name="construct-outline" size={14} color="#F59E0B" />
-                      <Text style={[styles.sectionLabelText, { color: Colors.secondaryText }]}>Today's Tasks</Text>
+                      <Text style={[styles.sectionLabelText, { color: Colors.secondaryText }]}>{t('todaysWork.sectionTasks')}</Text>
                     </View>
                     {proj.tasks.map(task => (
                       <TouchableOpacity key={task.id} style={styles.taskRow} onPress={() => handleToggleTask(task)}>
@@ -347,7 +349,7 @@ export default function TodaysWorkScreen() {
                       </TouchableOpacity>
                     ))}
                     {proj.tasks.length === 0 && (
-                      <Text style={[styles.noItems, { color: Colors.secondaryText }]}>No tasks scheduled today</Text>
+                      <Text style={[styles.noItems, { color: Colors.secondaryText }]}>{t('todaysWork.noTasksToday')}</Text>
                     )}
 
                     {/* Daily Crew Checks — recurring items workers tick off every workday */}
@@ -361,7 +363,7 @@ export default function TodaysWorkScreen() {
 
                     {/* Details link */}
                     <TouchableOpacity style={styles.detailsLink} onPress={() => navigation.navigate('WorkerProjectDetail', { project: { id: proj.id, name: proj.name } })}>
-                      <Text style={styles.detailsText}>View Details</Text>
+                      <Text style={styles.detailsText}>{t('todaysWork.viewDetails')}</Text>
                       <Ionicons name="arrow-forward" size={14} color="#3B82F6" />
                     </TouchableOpacity>
                   </View>
@@ -385,9 +387,9 @@ export default function TodaysWorkScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.cardTitle, { color: Colors.primaryText }]} numberOfLines={1}>{plan.name}</Text>
                     {plan.visits.length > 0 ? (
-                      <Text style={[styles.cardMeta, { color: Colors.secondaryText }]}>{visitsDone}/{plan.visits.length} visits today</Text>
+                      <Text style={[styles.cardMeta, { color: Colors.secondaryText }]}>{t('todaysWork.visitsCount', { done: visitsDone, total: plan.visits.length })}</Text>
                     ) : (
-                      <Text style={[styles.cardMeta, { color: Colors.secondaryText }]}>No visits today</Text>
+                      <Text style={[styles.cardMeta, { color: Colors.secondaryText }]}>{t('todaysWork.noVisitsToday')}</Text>
                     )}
                   </View>
                   <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={20} color={Colors.secondaryText} />
@@ -411,7 +413,7 @@ export default function TodaysWorkScreen() {
                             color={visit.status === 'completed' ? '#10B981' : Colors.secondaryText}
                           />
                           <View style={{ flex: 1 }}>
-                            <Text style={[styles.visitName, { color: Colors.primaryText }]} numberOfLines={1}>{loc.name || 'Visit'}</Text>
+                            <Text style={[styles.visitName, { color: Colors.primaryText }]} numberOfLines={1}>{loc.name || t('todaysWork.visitFallback')}</Text>
                             {loc.address && <Text style={[styles.visitAddr, { color: Colors.secondaryText }]} numberOfLines={1}>{loc.address}</Text>}
                           </View>
                           {visit.scheduled_time && (
@@ -426,7 +428,7 @@ export default function TodaysWorkScreen() {
                       );
                     })}
                     {plan.visits.length === 0 && (
-                      <Text style={[styles.noItems, { color: Colors.secondaryText }]}>No visits scheduled for today</Text>
+                      <Text style={[styles.noItems, { color: Colors.secondaryText }]}>{t('todaysWork.noVisitsScheduled')}</Text>
                     )}
 
                     {/* Checklist */}
@@ -439,7 +441,7 @@ export default function TodaysWorkScreen() {
 
                     {/* Details link */}
                     <TouchableOpacity style={styles.detailsLink} onPress={() => navigation.navigate('ServicePlanDetail', { planId: plan.id })}>
-                      <Text style={styles.detailsText}>View Details</Text>
+                      <Text style={styles.detailsText}>{t('todaysWork.viewDetails')}</Text>
                       <Ionicons name="arrow-forward" size={14} color="#3B82F6" />
                     </TouchableOpacity>
                   </View>

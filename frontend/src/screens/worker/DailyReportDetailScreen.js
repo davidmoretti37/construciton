@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchDailyReportById } from '../../utils/storage';
@@ -29,6 +30,7 @@ const WEATHER_ICONS = {
 };
 
 export default function DailyReportDetailScreen({ navigation, route }) {
+  const { t } = useTranslation('workers');
   const { report: passedReport, reportId } = route.params || {};
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
@@ -139,7 +141,7 @@ export default function DailyReportDetailScreen({ navigation, route }) {
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'Unknown date';
+    if (!dateString) return t('dailyReportDetail.unknownDate');
     return new Date(dateString).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   };
 
@@ -150,7 +152,7 @@ export default function DailyReportDetailScreen({ navigation, route }) {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Daily Log</Text>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('dailyReportDetail.title')}</Text>
           <View style={{ width: 36 }} />
         </View>
         <View style={styles.center}><ActivityIndicator size="large" color={ACCENT} /></View>
@@ -165,13 +167,13 @@ export default function DailyReportDetailScreen({ navigation, route }) {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Daily Log</Text>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('dailyReportDetail.title')}</Text>
           <View style={{ width: 36 }} />
         </View>
         <View style={styles.center}>
           <Ionicons name="alert-circle-outline" size={48} color={Colors.secondaryText} />
           <Text style={[{ color: Colors.secondaryText, marginTop: 8 }]}>
-            {loadError ? "Couldn't load report" : 'Report not found'}
+            {loadError ? t('dailyReportDetail.errorCantLoad') : t('dailyReportDetail.errorNotFound')}
           </Text>
           {loadError && (
             <TouchableOpacity
@@ -180,7 +182,7 @@ export default function DailyReportDetailScreen({ navigation, route }) {
               activeOpacity={0.8}
             >
               <Ionicons name="refresh-outline" size={16} color={ACCENT} />
-              <Text style={[styles.retryText, { color: ACCENT }]}>Retry</Text>
+              <Text style={[styles.retryText, { color: ACCENT }]}>{t('dailyReportDetail.retry')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -215,7 +217,7 @@ export default function DailyReportDetailScreen({ navigation, route }) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Daily Log</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('dailyReportDetail.title')}</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -231,7 +233,7 @@ export default function DailyReportDetailScreen({ navigation, route }) {
           <Text style={[styles.reportDate, { color: Colors.primaryText }]}>{formatDate(report.report_date)}</Text>
           <View style={styles.infoRow}>
             <Ionicons name="briefcase-outline" size={16} color={Colors.secondaryText} />
-            <Text style={[styles.infoText, { color: Colors.secondaryText }]}>{report.projects?.name || report._planName || (report.service_plan_id ? 'Service Plan' : 'Unknown Project')}</Text>
+            <Text style={[styles.infoText, { color: Colors.secondaryText }]}>{report.projects?.name || report._planName || (report.service_plan_id ? t('dailyReportDetail.servicePlan') : t('dailyReportDetail.unknownProject'))}</Text>
           </View>
           {report.workers?.full_name && (
             <View style={styles.infoRow}>
@@ -243,7 +245,7 @@ export default function DailyReportDetailScreen({ navigation, route }) {
 
         {/* Weather */}
         {weather && weather.conditions && (
-          <Section icon="partly-sunny-outline" title="Weather">
+          <Section icon="partly-sunny-outline" title={t('dailyReportDetail.sectionWeather')}>
             <View style={styles.weatherDisplay}>
               <Ionicons name={WEATHER_ICONS[weather.conditions] || 'cloud-outline'} size={28} color={ACCENT} />
               <Text style={[styles.weatherText, { color: Colors.primaryText }]}>
@@ -256,7 +258,7 @@ export default function DailyReportDetailScreen({ navigation, route }) {
 
         {/* Work Performed */}
         {workDone && (
-          <Section icon="construct-outline" title="Work Performed">
+          <Section icon="construct-outline" title={t('dailyReportDetail.sectionWorkPerformed')}>
             <Text style={[styles.bodyText, { color: Colors.primaryText }]}>{workDone}</Text>
           </Section>
         )}
@@ -265,13 +267,13 @@ export default function DailyReportDetailScreen({ navigation, route }) {
         {checklistError && checklistItems.length === 0 && laborItems.length === 0 && (
           <View style={styles.inlineError}>
             <Ionicons name="cloud-offline-outline" size={14} color={Colors.secondaryText} />
-            <Text style={[styles.inlineErrorText, { color: Colors.secondaryText }]}>Checklist data couldn't be loaded</Text>
+            <Text style={[styles.inlineErrorText, { color: Colors.secondaryText }]}>{t('dailyReportDetail.checklistLoadError')}</Text>
           </View>
         )}
 
         {/* Daily Checklist */}
         {checklistItems.length > 0 && (
-          <Section icon="checkbox-outline" title="Daily Checklist">
+          <Section icon="checkbox-outline" title={t('dailyReportDetail.sectionDailyChecklist')}>
             {checklistItems.map((item, i) => (
               <View key={item.id || i} style={styles.checklistRow}>
                 <Ionicons
@@ -294,7 +296,7 @@ export default function DailyReportDetailScreen({ navigation, route }) {
 
         {/* Crew */}
         {laborItems.length > 0 && (
-          <Section icon="people-outline" title="Crew">
+          <Section icon="people-outline" title={t('dailyReportDetail.sectionCrew')}>
             {laborItems.map((item, i) => (
               <View key={item.id || i} style={styles.tableRow}>
                 <Ionicons name="person-outline" size={14} color="#10B981" />
@@ -309,7 +311,7 @@ export default function DailyReportDetailScreen({ navigation, route }) {
 
         {/* Photos */}
         {photos.length > 0 && (
-          <Section icon="images-outline" title={`Photos (${photos.length})`}>
+          <Section icon="images-outline" title={t('dailyReportDetail.sectionPhotos', { count: photos.length })}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {photos.map((url, i) => (
                 <TouchableOpacity key={i} onPress={() => { setSelectedPhotoIndex(i); setPhotoModalVisible(true); }} activeOpacity={0.8}>
@@ -329,7 +331,7 @@ export default function DailyReportDetailScreen({ navigation, route }) {
 
         {/* Manpower */}
         {manpower.length > 0 && (
-          <Section icon="people-outline" title={`Manpower (${manpower.length})`}>
+          <Section icon="people-outline" title={t('dailyReportDetail.sectionManpower', { count: manpower.length })}>
             {manpower.map((m, i) => (
               <View key={i} style={styles.tableRow}>
                 <Text style={[styles.tableCell, { flex: 2, color: Colors.primaryText }]}>{m.name}</Text>
@@ -342,11 +344,11 @@ export default function DailyReportDetailScreen({ navigation, route }) {
 
         {/* Materials */}
         {materials.length > 0 && (
-          <Section icon="cube-outline" title={`Materials (${materials.length})`}>
+          <Section icon="cube-outline" title={t('dailyReportDetail.sectionMaterials', { count: materials.length })}>
             {materials.map((m, i) => (
               <View key={i} style={styles.tableRow}>
                 <Text style={[styles.tableCell, { flex: 1, color: Colors.primaryText }]}>{m.description}</Text>
-                {m.quantity && <Text style={[styles.tableCell, { color: Colors.secondaryText }]}>Qty: {m.quantity}</Text>}
+                {m.quantity && <Text style={[styles.tableCell, { color: Colors.secondaryText }]}>{t('dailyReportDetail.qty', { quantity: m.quantity })}</Text>}
               </View>
             ))}
           </Section>
@@ -354,7 +356,7 @@ export default function DailyReportDetailScreen({ navigation, route }) {
 
         {/* Equipment */}
         {equipment.length > 0 && (
-          <Section icon="construct-outline" title={`Equipment (${equipment.length})`}>
+          <Section icon="construct-outline" title={t('dailyReportDetail.sectionEquipment', { count: equipment.length })}>
             {equipment.map((e, i) => (
               <View key={i} style={styles.tableRow}>
                 <Text style={[styles.tableCell, { flex: 1, color: Colors.primaryText }]}>{e.name}</Text>
@@ -366,16 +368,16 @@ export default function DailyReportDetailScreen({ navigation, route }) {
 
         {/* Delays */}
         {delays.length > 0 && (
-          <Section icon="warning-outline" title={`Delays (${delays.length})`}>
+          <Section icon="warning-outline" title={t('dailyReportDetail.sectionDelays', { count: delays.length })}>
             {delays.map((d, i) => (
               <View key={i} style={[styles.delayItem, { backgroundColor: '#FEF3C720' }]}>
                 <Text style={[styles.bodyText, { color: Colors.primaryText }]}>{d.description}</Text>
                 {d.reason && (
                   <View style={styles.delayReason}>
-                    <Text style={styles.delayReasonText}>Reason: {d.reason}</Text>
+                    <Text style={styles.delayReasonText}>{t('dailyReportDetail.delayReason', { reason: d.reason })}</Text>
                   </View>
                 )}
-                {d.hours_lost && <Text style={[styles.delayHours, { color: '#EF4444' }]}>{d.hours_lost}h lost</Text>}
+                {d.hours_lost && <Text style={[styles.delayHours, { color: '#EF4444' }]}>{t('dailyReportDetail.hoursLost', { hours: d.hours_lost })}</Text>}
               </View>
             ))}
           </Section>
@@ -383,15 +385,15 @@ export default function DailyReportDetailScreen({ navigation, route }) {
 
         {/* Safety */}
         {safety && (safety.observations || safety.incidents) && (
-          <Section icon="shield-checkmark-outline" title="Safety">
+          <Section icon="shield-checkmark-outline" title={t('dailyReportDetail.sectionSafety')}>
             {safety.observations && <Text style={[styles.bodyText, { color: Colors.primaryText }]}>{safety.observations}</Text>}
-            {safety.incidents && <Text style={[styles.bodyText, { color: '#EF4444', marginTop: 4 }]}>Incidents: {safety.incidents}</Text>}
+            {safety.incidents && <Text style={[styles.bodyText, { color: '#EF4444', marginTop: 4 }]}>{t('dailyReportDetail.incidents', { incidents: safety.incidents })}</Text>}
           </Section>
         )}
 
         {/* Visitors */}
         {visitors.length > 0 && (
-          <Section icon="person-add-outline" title={`Visitors (${visitors.length})`}>
+          <Section icon="person-add-outline" title={t('dailyReportDetail.sectionVisitors', { count: visitors.length })}>
             {visitors.map((v, i) => (
               <View key={i} style={styles.tableRow}>
                 <Text style={[styles.tableCell, { flex: 1, color: Colors.primaryText, fontWeight: '500' }]}>{v.name}</Text>
@@ -403,14 +405,14 @@ export default function DailyReportDetailScreen({ navigation, route }) {
 
         {/* Tomorrow's Plan */}
         {nextDayPlan && (
-          <Section icon="calendar-outline" title="Tomorrow's Plan">
+          <Section icon="calendar-outline" title={t('dailyReportDetail.sectionTomorrowPlan')}>
             <Text style={[styles.bodyText, { color: Colors.primaryText }]}>{nextDayPlan}</Text>
           </Section>
         )}
 
         {/* Notes */}
         {report.notes && (
-          <Section icon="document-text-outline" title="Notes">
+          <Section icon="document-text-outline" title={t('dailyReportDetail.sectionNotes')}>
             <Text style={[styles.bodyText, { color: Colors.secondaryText }]}>{report.notes}</Text>
           </Section>
         )}

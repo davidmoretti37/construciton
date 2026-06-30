@@ -1,10 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export default function DailyReportList({ data, onAction }) {
+  const { t } = useTranslation('chat');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -38,7 +40,7 @@ export default function DailyReportList({ data, onAction }) {
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
         <View style={styles.headerText}>
-          <Text style={[styles.title, { color: Colors.primaryText }]}>{title || 'Daily Reports'}</Text>
+          <Text style={[styles.title, { color: Colors.primaryText }]}>{title || t('dailyReportList.title')}</Text>
           {subtitle && (
             <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>{subtitle}</Text>
           )}
@@ -152,7 +154,7 @@ export default function DailyReportList({ data, onAction }) {
         <View style={styles.emptyState}>
           <Ionicons name="document-text-outline" size={40} color={Colors.secondaryText} />
           <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-            No reports found
+            {t('dailyReportList.emptyText')}
           </Text>
         </View>
       )}

@@ -323,7 +323,7 @@ export default function TimeClockScreen({ navigation }) {
         if (result.hours) {
           Alert.alert(
             t('alerts.success'),
-            `Hours worked: ${formatHoursMinutes(result.hours)}`
+            t('timeClock.hoursWorked', { hours: formatHoursMinutes(result.hours) })
           );
         } else {
           Alert.alert(t('alerts.success'), t('messages.savedSuccessfully', { item: 'clock out' }));
@@ -396,7 +396,7 @@ export default function TimeClockScreen({ navigation }) {
       const existing = await getActiveClockIn(workerId);
       if (existing) {
         setActiveSession(existing);
-        Alert.alert(t('alerts.warning'), 'You are already clocked in.');
+        Alert.alert(t('alerts.warning'), t('timeClock.alreadyClockedIn'));
         return;
       }
 
@@ -409,7 +409,7 @@ export default function TimeClockScreen({ navigation }) {
         // session at insert time (race with another device) — surface that
         // instead of a misleading success.
         if (session.alreadyClockedIn) {
-          Alert.alert(t('alerts.warning'), 'You are already clocked in.');
+          Alert.alert(t('alerts.warning'), t('timeClock.alreadyClockedIn'));
         } else {
           Alert.alert(t('alerts.success'), t('messages.savedSuccessfully', { item: 'clock in' }));
           // Get location in background and update the record
@@ -464,9 +464,9 @@ export default function TimeClockScreen({ navigation }) {
     yesterday.setDate(yesterday.getDate() - 1);
 
     if (date.toDateString() === today.toDateString()) {
-      return 'Today';
+      return t('timeClock.today');
     } else if (date.toDateString() === yesterday.toDateString()) {
-      return 'Yesterday';
+      return t('timeClock.yesterday');
     } else {
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
@@ -483,7 +483,7 @@ export default function TimeClockScreen({ navigation }) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         <View style={[styles.topBar, { backgroundColor: Colors.background }]}>
-          <Text style={[styles.topBarTitle, { color: Colors.primaryText }]}>Clock</Text>
+          <Text style={[styles.topBarTitle, { color: Colors.primaryText }]}>{t('timeClock.screenTitle')}</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
             <Ionicons name="settings-outline" size={22} color={Colors.primaryText} />
           </TouchableOpacity>
@@ -500,11 +500,11 @@ export default function TimeClockScreen({ navigation }) {
       {/* Top bar — matches My Projects polished style */}
       <View style={[styles.topBar, { backgroundColor: Colors.background }]}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.topBarTitle, { color: Colors.primaryText }]}>Time Clock</Text>
+          <Text style={[styles.topBarTitle, { color: Colors.primaryText }]}>{t('timeClock.screenTitle')}</Text>
           <Text style={[styles.topBarSub, { color: Colors.secondaryText }]}>
             {activeSession
-              ? `Clocked in · ${elapsedTime}`
-              : 'Off the clock'}
+              ? t('timeClock.clockedInStatus', { time: elapsedTime })
+              : t('timeClock.offTheClock')}
           </Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -529,7 +529,7 @@ export default function TimeClockScreen({ navigation }) {
           <View style={styles.statusSection}>
             <View style={[styles.statusDot, { backgroundColor: activeSession ? successColor : inactiveColor }]} />
             <Text style={[styles.statusText, { color: Colors.secondaryText }]}>
-              {activeSession ? 'Active' : 'Offline'}
+              {activeSession ? t('timeClock.statusActive') : t('timeClock.statusOffline')}
             </Text>
           </View>
 
@@ -554,7 +554,7 @@ export default function TimeClockScreen({ navigation }) {
                   if (!ownerId) {
                     Alert.alert(
                       t('alerts.warning'),
-                      'You haven\'t been assigned to a contractor yet. Ask your contractor to send you an invite, or wait for them to add you to their team.'
+                      t('timeClock.noContractorAssigned')
                     );
                   } else {
                     Alert.alert(t('alerts.noProjects'), t('emptyStates.noProjectsYet'));
@@ -568,7 +568,7 @@ export default function TimeClockScreen({ navigation }) {
             activeOpacity={0.7}
           >
             <Text style={[styles.actionButtonText, { color: Colors.white }]}>
-              {activeSession ? 'Clock Out' : 'Clock In'}
+              {activeSession ? t('timeClock.clockOut') : t('timeClock.clockIn')}
             </Text>
           </TouchableOpacity>
 
@@ -577,7 +577,7 @@ export default function TimeClockScreen({ navigation }) {
 
           {/* Today's Hours */}
           <View style={styles.todayHoursContainer}>
-            <Text style={[styles.todayHoursLabel, { color: Colors.secondaryText }]}>Today's Hours</Text>
+            <Text style={[styles.todayHoursLabel, { color: Colors.secondaryText }]}>{t('timeClock.todayHours')}</Text>
             <Text style={[styles.todayHoursValue, { color: Colors.primaryText }]}>{formatHoursMinutes(totalHoursToday)}</Text>
           </View>
         </View>
@@ -589,14 +589,14 @@ export default function TimeClockScreen({ navigation }) {
             onPress={() => navigation.navigate('DailyReportForm', { isOwner: false })}
           >
             <Ionicons name="document-text-outline" size={18} color="#F59E0B" />
-            <Text style={{ fontSize: 13, fontWeight: '600', color: '#F59E0B' }}>Daily Report</Text>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#F59E0B' }}>{t('timeClock.dailyReport')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={{ flex: 1, backgroundColor: '#10B98115', paddingVertical: 12, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
             onPress={() => navigation.navigate('ExpenseForm')}
           >
             <Ionicons name="receipt-outline" size={18} color="#10B981" />
-            <Text style={{ fontSize: 13, fontWeight: '600', color: '#10B981' }}>Add Expense</Text>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#10B981' }}>{t('timeClock.addExpense')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -605,14 +605,14 @@ export default function TimeClockScreen({ navigation }) {
         {/* Recent History */}
         {recentEntries.length > 0 && (
           <View style={styles.historySection}>
-            <Text style={[styles.historySectionTitle, { color: Colors.primaryText }]}>Recent</Text>
+            <Text style={[styles.historySectionTitle, { color: Colors.primaryText }]}>{t('timeClock.recent')}</Text>
             {recentEntries.map((entry) => (
               <View key={entry.id} style={[styles.historyCard, { backgroundColor: Colors.white }]}>
                 <View style={styles.historyHeader}>
                   <Text style={[styles.historyDate, { color: Colors.primaryText }]}>{formatDate(entry.clock_in)}</Text>
                   <Text style={[styles.historyHours, { color: Colors.primaryText }]}>{formatHoursMinutes(entry.hours)}</Text>
                 </View>
-                <Text style={[styles.historyProject, { color: Colors.secondaryText }]}>{entry.projects?.name || entry.service_plans?.name || 'Unknown Project'}</Text>
+                <Text style={[styles.historyProject, { color: Colors.secondaryText }]}>{entry.projects?.name || entry.service_plans?.name || t('timeClock.unknownProject')}</Text>
                 <Text style={[styles.historyTime, { color: Colors.secondaryText }]}>
                   {formatTime(entry.clock_in)} - {formatTime(entry.clock_out)}
                 </Text>
@@ -625,7 +625,7 @@ export default function TimeClockScreen({ navigation }) {
         {recentEntries.length === 0 && !activeSession && (
           <View style={styles.emptyState}>
             <Ionicons name="time-outline" size={64} color={Colors.border} />
-            <Text style={[styles.emptyStateText, { color: Colors.secondaryText }]}>No clock-ins yet</Text>
+            <Text style={[styles.emptyStateText, { color: Colors.secondaryText }]}>{t('timeClock.noClockInsYet')}</Text>
           </View>
         )}
       </ScrollView>
@@ -640,9 +640,9 @@ export default function TimeClockScreen({ navigation }) {
         <SafeAreaView style={[styles.modalContainer, { backgroundColor: Colors.background }]}>
           <View style={[styles.modalHeader, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
             <TouchableOpacity onPress={() => setShowProjectPicker(false)}>
-              <Text style={[styles.modalCancelText, { color: Colors.primaryText }]}>Cancel</Text>
+              <Text style={[styles.modalCancelText, { color: Colors.primaryText }]}>{t('timeClock.cancel')}</Text>
             </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Select Project</Text>
+            <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>{t('timeClock.selectProject')}</Text>
             <View style={{ width: 60 }} />
           </View>
 
@@ -698,23 +698,23 @@ export default function TimeClockScreen({ navigation }) {
         <SafeAreaView style={[styles.modalContainer, { backgroundColor: Colors.background }]}>
           <View style={[styles.modalHeader, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
             <View style={{ width: 60 }} />
-            <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Clock Out</Text>
+            <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>{t('timeClock.clockOut')}</Text>
             <View style={{ width: 60 }} />
           </View>
 
           <ScrollView style={styles.modalContent} contentContainerStyle={{ flexGrow: 1 }}>
             <View style={styles.clockOutSection}>
-              <Text style={[styles.clockOutLabel, { color: Colors.secondaryText }]}>Total Time Worked</Text>
+              <Text style={[styles.clockOutLabel, { color: Colors.secondaryText }]}>{t('timeClock.totalTimeWorked')}</Text>
               <Text style={[styles.clockOutTime, { color: Colors.primaryText }]}>{computeElapsed(activeSession?.clock_in)}</Text>
             </View>
 
             <View style={styles.clockOutSection}>
-              <Text style={[styles.clockOutLabel, { color: Colors.secondaryText }]}>Notes (Optional)</Text>
+              <Text style={[styles.clockOutLabel, { color: Colors.secondaryText }]}>{t('timeClock.notesOptional')}</Text>
               <TextInput
                 style={[styles.notesInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
                 value={clockOutNotes}
                 onChangeText={setClockOutNotes}
-                placeholder="Add any notes about today's work..."
+                placeholder={t('timeClock.notesPlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 multiline
                 numberOfLines={4}
@@ -728,7 +728,7 @@ export default function TimeClockScreen({ navigation }) {
                 style={[styles.clockOutCancelButton, { borderColor: Colors.border }]}
                 onPress={() => setShowClockOutModal(false)}
               >
-                <Text style={[styles.clockOutCancelText, { color: Colors.primaryText }]}>Cancel</Text>
+                <Text style={[styles.clockOutCancelText, { color: Colors.primaryText }]}>{t('timeClock.cancel')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -737,7 +737,7 @@ export default function TimeClockScreen({ navigation }) {
                 disabled={actionLoading}
               >
                 <Text style={[styles.clockOutConfirmText, { color: Colors.white }]}>
-                  {actionLoading ? 'Saving...' : 'Confirm Clock Out'}
+                  {actionLoading ? t('timeClock.saving') : t('timeClock.confirmClockOut')}
                 </Text>
               </TouchableOpacity>
             </View>

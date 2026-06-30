@@ -20,6 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import {
@@ -48,6 +49,7 @@ const toMonthly = (amount, frequency) => {
 };
 
 export default function CompanyOverheadScreen() {
+  const { t } = useTranslation('owner');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const navigation = useNavigation();
@@ -104,8 +106,8 @@ export default function CompanyOverheadScreen() {
   };
 
   const handleSave = async () => {
-    if (!formDesc.trim()) { Alert.alert('Required', 'Enter a name for this expense'); return; }
-    if (!formAmount || parseFloat(formAmount) <= 0) { Alert.alert('Required', 'Enter an amount'); return; }
+    if (!formDesc.trim()) { Alert.alert(t('companyOverhead.requiredAlertTitle'), t('companyOverhead.enterNameError')); return; }
+    if (!formAmount || parseFloat(formAmount) <= 0) { Alert.alert(t('companyOverhead.requiredAlertTitle'), t('companyOverhead.enterAmountError')); return; }
 
     try {
       setSaving(true);
@@ -126,7 +128,7 @@ export default function CompanyOverheadScreen() {
       resetForm();
       loadData();
     } catch (error) {
-      Alert.alert('Error', 'Failed to save');
+      Alert.alert(t('common:alerts.error'), t('companyOverhead.saveErrorText'));
     } finally {
       setSaving(false);
     }
@@ -141,9 +143,9 @@ export default function CompanyOverheadScreen() {
   };
 
   const handleDelete = (item) => {
-    Alert.alert('Delete', `Remove "${item.description}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => {
+    Alert.alert(t('companyOverhead.deleteAlertTitle'), t('companyOverhead.deleteAlertMessage', { name: item.description }), [
+      { text: t('common:buttons.cancel'), style: 'cancel' },
+      { text: t('common:buttons.delete'), style: 'destructive', onPress: () => {
         setItems(prev => prev.filter(i => i.id !== item.id));
         deleteRecurringExpense(item.id).catch(() => {
           setItems(prev => [...prev, item]);
@@ -169,7 +171,7 @@ export default function CompanyOverheadScreen() {
         <TouchableOpacity testID="companyOverhead.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.headerBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text testID="companyOverhead.title" style={[styles.headerTitle, { color: Colors.primaryText }]}>Company Overhead</Text>
+        <Text testID="companyOverhead.title" style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('companyOverhead.title')}</Text>
         <TouchableOpacity testID="companyOverhead.addButton" accessibilityLabel="Add expense" onPress={openAdd} style={styles.headerBtn}>
           <Ionicons name="add-circle-outline" size={24} color={ACCENT} />
         </TouchableOpacity>
@@ -186,17 +188,17 @@ export default function CompanyOverheadScreen() {
           <View style={[styles.summaryCard, { backgroundColor: Colors.cardBackground }]}>
             <View style={styles.summaryRow}>
               <View style={styles.summaryItem}>
-                <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>Monthly</Text>
+                <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{t('companyOverhead.summaryMonthly')}</Text>
                 <Text testID="companyOverhead.monthlyTotal" style={[styles.summaryAmount, { color: '#EF4444' }]}>{formatCurrency(totalMonthly)}</Text>
               </View>
               <View style={[styles.summaryDivider, { backgroundColor: Colors.border }]} />
               <View style={styles.summaryItem}>
-                <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>Annual</Text>
+                <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{t('companyOverhead.summaryAnnual')}</Text>
                 <Text testID="companyOverhead.annualTotal" style={[styles.summaryAmount, { color: Colors.primaryText }]}>{formatCurrency(totalMonthly * 12)}</Text>
               </View>
             </View>
             <Text testID="companyOverhead.summaryCount" style={[styles.summaryCount, { color: Colors.secondaryText }]}>
-              {items.filter(i => i.is_active).length} active · {items.filter(i => !i.is_active).length} paused
+              {t('companyOverhead.summaryCount', { active: items.filter(i => i.is_active).length, paused: items.filter(i => !i.is_active).length })}
             </Text>
           </View>
         )}
@@ -205,25 +207,25 @@ export default function CompanyOverheadScreen() {
         {error && items.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: Colors.cardBackground }]}>
             <Ionicons name="cloud-offline-outline" size={48} color="#EF4444" />
-            <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>Couldn't Load Expenses</Text>
+            <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>{t('companyOverhead.errorTitle')}</Text>
             <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-              Something went wrong fetching your overhead expenses. Check your connection and try again.
+              {t('companyOverhead.errorText')}
             </Text>
             <TouchableOpacity testID="companyOverhead.retryButton" accessibilityLabel="Retry" style={[styles.emptyBtn, { backgroundColor: ACCENT }]} onPress={() => { setLoading(true); loadData(); }}>
               <Ionicons name="refresh" size={18} color="#FFF" />
-              <Text style={styles.emptyBtnText}>Retry</Text>
+              <Text style={styles.emptyBtnText}>{t('common:buttons.retry')}</Text>
             </TouchableOpacity>
           </View>
         ) : items.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: Colors.cardBackground }]}>
             <Ionicons name="business-outline" size={48} color={Colors.secondaryText} />
-            <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>No Overhead Expenses</Text>
+            <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>{t('companyOverhead.emptyTitle')}</Text>
             <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-              Add your fixed monthly costs like rent, car payments, insurance, subscriptions — anything your business pays regularly.
+              {t('companyOverhead.emptyText')}
             </Text>
             <TouchableOpacity testID="companyOverhead.addFirstButton" accessibilityLabel="Add first expense" style={[styles.emptyBtn, { backgroundColor: ACCENT }]} onPress={openAdd}>
               <Ionicons name="add" size={18} color="#FFF" />
-              <Text style={styles.emptyBtnText}>Add First Expense</Text>
+              <Text style={styles.emptyBtnText}>{t('companyOverhead.addFirstExpense')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -243,7 +245,7 @@ export default function CompanyOverheadScreen() {
                   </Text>
                   <Text style={[styles.itemMeta, { color: Colors.secondaryText }]}>
                     {getFreqLabel(item.frequency)}
-                    {item.frequency !== 'monthly' && ` · ${formatCurrency(toMonthly(item.amount, item.frequency))}/mo`}
+                    {item.frequency !== 'monthly' && t('companyOverhead.perMonthDisplay', { amount: formatCurrency(toMonthly(item.amount, item.frequency)) })}
                   </Text>
                 </View>
                 <View style={styles.itemRight}>
@@ -262,7 +264,7 @@ export default function CompanyOverheadScreen() {
                 >
                   <Ionicons name={item.is_active ? 'pause-circle-outline' : 'play-circle-outline'} size={18} color={Colors.secondaryText} />
                   <Text style={[styles.itemActionText, { color: Colors.secondaryText }]}>
-                    {item.is_active ? 'Pause' : 'Resume'}
+                    {item.is_active ? t('companyOverhead.pauseAction') : t('companyOverhead.resumeAction')}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -273,7 +275,7 @@ export default function CompanyOverheadScreen() {
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <Ionicons name="trash-outline" size={16} color="#EF4444" />
-                  <Text style={[styles.itemActionText, { color: '#EF4444' }]}>Delete</Text>
+                  <Text style={[styles.itemActionText, { color: '#EF4444' }]}>{t('common:buttons.delete')}</Text>
                 </TouchableOpacity>
               </View>
             </TouchableOpacity>
@@ -291,24 +293,24 @@ export default function CompanyOverheadScreen() {
               <Ionicons name="close" size={24} color={Colors.primaryText} />
             </TouchableOpacity>
             <Text testID="companyOverhead.modalTitle" style={[styles.modalTitle, { color: Colors.primaryText }]}>
-              {editingItem ? 'Edit Expense' : 'Add Expense'}
+              {editingItem ? t('companyOverhead.editExpenseTitle') : t('companyOverhead.addExpenseTitle')}
             </Text>
             <TouchableOpacity testID="companyOverhead.saveButton" accessibilityLabel="Save expense" onPress={handleSave} disabled={saving}>
-              <Text style={[styles.saveText, saving && { opacity: 0.4 }]}>{saving ? '...' : 'Save'}</Text>
+              <Text style={[styles.saveText, saving && { opacity: 0.4 }]}>{saving ? '...' : t('common:buttons.save')}</Text>
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
             {/* Name */}
             <View style={styles.formSection}>
-              <Text style={[styles.formLabel, { color: Colors.primaryText }]}>Expense Name</Text>
+              <Text style={[styles.formLabel, { color: Colors.primaryText }]}>{t('companyOverhead.expenseNameLabel')}</Text>
               <TextInput
                 testID="companyOverhead.nameInput"
                 accessibilityLabel="Expense name"
                 style={[styles.formInput, { backgroundColor: Colors.cardBackground, color: Colors.primaryText, borderColor: Colors.border }]}
                 value={formDesc}
                 onChangeText={setFormDesc}
-                placeholder="e.g., Office Rent, Truck Payment, QuickBooks"
+                placeholder={t('companyOverhead.expenseNamePlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 autoFocus={!editingItem}
               />
@@ -316,7 +318,7 @@ export default function CompanyOverheadScreen() {
 
             {/* Amount */}
             <View style={styles.formSection}>
-              <Text style={[styles.formLabel, { color: Colors.primaryText }]}>Amount</Text>
+              <Text style={[styles.formLabel, { color: Colors.primaryText }]}>{t('companyOverhead.amountLabel')}</Text>
               <View style={[styles.amountRow, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
                 <Text style={[styles.currencySign, { color: Colors.secondaryText }]}>$</Text>
                 <TextInput
@@ -334,7 +336,7 @@ export default function CompanyOverheadScreen() {
 
             {/* Frequency */}
             <View style={styles.formSection}>
-              <Text style={[styles.formLabel, { color: Colors.primaryText }]}>How Often</Text>
+              <Text style={[styles.formLabel, { color: Colors.primaryText }]}>{t('companyOverhead.howOftenLabel')}</Text>
               <View style={styles.freqRow}>
                 {FREQUENCIES.map(f => {
                   const selected = formFrequency === f.value;
@@ -358,7 +360,7 @@ export default function CompanyOverheadScreen() {
               <View style={[styles.hintCard, { backgroundColor: ACCENT + '08' }]}>
                 <Ionicons name="information-circle-outline" size={16} color={ACCENT} />
                 <Text style={[styles.hintText, { color: ACCENT }]}>
-                  That's {formatCurrency(toMonthly(formAmount, formFrequency))} per month
+                  {t('companyOverhead.perMonthHint', { amount: formatCurrency(toMonthly(formAmount, formFrequency)) })}
                 </Text>
               </View>
             )}

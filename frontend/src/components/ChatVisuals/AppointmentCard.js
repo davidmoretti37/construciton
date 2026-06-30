@@ -1,10 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Linking, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export default function AppointmentCard({ data, onAction }) {
+  const { t } = useTranslation('chat');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -116,7 +118,7 @@ export default function AppointmentCard({ data, onAction }) {
         <View style={styles.row}>
           <Ionicons name="calendar-outline" size={20} color={Colors.secondaryText} />
           <View style={styles.rowContent}>
-            <Text style={[styles.label, { color: Colors.secondaryText }]}>Date</Text>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('appointmentCard.date')}</Text>
             <Text style={[styles.value, { color: Colors.primaryText }]}>{dateStr}</Text>
           </View>
         </View>
@@ -124,7 +126,7 @@ export default function AppointmentCard({ data, onAction }) {
           <View style={styles.row}>
             <Ionicons name="time-outline" size={20} color={Colors.secondaryText} />
             <View style={styles.rowContent}>
-              <Text style={[styles.label, { color: Colors.secondaryText }]}>Time</Text>
+              <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('appointmentCard.time')}</Text>
               <Text style={[styles.value, { color: Colors.primaryText }]}>
                 {startTime}{endTime ? ` - ${endTime}` : ''}
               </Text>
@@ -133,7 +135,7 @@ export default function AppointmentCard({ data, onAction }) {
         )}
         {all_day && (
           <View style={[styles.allDayBadge, { backgroundColor: color + '20' }]}>
-            <Text style={[styles.allDayText, { color: color }]}>All Day</Text>
+            <Text style={[styles.allDayText, { color: color }]}>{t('appointmentCard.allDay')}</Text>
           </View>
         )}
       </View>
@@ -148,12 +150,12 @@ export default function AppointmentCard({ data, onAction }) {
           <View style={styles.row}>
             <Ionicons name="location" size={20} color={color} />
             <View style={styles.rowContent}>
-              <Text style={[styles.label, { color: Colors.secondaryText }]}>Location</Text>
+              <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('appointmentCard.location')}</Text>
               <Text style={[styles.addressText, { color: Colors.primaryText }]}>{displayAddress}</Text>
             </View>
             <Ionicons name="navigate" size={20} color={color} />
           </View>
-          <Text style={[styles.tapHint, { color: color }]}>Tap to open in Maps</Text>
+          <Text style={[styles.tapHint, { color: color }]}>{t('appointmentCard.tapToOpenInMaps')}</Text>
         </TouchableOpacity>
       )}
 
@@ -163,7 +165,7 @@ export default function AppointmentCard({ data, onAction }) {
           <View style={styles.row}>
             <Ionicons name="document-text-outline" size={20} color={Colors.secondaryText} />
             <View style={styles.rowContent}>
-              <Text style={[styles.label, { color: Colors.secondaryText }]}>Notes</Text>
+              <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('appointmentCard.notes')}</Text>
               <Text style={[styles.description, { color: Colors.primaryText }]}>{description}</Text>
             </View>
           </View>
@@ -177,14 +179,14 @@ export default function AppointmentCard({ data, onAction }) {
           onPress={() => onAction && onAction({ type: 'reschedule-appointment', data })}
         >
           <Ionicons name="calendar" size={18} color="#fff" />
-          <Text style={styles.actionText}>Reschedule</Text>
+          <Text style={styles.actionText}>{t('appointmentCard.reschedule')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionButton, { backgroundColor: '#EF4444' }]}
           onPress={() => onAction && onAction({ type: 'cancel-appointment', data })}
         >
           <Ionicons name="close-circle" size={18} color="#fff" />
-          <Text style={styles.actionText}>Cancel</Text>
+          <Text style={styles.actionText}>{t('common:buttons.cancel')}</Text>
         </TouchableOpacity>
       </View>
     </View>

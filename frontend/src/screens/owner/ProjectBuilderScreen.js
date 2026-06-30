@@ -42,6 +42,7 @@ import {
   Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
@@ -261,7 +262,9 @@ const SectionHeader = ({ title, icon, sectionKey, expanded, chip, onToggle, Colo
   );
 };
 
-const LabelRow = ({ label, required, confidence, Colors }) => (
+const LabelRow = ({ label, required, confidence, Colors }) => {
+  const { t } = useTranslation('owner');
+  return (
   <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
     <Text style={[styles.label, { color: Colors.secondaryText }]}>
       {label}
@@ -272,11 +275,12 @@ const LabelRow = ({ label, required, confidence, Colors }) => (
     )}
     {confidence === 'low' && (
       <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8, marginLeft: 6 }}>
-        <Text style={{ color: '#D97706', fontSize: 10, fontWeight: '700' }}>Review</Text>
+        <Text style={{ color: '#D97706', fontSize: 10, fontWeight: '700' }}>{t('projectBuilder.review')}</Text>
       </View>
     )}
   </View>
-);
+  );
+};
 
 const ThemedInput = ({
   value,
@@ -323,6 +327,7 @@ const ThemedInput = ({
 // -------------------------------------------------------------------------
 
 export default function ProjectBuilderScreen({ navigation, route }) {
+  const { t } = useTranslation('owner');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -472,7 +477,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
         // Pre-fill phases from estimate
         if (Array.isArray(est.phases) && est.phases.length > 0) {
           setPhases(est.phases.map((p, i) => ({
-            name: p.name || `Phase ${i + 1}`,
+            name: p.name || t('projectBuilder.phaseNumber', { number: i + 1 }),
             plannedDays: p.plannedDays || p.planned_days || 0,
             budget: String(p.budget || ''),
             assignedWorkerId: p.assignedWorkerId || null,
@@ -730,7 +735,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
   const buildPhasesPayload = useCallback(() => {
     return phases.map((p, i) => ({
       id: p.id,
-      name: (p.name || '').trim() || `Phase ${i + 1}`,
+      name: (p.name || '').trim() || t('projectBuilder.phaseNumber', { number: i + 1 }),
       plannedDays: parseInt(p.plannedDays, 10) || 0,
       budget: parseFloat(p.budget) || 0,
       order: i,
@@ -858,7 +863,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
       return [
         ...prev,
         {
-          description: isFirst ? 'Deposit at signing' : '',
+          description: isFirst ? t('projectBuilder.depositAtSigning') : '',
           percent_of_contract: '',
           fixed_amount: null,
           trigger_type: triggerType,
@@ -1117,7 +1122,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
   const handleAddPhase = () => {
     setPhases((p) => [
       ...p,
-      { name: `Phase ${p.length + 1}`, plannedDays: 0, budget: '', assignedWorkerId: null, tasks: [] },
+      { name: t('projectBuilder.phaseNumber', { number: p.length + 1 }), plannedDays: 0, budget: '', assignedWorkerId: null, tasks: [] },
     ]);
   };
   const updatePhase = (i, patch) => {
@@ -1178,7 +1183,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
   // ---- AI Suggest ----
   const handleAISuggestChecklist = useCallback(async () => {
     if (!name.trim()) {
-      Alert.alert('Project name needed', 'Add a project name first so the AI knows what to suggest for.');
+      Alert.alert(t('projectBuilder.projectNameNeededTitle'), t('projectBuilder.projectNameNeededBody'));
       return;
     }
     setAiSuggestError(null);
@@ -1228,7 +1233,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
       setAiHighlightUntil({ checklist: expiry, labor: expiry });
       setTimeout(() => setAiHighlightUntil({ checklist: 0, labor: 0 }), 3100);
     } catch (e) {
-      setAiSuggestError(e.message || 'Failed to fetch suggestions.');
+      setAiSuggestError(e.message || t('projectBuilder.failedFetchSuggestions'));
     } finally {
       setAiSuggestLoading(false);
     }
@@ -1255,7 +1260,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
 
   const handleUploadDocument = useCallback(async () => {
     if (!projectIdRef.current) {
-      Alert.alert('Save first', 'Add a project name and client first so the document has somewhere to attach.');
+      Alert.alert(t('projectBuilder.saveFirstTitle'), t('projectBuilder.saveFirstBody'));
       return;
     }
     setUploadingDoc(true);
@@ -1263,7 +1268,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
       const result = await pickAndUploadProjectDocument(projectIdRef.current);
       if (result?.canceled) return;
       if (result?.error) {
-        Alert.alert('Upload failed', result.error);
+        Alert.alert(t('projectBuilder.uploadFailedTitle'), result.error);
         return;
       }
       if (result?.success) {
@@ -1278,26 +1283,26 @@ export default function ProjectBuilderScreen({ navigation, route }) {
     if (!doc?.file_url) return;
     const url = await getProjectBuilderDocumentUrl(doc.id);
     if (!url) {
-      Alert.alert('Could not open', 'Failed to generate a viewing link.');
+      Alert.alert(t('projectBuilder.couldNotOpenTitle'), t('projectBuilder.couldNotOpenLinkBody'));
       return;
     }
     try {
       await Linking.openURL(url);
     } catch (e) {
-      Alert.alert('Could not open', 'No app available to view this file.');
+      Alert.alert(t('projectBuilder.couldNotOpenTitle'), t('projectBuilder.couldNotOpenAppBody'));
     }
   }, []);
 
   const handleDeleteDocument = useCallback((doc) => {
-    Alert.alert('Delete document?', doc.file_name, [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('projectBuilder.deleteDocumentTitle'), doc.file_name, [
+      { text: t('common:buttons.cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('common:buttons.delete'),
         style: 'destructive',
         onPress: async () => {
           const result = await deleteProjectBuilderDocument(doc.id);
           if (result?.error) {
-            Alert.alert('Delete failed', result.error);
+            Alert.alert(t('projectBuilder.deleteFailedTitle'), result.error);
             return;
           }
           await reloadDocuments();
@@ -1332,10 +1337,10 @@ export default function ProjectBuilderScreen({ navigation, route }) {
   }, []);
 
   const handleUnlinkEstimate = useCallback(() => {
-    Alert.alert('Unlink estimate?', 'This project will no longer be linked to that estimate.', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('projectBuilder.unlinkEstimateTitle'), t('projectBuilder.unlinkEstimateBody'), [
+      { text: t('common:buttons.cancel'), style: 'cancel' },
       {
-        text: 'Unlink',
+        text: t('projectBuilder.unlink'),
         style: 'destructive',
         onPress: () => {
           setLinkedEstimateId(null);
@@ -1358,24 +1363,24 @@ export default function ProjectBuilderScreen({ navigation, route }) {
   // ---- Final save ----
   const runFinalSave = useCallback(async () => {
     if (!name.trim()) {
-      Alert.alert('Required', 'Project name is required.');
+      Alert.alert(t('common:alerts.required'), t('projectBuilder.projectNameRequired'));
       return;
     }
     if (!client.trim()) {
-      Alert.alert('Required', 'Client name is required.');
+      Alert.alert(t('common:alerts.required'), t('projectBuilder.clientNameRequired'));
       return;
     }
     const contract = parseFloat(contractAmount) || 0;
     if (contract <= 0) {
-      Alert.alert('Required', 'Contract amount must be greater than 0.');
+      Alert.alert(t('common:alerts.required'), t('projectBuilder.contractAmountRequired'));
       return;
     }
     if (phases.length < 1) {
-      Alert.alert('Required', 'At least one phase is required.');
+      Alert.alert(t('common:alerts.required'), t('projectBuilder.atLeastOnePhaseRequired'));
       return;
     }
     if (startDate && endDate && toISODate(startDate) > toISODate(endDate)) {
-      Alert.alert('Invalid Dates', 'Start date cannot be after end date.');
+      Alert.alert(t('projectBuilder.invalidDatesTitle'), t('projectBuilder.invalidDatesBody'));
       return;
     }
 
@@ -1395,13 +1400,13 @@ export default function ProjectBuilderScreen({ navigation, route }) {
         // saveProject now handles checklist_items + labor_roles directly.
         const saved = await saveProject(payload);
         if (saved?.error === 'limit_reached') {
-          Alert.alert('Project Limit Reached', saved.reason || 'Upgrade your plan to create more projects.');
+          Alert.alert(t('projectBuilder.projectLimitReachedTitle'), saved.reason || t('projectBuilder.projectLimitReachedBody'));
           return;
         }
         if (!saved?.id) {
           Alert.alert(
-            'Save failed',
-            "Couldn't create the project — check your connection and try again. Your work on this screen is preserved.",
+            t('projectBuilder.saveFailedTitle'),
+            t('projectBuilder.saveFailedCreateBody'),
           );
           return;
         }
@@ -1446,11 +1451,11 @@ export default function ProjectBuilderScreen({ navigation, route }) {
         // but tell the user so they can retry from Edit Project.
         if (saved.phaseSaveOk === false) {
           Alert.alert(
-            'Project created',
-            'Some phases didn\'t save. Open the project and retry from Edit Project.',
+            t('projectBuilder.projectCreatedTitle'),
+            t('projectBuilder.somePhasesFailedBody'),
             [
               {
-                text: 'OK',
+                text: t('common:buttons.ok'),
                 onPress: () =>
                   navigation.replace('ProjectDetail', { project: saved, projectId: saved.id, isDemo: false }),
               },
@@ -1463,8 +1468,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
       } catch (e) {
         console.error('[ProjectBuilder] final save error', e);
         Alert.alert(
-          'Save failed',
-          "Something went wrong saving the project. Your draft is still here — try again in a moment.",
+          t('projectBuilder.saveFailedTitle'),
+          t('projectBuilder.saveFailedGenericBody'),
         );
       } finally {
         setFinalSaving(false);
@@ -1473,14 +1478,14 @@ export default function ProjectBuilderScreen({ navigation, route }) {
 
     if (mismatch || anyUnbudgeted) {
       const msg = anyUnbudgeted
-        ? 'One or more phases have no budget assigned.'
-        : `Phase budgets total $${allocated.toLocaleString('en-US')} but the contract is $${contract.toLocaleString('en-US')}.`;
+        ? t('projectBuilder.phasesNoBudget')
+        : t('projectBuilder.budgetMismatchDetail', { allocated: allocated.toLocaleString('en-US'), contract: contract.toLocaleString('en-US') });
       Alert.alert(
-        'Budget Mismatch',
-        `${msg}\n\nCreate the project anyway?`,
+        t('projectBuilder.budgetMismatchTitle'),
+        `${msg}\n\n${t('projectBuilder.createAnywayPrompt')}`,
         [
-          { text: 'Go back', style: 'cancel' },
-          { text: 'Create anyway', style: 'destructive', onPress: doSave },
+          { text: t('projectBuilder.goBack'), style: 'cancel' },
+          { text: t('projectBuilder.createAnyway'), style: 'destructive', onPress: doSave },
         ]
       );
       return;
@@ -1516,10 +1521,10 @@ export default function ProjectBuilderScreen({ navigation, route }) {
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: Colors.border }]}>
           <TouchableOpacity onPress={() => navigation.goBack()} testID="projectBuilder.backButton" accessibilityLabel="Back">
-            <Text style={{ fontSize: 16, fontWeight: '600', color: Colors.primaryBlue }}>Back</Text>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: Colors.primaryBlue }}>{t('common:buttons.back')}</Text>
           </TouchableOpacity>
           <View style={{ alignItems: 'center' }}>
-            <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="projectBuilder.title">Configure Project</Text>
+            <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="projectBuilder.title">{t('projectBuilder.configureProject')}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               {autoSaveStatus === 'error' && (
                 <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#DC2626', marginRight: 5 }} />
@@ -1532,16 +1537,16 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                 }}
               >
                 {autoSaveStatus === 'saving'
-                  ? 'Saving…'
+                  ? t('projectBuilder.savingStatus')
                   : autoSaveStatus === 'saved' && lastSavedAt
-                  ? `Saved ${lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                  ? t('projectBuilder.savedAt', { time: lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })
                   : autoSaveStatus === 'error'
-                  ? 'Save failed · retrying…'
-                  : 'Draft'}
+                  ? t('projectBuilder.saveFailedRetrying')
+                  : t('projectBuilder.draftStatus')}
               </Text>
               {autoSaveStatus === 'error' && (
                 <TouchableOpacity onPress={() => flushSaveRef.current?.()} style={{ marginLeft: 6 }} testID="projectBuilder.retrySaveButton" accessibilityLabel="Retry save">
-                  <Text style={{ color: Colors.primaryBlue, fontSize: 11, fontWeight: '700' }}>Retry</Text>
+                  <Text style={{ color: Colors.primaryBlue, fontSize: 11, fontWeight: '700' }}>{t('common:buttons.retry')}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -1558,7 +1563,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
           {/* ============ 1. PROJECT BASICS ============ */}
           <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
             <SectionHeader
-              title="Project Basics"
+              title={t('projectBuilder.sectionBasics')}
               icon="briefcase-outline"
               sectionKey="basics"
               expanded={expandedSections.basics}
@@ -1568,11 +1573,11 @@ export default function ProjectBuilderScreen({ navigation, route }) {
             />
             {expandedSections.basics && (
               <View style={styles.sectionBody}>
-                <LabelRow label="Project Name" required confidence={aiConfidence.name} Colors={Colors} />
+                <LabelRow label={t('projectBuilder.projectName')} required confidence={aiConfidence.name} Colors={Colors} />
                 <ThemedInput
                   value={name}
                   onChangeText={setName}
-                  placeholder="e.g. Kitchen Renovation"
+                  placeholder={t('projectBuilder.projectNamePlaceholder')}
                   required
                   confidence={aiConfidence.name}
                   Colors={Colors}
@@ -1580,11 +1585,11 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                   accessibilityLabel="Project name"
                 />
 
-                <LabelRow label="Client Name" required confidence={aiConfidence.client} Colors={Colors} />
+                <LabelRow label={t('projectBuilder.clientName')} required confidence={aiConfidence.client} Colors={Colors} />
                 <ThemedInput
                   value={client}
                   onChangeText={setClient}
-                  placeholder="e.g. John Smith"
+                  placeholder={t('projectBuilder.clientNamePlaceholder')}
                   required
                   confidence={aiConfidence.client}
                   Colors={Colors}
@@ -1592,11 +1597,11 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                   accessibilityLabel="Client name"
                 />
 
-                <LabelRow label="Client Phone" confidence={aiConfidence.clientPhone} Colors={Colors} />
+                <LabelRow label={t('projectBuilder.clientPhone')} confidence={aiConfidence.clientPhone} Colors={Colors} />
                 <ThemedInput
                   value={clientPhone}
                   onChangeText={setClientPhone}
-                  placeholder="+1 555 123 4567"
+                  placeholder={t('projectBuilder.clientPhonePlaceholder')}
                   keyboardType="phone-pad"
                   confidence={aiConfidence.clientPhone}
                   Colors={Colors}
@@ -1604,11 +1609,11 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                   accessibilityLabel="Client phone"
                 />
 
-                <LabelRow label="Client Email" confidence={aiConfidence.clientEmail} Colors={Colors} />
+                <LabelRow label={t('projectBuilder.clientEmail')} confidence={aiConfidence.clientEmail} Colors={Colors} />
                 <ThemedInput
                   value={clientEmail}
                   onChangeText={setClientEmail}
-                  placeholder="client@example.com"
+                  placeholder={t('projectBuilder.clientEmailPlaceholder')}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   confidence={aiConfidence.clientEmail}
@@ -1617,11 +1622,11 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                   accessibilityLabel="Client email"
                 />
 
-                <LabelRow label="Location" confidence={aiConfidence.location} Colors={Colors} />
+                <LabelRow label={t('projectBuilder.location')} confidence={aiConfidence.location} Colors={Colors} />
                 <ThemedInput
                   value={location}
                   onChangeText={setLocation}
-                  placeholder="Project site address"
+                  placeholder={t('projectBuilder.locationPlaceholder')}
                   confidence={aiConfidence.location}
                   Colors={Colors}
                   testID="projectBuilder.locationInput"
@@ -1634,7 +1639,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
           {/* ============ 2. TIMELINE & WORKING DAYS ============ */}
           <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
             <SectionHeader
-              title="Timeline & Working Days"
+              title={t('projectBuilder.sectionTimeline')}
               icon="calendar-outline"
               sectionKey="timeline"
               expanded={expandedSections.timeline}
@@ -1646,7 +1651,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
               <View style={styles.sectionBody}>
                 <View style={{ flexDirection: 'row', gap: 12 }}>
                   <View style={{ flex: 1 }}>
-                    <LabelRow label="Start Date" confidence={aiConfidence.startDate} Colors={Colors} />
+                    <LabelRow label={t('projectBuilder.startDate')} confidence={aiConfidence.startDate} Colors={Colors} />
                     <TouchableOpacity
                       style={[styles.input, { justifyContent: 'center', backgroundColor: Colors.lightGray, borderColor: Colors.border }]}
                       onPress={() => setShowStartPicker(true)}
@@ -1654,12 +1659,12 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                       accessibilityLabel="Select start date"
                     >
                       <Text style={{ color: startDate ? Colors.primaryText : Colors.placeholderText }} testID="projectBuilder.startDateValue">
-                        {startDate ? formatDate(startDate) : 'Select start date'}
+                        {startDate ? formatDate(startDate) : t('projectBuilder.selectStartDate')}
                       </Text>
                     </TouchableOpacity>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <LabelRow label="End Date" confidence={aiConfidence.endDate} Colors={Colors} />
+                    <LabelRow label={t('projectBuilder.endDate')} confidence={aiConfidence.endDate} Colors={Colors} />
                     <TouchableOpacity
                       style={[styles.input, { justifyContent: 'center', backgroundColor: Colors.lightGray, borderColor: Colors.border }]}
                       onPress={() => setShowEndPicker(true)}
@@ -1667,7 +1672,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                       accessibilityLabel="Select end date"
                     >
                       <Text style={{ color: endDate ? Colors.primaryText : Colors.placeholderText }} testID="projectBuilder.endDateValue">
-                        {endDate ? formatDate(endDate) : 'Select end date'}
+                        {endDate ? formatDate(endDate) : t('projectBuilder.selectEndDate')}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -1677,7 +1682,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                   <WorkingDaysSelector
                     selectedDays={workingDays}
                     onDaysChange={setWorkingDays}
-                    label="Working Days"
+                    label={t('projectBuilder.workingDays')}
                   />
                 </View>
 
@@ -1695,7 +1700,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
           {/* ============ 3. PHASES ============ */}
           <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
             <SectionHeader
-              title="Phases"
+              title={t('projectBuilder.sectionPhases')}
               icon="layers-outline"
               sectionKey="phases"
               expanded={expandedSections.phases}
@@ -1709,7 +1714,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                     per-phase budget math. Lives here (not in a separate
                     Financial section) so the contract $ sits next to the
                     phases it funds. */}
-                <LabelRow label="Contract Amount ($)" required confidence={aiConfidence.contractAmount} Colors={Colors} />
+                <LabelRow label={t('projectBuilder.contractAmount')} required confidence={aiConfidence.contractAmount} Colors={Colors} />
                 <ThemedInput
                   value={contractAmount}
                   onChangeText={(v) => setContractAmount(sanitizeNumeric(v))}
@@ -1725,12 +1730,12 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                 {/* Allocation bar */}
                 <View style={[styles.allocBar, { backgroundColor: overAllocated ? '#FEE2E2' : '#EFF6FF', borderColor: overAllocated ? '#DC2626' : Colors.primaryBlue + '30', marginTop: 12 }]}>
                   <Text style={{ fontSize: 13, fontWeight: '600', color: overAllocated ? '#DC2626' : Colors.primaryText }} testID="projectBuilder.allocationSummary">
-                    Allocated ${allocatedTotal.toLocaleString('en-US')} / Contract ${contractTotal.toLocaleString('en-US')}
+                    {t('projectBuilder.allocatedOfContract', { allocated: allocatedTotal.toLocaleString('en-US'), contract: contractTotal.toLocaleString('en-US') })}
                   </Text>
                   <Text style={{ fontSize: 11, color: Colors.secondaryText, marginTop: 2 }}>
                     {contractTotal > 0
-                      ? `${Math.round((allocatedTotal / contractTotal) * 100)}% of contract allocated`
-                      : 'Set a contract amount above'}
+                      ? t('projectBuilder.percentOfContractAllocated', { percent: Math.round((allocatedTotal / contractTotal) * 100) })
+                      : t('projectBuilder.setContractAmountAbove')}
                   </Text>
                 </View>
 
@@ -1741,7 +1746,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                         style={[styles.phaseName, { color: Colors.primaryText, flex: 1 }]}
                         value={phase.name}
                         onChangeText={(v) => updatePhase(i, { name: v })}
-                        placeholder={`Phase ${i + 1}`}
+                        placeholder={t('projectBuilder.phaseNumber', { number: i + 1 })}
                         placeholderTextColor={Colors.placeholderText}
                         testID={`projectBuilder.phaseNameInput.${i}`}
                         accessibilityLabel={`Phase ${i + 1} name`}
@@ -1753,7 +1758,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
 
                     <View style={{ flexDirection: 'row', gap: 8 }}>
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.miniLabel, { color: Colors.secondaryText }]}>Days</Text>
+                        <Text style={[styles.miniLabel, { color: Colors.secondaryText }]}>{t('projectBuilder.days')}</Text>
                         <TextInput
                           style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
                           value={String(phase.plannedDays || '')}
@@ -1766,7 +1771,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                         />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.miniLabel, { color: Colors.secondaryText }]}>Budget ($)</Text>
+                        <Text style={[styles.miniLabel, { color: Colors.secondaryText }]}>{t('projectBuilder.budget')}</Text>
                         <TextInput
                           style={[
                             styles.input,
@@ -1789,7 +1794,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                       </View>
                     </View>
 
-                    <Text style={[styles.miniLabel, { color: Colors.secondaryText, marginTop: 8 }]}>Assigned Worker</Text>
+                    <Text style={[styles.miniLabel, { color: Colors.secondaryText, marginTop: 8 }]}>{t('projectBuilder.assignedWorker')}</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
                       <TouchableOpacity
                         onPress={() => updatePhase(i, { assignedWorkerId: null })}
@@ -1797,7 +1802,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                         testID={`projectBuilder.phaseWorkerNone.${i}`}
                         accessibilityLabel={`Phase ${i + 1} no assigned worker`}
                       >
-                        <Text style={{ color: !phase.assignedWorkerId ? '#fff' : Colors.primaryText, fontSize: 12, fontWeight: '600' }}>None</Text>
+                        <Text style={{ color: !phase.assignedWorkerId ? '#fff' : Colors.primaryText, fontSize: 12, fontWeight: '600' }}>{t('projectBuilder.none')}</Text>
                       </TouchableOpacity>
                       {availableWorkers.map((w) => (
                         <TouchableOpacity
@@ -1820,7 +1825,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                               fontWeight: '600',
                             }}
                           >
-                            {w.name || w.full_name || 'Worker'}
+                            {w.name || w.full_name || t('projectBuilder.worker')}
                           </Text>
                         </TouchableOpacity>
                       ))}
@@ -1829,9 +1834,9 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                     {/* Tasks */}
                     <View style={{ marginTop: 4 }}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                        <Text style={[styles.miniLabel, { color: Colors.secondaryText }]}>Tasks</Text>
+                        <Text style={[styles.miniLabel, { color: Colors.secondaryText }]}>{t('projectBuilder.tasks')}</Text>
                         <TouchableOpacity onPress={() => addTaskToPhase(i)} testID={`projectBuilder.phaseAddTaskButton.${i}`} accessibilityLabel={`Add task to phase ${i + 1}`}>
-                          <Text style={{ color: Colors.primaryBlue, fontSize: 12, fontWeight: '600' }}>+ Add Task</Text>
+                          <Text style={{ color: Colors.primaryBlue, fontSize: 12, fontWeight: '600' }}>{t('projectBuilder.addTask')}</Text>
                         </TouchableOpacity>
                       </View>
                       {(phase.tasks || []).map((t, ti) => (
@@ -1840,7 +1845,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                             style={[styles.input, { flex: 1, backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
                             value={t.description}
                             onChangeText={(v) => updateTask(i, ti, v)}
-                            placeholder="Task description"
+                            placeholder={t('projectBuilder.taskDescriptionPlaceholder')}
                             placeholderTextColor={Colors.placeholderText}
                             testID={`projectBuilder.phaseTaskInput.${i}.${ti}`}
                             accessibilityLabel={`Phase ${i + 1} task ${ti + 1}`}
@@ -1861,7 +1866,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                   accessibilityLabel="Add phase"
                 >
                   <Ionicons name="add-circle-outline" size={18} color={Colors.primaryBlue} />
-                  <Text style={{ color: Colors.primaryBlue, fontWeight: '600' }}>Add Phase</Text>
+                  <Text style={{ color: Colors.primaryBlue, fontWeight: '600' }}>{t('projectBuilder.addPhase')}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -1874,7 +1879,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
           {/* ============ 4. PROGRESS DRAWS ============ */}
           <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
             <SectionHeader
-              title="Progress Draws"
+              title={t('projectBuilder.sectionDraws')}
               icon="cash-outline"
               sectionKey="draws"
               expanded={expandedSections.draws}
@@ -1885,19 +1890,15 @@ export default function ProjectBuilderScreen({ navigation, route }) {
             {expandedSections.draws && (
               <View style={styles.sectionBody}>
                 <Text style={{ color: Colors.secondaryText, fontSize: 12, marginBottom: 4, lineHeight: 18 }}>
-                  Big jobs aren't paid all at once. Instead you bill the homeowner in
-                  chunks ("draws") as you finish milestones — deposit, foundation, rough-in,
-                  drywall, final, and so on. Skip this for small jobs you'd bill with one
-                  invoice.
+                  {t('projectBuilder.drawsIntro1')}
                 </Text>
                 <Text style={{ color: Colors.secondaryText, fontSize: 12, marginBottom: 12, lineHeight: 18 }}>
-                  Once turned on, you'll get a "Send draw" button on the project page for
-                  each milestone — tap it when the work is done and an invoice goes out.
+                  {t('projectBuilder.drawsIntro2')}
                 </Text>
 
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
                   <Text style={{ color: Colors.primaryText, fontSize: 14, fontWeight: '600' }}>
-                    Bill this project in draws?
+                    {t('projectBuilder.billInDrawsQuestion')}
                   </Text>
                   <Switch
                     value={billInDraws}
@@ -1911,11 +1912,9 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                 {billInDraws && (
                   <>
                     <View style={{ marginTop: 12 }}>
-                      <LabelRow label="Retainage (%)" Colors={Colors} />
+                      <LabelRow label={t('projectBuilder.retainage')} Colors={Colors} />
                       <Text style={{ color: Colors.secondaryText, fontSize: 11, marginBottom: 6, lineHeight: 16 }}>
-                        The homeowner holds back this percent from every draw payment until
-                        the project is fully done — a safety deposit so contractors don't
-                        skip the punchlist. Industry standard: 10%. Set 0 if you don't want any.
+                        {t('projectBuilder.retainageHelp')}
                       </Text>
                       <ThemedInput
                         value={String(retainagePercent)}
@@ -1947,12 +1946,12 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                           marginTop: 12,
                         }]}>
                           <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.primaryText }}>
-                            {pctSum > 0 ? `${pctSum.toFixed(1)}% of contract allocated` : 'Fixed-amount draws'}
-                            {fixedSum > 0 && pctSum > 0 ? `  •  + $${fixedSum.toLocaleString('en-US')} fixed` : ''}
+                            {pctSum > 0 ? t('projectBuilder.percentOfContractAllocated', { percent: pctSum.toFixed(1) }) : t('projectBuilder.fixedAmountDraws')}
+                            {fixedSum > 0 && pctSum > 0 ? t('projectBuilder.fixedSuffix', { amount: fixedSum.toLocaleString('en-US') }) : ''}
                           </Text>
                           <Text style={{ fontSize: 11, color: Colors.secondaryText, marginTop: 2 }} testID="projectBuilder.drawsTotal">
-                            Total ${dollarTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })} across {draws.length} draw{draws.length === 1 ? '' : 's'}
-                            {pctSum > 0 && !pctClose ? '  •  % rows should sum to 100' : ''}
+                            {t('projectBuilder.drawsTotal', { amount: dollarTotal.toLocaleString(undefined, { maximumFractionDigits: 2 }), count: draws.length })}
+                            {pctSum > 0 && !pctClose ? t('projectBuilder.percentRowsShouldSum') : ''}
                           </Text>
                         </View>
                       );
@@ -1977,7 +1976,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                               style={[styles.phaseName, { color: Colors.primaryText, flex: 1 }]}
                               value={draw.description}
                               onChangeText={(v) => updateDraw(i, { description: v })}
-                              placeholder={`Draw ${i + 1} (e.g. "Foundation complete")`}
+                              placeholder={t('projectBuilder.drawDescriptionPlaceholder', { number: i + 1 })}
                               placeholderTextColor={Colors.placeholderText}
                               editable={!locked}
                               testID={`projectBuilder.drawDescriptionInput.${i}`}
@@ -2017,7 +2016,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                               testID={`projectBuilder.drawModePercent.${i}`}
                               accessibilityLabel={`Draw ${i + 1} percent of contract mode`}
                             >
-                              <Text style={{ color: mode === 'percent' ? '#fff' : Colors.primaryText, fontSize: 12, fontWeight: '600' }}>% of contract</Text>
+                              <Text style={{ color: mode === 'percent' ? '#fff' : Colors.primaryText, fontSize: 12, fontWeight: '600' }}>{t('projectBuilder.percentOfContract')}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                               disabled={locked}
@@ -2033,23 +2032,23 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                               testID={`projectBuilder.drawModeFixed.${i}`}
                               accessibilityLabel={`Draw ${i + 1} fixed amount mode`}
                             >
-                              <Text style={{ color: mode === 'fixed' ? '#fff' : Colors.primaryText, fontSize: 12, fontWeight: '600' }}>Fixed $</Text>
+                              <Text style={{ color: mode === 'fixed' ? '#fff' : Colors.primaryText, fontSize: 12, fontWeight: '600' }}>{t('projectBuilder.fixedDollar')}</Text>
                             </TouchableOpacity>
                           </View>
                           <Text style={{ color: Colors.secondaryText, fontSize: 11, marginBottom: 6 }}>
                             {mode === 'percent'
-                              ? 'Scales with the contract — change orders flow through automatically.'
-                              : 'Flat dollar amount, ignores contract changes. Good for fixed deposits.'}
+                              ? t('projectBuilder.percentModeHelp')
+                              : t('projectBuilder.fixedModeHelp')}
                           </Text>
 
                           {mode === 'percent' ? (
                             <View>
-                              <Text style={[styles.miniLabel, { color: Colors.secondaryText }]}>% of contract</Text>
+                              <Text style={[styles.miniLabel, { color: Colors.secondaryText }]}>{t('projectBuilder.percentOfContract')}</Text>
                               <TextInput
                                 style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
                                 value={draw.percent_of_contract == null ? '' : String(draw.percent_of_contract)}
                                 onChangeText={(v) => updateDraw(i, { percent_of_contract: sanitizeNumeric(v) })}
-                                placeholder="e.g. 25"
+                                placeholder={t('projectBuilder.percentExample')}
                                 placeholderTextColor={Colors.placeholderText}
                                 keyboardType="decimal-pad"
                                 editable={!locked}
@@ -2059,12 +2058,12 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                             </View>
                           ) : (
                             <View>
-                              <Text style={[styles.miniLabel, { color: Colors.secondaryText }]}>Fixed amount ($)</Text>
+                              <Text style={[styles.miniLabel, { color: Colors.secondaryText }]}>{t('projectBuilder.fixedAmount')}</Text>
                               <TextInput
                                 style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
                                 value={draw.fixed_amount == null ? '' : String(draw.fixed_amount)}
                                 onChangeText={(v) => updateDraw(i, { fixed_amount: sanitizeNumeric(v) })}
-                                placeholder="e.g. 5000"
+                                placeholder={t('projectBuilder.fixedExample')}
                                 placeholderTextColor={Colors.placeholderText}
                                 keyboardType="decimal-pad"
                                 editable={!locked}
@@ -2076,7 +2075,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
 
                           {computed > 0 && (
                             <Text style={{ color: Colors.secondaryText, fontSize: 12, marginTop: 6 }}>
-                              ≈ ${computed.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                              {t('projectBuilder.approxAmount', { amount: computed.toLocaleString(undefined, { maximumFractionDigits: 2 }) })}
                             </Text>
                           )}
 
@@ -2085,7 +2084,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                               every draw needs a real signal. */}
                           <View style={{ marginTop: 12, padding: 10, borderRadius: 8, backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.border }}>
                             <Text style={[styles.miniLabel, { color: Colors.secondaryText, marginBottom: 6 }]}>
-                              Send draw automatically when…
+                              {t('projectBuilder.sendDrawWhen')}
                             </Text>
 
                             {/* phase_completion */}
@@ -2136,9 +2135,9 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                                 )}
                               </View>
                               <View style={{ flex: 1 }}>
-                                <Text style={{ color: Colors.primaryText, fontSize: 13, fontWeight: '600' }}>A phase completes</Text>
+                                <Text style={{ color: Colors.primaryText, fontSize: 13, fontWeight: '600' }}>{t('projectBuilder.triggerPhaseTitle')}</Text>
                                 <Text style={{ color: Colors.secondaryText, fontSize: 11, marginTop: 2 }}>
-                                  When you mark a phase as done, this draw auto-flags as ready and you get a notification.
+                                  {t('projectBuilder.triggerPhaseHelp')}
                                 </Text>
                               </View>
                             </TouchableOpacity>
@@ -2152,7 +2151,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                               <View style={{ marginLeft: 28, marginBottom: 8 }}>
                                 {phases.length === 0 ? (
                                   <Text style={{ color: '#DC2626', fontSize: 11, marginTop: 4 }}>
-                                    Add a phase in the Phases section first, then come back here.
+                                    {t('projectBuilder.addPhaseFirst')}
                                   </Text>
                                 ) : (
                                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -2177,7 +2176,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                                           }]}
                                         >
                                           <Text style={{ color: selected ? '#fff' : Colors.primaryText, fontSize: 12, fontWeight: '600' }}>
-                                            {p.name || `Phase ${pIdx + 1}`}
+                                            {p.name || t('projectBuilder.phaseNumber', { number: pIdx + 1 })}
                                           </Text>
                                         </TouchableOpacity>
                                       );
@@ -2205,9 +2204,9 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                                 )}
                               </View>
                               <View style={{ flex: 1 }}>
-                                <Text style={{ color: Colors.primaryText, fontSize: 13, fontWeight: '600' }}>The project starts</Text>
+                                <Text style={{ color: Colors.primaryText, fontSize: 13, fontWeight: '600' }}>{t('projectBuilder.triggerProjectStartTitle')}</Text>
                                 <Text style={{ color: Colors.secondaryText, fontSize: 11, marginTop: 2 }}>
-                                  Use this for deposits — fires the moment the project becomes active.
+                                  {t('projectBuilder.triggerProjectStartHelp')}
                                 </Text>
                               </View>
                             </TouchableOpacity>
@@ -2230,9 +2229,9 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                                 )}
                               </View>
                               <View style={{ flex: 1 }}>
-                                <Text style={{ color: Colors.primaryText, fontSize: 13, fontWeight: '600' }}>I'll decide manually</Text>
+                                <Text style={{ color: Colors.primaryText, fontSize: 13, fontWeight: '600' }}>{t('projectBuilder.triggerManualTitle')}</Text>
                                 <Text style={{ color: Colors.secondaryText, fontSize: 11, marginTop: 2 }}>
-                                  Use only for unusual cases (bank-driven inspections, etc.). Your daily briefing will list it so you don't forget.
+                                  {t('projectBuilder.triggerManualHelp')}
                                 </Text>
                               </View>
                             </TouchableOpacity>
@@ -2248,7 +2247,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                       accessibilityLabel="Add draw"
                     >
                       <Ionicons name="add-circle-outline" size={18} color={Colors.primaryBlue} />
-                      <Text style={{ color: Colors.primaryBlue, fontWeight: '600' }}>Add Draw</Text>
+                      <Text style={{ color: Colors.primaryBlue, fontWeight: '600' }}>{t('projectBuilder.addDraw')}</Text>
                     </TouchableOpacity>
                   </>
                 )}
@@ -2259,7 +2258,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
           {/* ============ 5. TEAM ============ */}
           <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
             <SectionHeader
-              title="Team"
+              title={t('projectBuilder.sectionTeam')}
               icon="people-outline"
               sectionKey="team"
               expanded={expandedSections.team}
@@ -2269,7 +2268,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
             />
             {expandedSections.team && (
               <View style={styles.sectionBody}>
-                <Text style={[styles.label, { color: Colors.secondaryText }]}>Supervisor</Text>
+                <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('projectBuilder.supervisor')}</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
                   <TouchableOpacity
                     onPress={() => setSelectedSupervisor(null)}
@@ -2277,7 +2276,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                     testID="projectBuilder.supervisorManageDirectly"
                     accessibilityLabel="Manage directly, no supervisor"
                   >
-                    <Text style={{ color: !selectedSupervisor ? '#fff' : Colors.primaryText, fontSize: 12, fontWeight: '600' }}>Manage Directly</Text>
+                    <Text style={{ color: !selectedSupervisor ? '#fff' : Colors.primaryText, fontSize: 12, fontWeight: '600' }}>{t('projectBuilder.manageDirectly')}</Text>
                   </TouchableOpacity>
                   {supervisors.map((s) => (
                     <TouchableOpacity
@@ -2300,13 +2299,13 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                           fontWeight: '600',
                         }}
                       >
-                        {s.name || s.full_name || 'Supervisor'}
+                        {s.name || s.full_name || t('projectBuilder.supervisor')}
                       </Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
 
-                <Text style={[styles.label, { color: Colors.secondaryText }]}>Workers</Text>
+                <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('projectBuilder.workers')}</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {availableWorkers.map((w) => {
                     const active = selectedWorkerIds.includes(w.id);
@@ -2332,14 +2331,14 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                             fontWeight: '600',
                           }}
                         >
-                          {w.name || w.full_name || 'Worker'}
+                          {w.name || w.full_name || t('projectBuilder.worker')}
                         </Text>
                       </TouchableOpacity>
                     );
                   })}
                   {availableWorkers.length === 0 && (
                     <Text style={{ color: Colors.secondaryText, fontStyle: 'italic', fontSize: 12 }}>
-                      No workers yet — invite some from the Workers screen.
+                      {t('projectBuilder.noWorkers')}
                     </Text>
                   )}
                 </View>
@@ -2350,7 +2349,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
           {/* ============ 6. DAILY CHECKLIST & LABOR ROLES ============ */}
           <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
             <SectionHeader
-              title="Daily Checklist & Labor Roles"
+              title={t('projectBuilder.sectionChecklist')}
               icon="checkbox-outline"
               sectionKey="checklist"
               expanded={expandedSections.checklist}
@@ -2361,7 +2360,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
             {expandedSections.checklist && (
               <View style={styles.sectionBody}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
-                  <Text style={[styles.label, { color: Colors.secondaryText, marginBottom: 0 }]}>Checklist Items</Text>
+                  <Text style={[styles.label, { color: Colors.secondaryText, marginBottom: 0 }]}>{t('projectBuilder.checklistItems')}</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     {(checklistItems.length > 0 || laborRoles.length > 0) && (
                       <View style={{ flexDirection: 'row', borderWidth: 1, borderColor: Colors.border, borderRadius: 12, overflow: 'hidden' }}>
@@ -2379,7 +2378,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                                 backgroundColor: active ? '#F5F3FF' : 'transparent',
                               }}
                             >
-                              <Text style={{ fontSize: 11, fontWeight: '700', color: active ? '#7C3AED' : Colors.secondaryText, textTransform: 'capitalize' }}>{mode}</Text>
+                              <Text style={{ fontSize: 11, fontWeight: '700', color: active ? '#7C3AED' : Colors.secondaryText, textTransform: 'capitalize' }}>{mode === 'append' ? t('projectBuilder.aiModeAppend') : t('projectBuilder.aiModeReplace')}</Text>
                             </TouchableOpacity>
                           );
                         })}
@@ -2398,7 +2397,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                         <Ionicons name="sparkles-outline" size={14} color="#7C3AED" />
                       )}
                       <Text style={{ color: '#7C3AED', fontSize: 12, fontWeight: '700', marginLeft: 4 }}>
-                        {aiSuggestLoading ? 'Thinking…' : 'Suggest with AI'}
+                        {aiSuggestLoading ? t('projectBuilder.thinking') : t('projectBuilder.suggestWithAI')}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -2430,7 +2429,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                         style={[styles.input, { flex: 1, backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
                         value={c.title}
                         onChangeText={(v) => updateChecklistItem(i, 'title', v)}
-                        placeholder="e.g. Site clean at end of day"
+                        placeholder={t('projectBuilder.checklistItemPlaceholder')}
                         placeholderTextColor={Colors.placeholderText}
                         testID={`projectBuilder.checklistItemInput.${i}`}
                         accessibilityLabel={`Checklist item ${i + 1}`}
@@ -2443,10 +2442,10 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                 })}
                 <TouchableOpacity style={[styles.addRowButton, { borderColor: Colors.primaryBlue }]} onPress={addChecklistItem} testID="projectBuilder.addChecklistItemButton" accessibilityLabel="Add checklist item">
                   <Ionicons name="add-circle-outline" size={18} color={Colors.primaryBlue} />
-                  <Text style={{ color: Colors.primaryBlue, fontWeight: '600' }}>Add Checklist Item</Text>
+                  <Text style={{ color: Colors.primaryBlue, fontWeight: '600' }}>{t('projectBuilder.addChecklistItem')}</Text>
                 </TouchableOpacity>
 
-                <Text style={[styles.label, { color: Colors.secondaryText, marginTop: 16 }]}>Labor Roles</Text>
+                <Text style={[styles.label, { color: Colors.secondaryText, marginTop: 16 }]}>{t('projectBuilder.laborRoles')}</Text>
                 {laborRoles.map((r, i) => {
                   const highlight = aiHighlightUntil.labor > Date.now();
                   return (
@@ -2466,7 +2465,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                         style={[styles.input, { flex: 2, backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
                         value={r.role_name}
                         onChangeText={(v) => updateLaborRole(i, 'role_name', v)}
-                        placeholder="Role (e.g. Carpenter)"
+                        placeholder={t('projectBuilder.laborRolePlaceholder')}
                         placeholderTextColor={Colors.placeholderText}
                         testID={`projectBuilder.laborRoleNameInput.${i}`}
                         accessibilityLabel={`Labor role ${i + 1} name`}
@@ -2475,7 +2474,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                         style={[styles.input, { flex: 1, backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
                         value={String(r.default_quantity || '')}
                         onChangeText={(v) => updateLaborRole(i, 'default_quantity', parseInt(v, 10) || 1)}
-                        placeholder="Qty"
+                        placeholder={t('projectBuilder.qty')}
                         placeholderTextColor={Colors.placeholderText}
                         keyboardType="number-pad"
                         testID={`projectBuilder.laborRoleQtyInput.${i}`}
@@ -2489,7 +2488,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                 })}
                 <TouchableOpacity style={[styles.addRowButton, { borderColor: Colors.primaryBlue }]} onPress={addLaborRole} testID="projectBuilder.addLaborRoleButton" accessibilityLabel="Add labor role">
                   <Ionicons name="add-circle-outline" size={18} color={Colors.primaryBlue} />
-                  <Text style={{ color: Colors.primaryBlue, fontWeight: '600' }}>Add Labor Role</Text>
+                  <Text style={{ color: Colors.primaryBlue, fontWeight: '600' }}>{t('projectBuilder.addLaborRole')}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -2498,7 +2497,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
           {/* ============ 7. DOCUMENTS (STUB) ============ */}
           <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
             <SectionHeader
-              title="Documents"
+              title={t('projectBuilder.sectionDocuments')}
               icon="document-attach-outline"
               sectionKey="documents"
               expanded={expandedSections.documents}
@@ -2517,9 +2516,9 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                 {!projectId ? (
                   <View style={[styles.emptyStub, { backgroundColor: Colors.lightGray }]}>
                     <Ionicons name="lock-closed-outline" size={28} color={Colors.secondaryText} />
-                    <Text style={{ color: Colors.primaryText, fontWeight: '600', marginTop: 6 }}>Save the project first</Text>
+                    <Text style={{ color: Colors.primaryText, fontWeight: '600', marginTop: 6 }}>{t('projectBuilder.saveProjectFirst')}</Text>
                     <Text style={{ color: Colors.secondaryText, fontSize: 12, marginTop: 2, textAlign: 'center' }}>
-                      Tap Create Project below, then come back here to upload contracts, plans, permits, or photos.
+                      {t('projectBuilder.documentsLockedHelp')}
                     </Text>
                   </View>
                 ) : (
@@ -2537,7 +2536,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                     <Ionicons name="cloud-upload-outline" size={18} color={Colors.primaryBlue} />
                   )}
                   <Text style={{ color: Colors.primaryBlue, fontWeight: '600' }}>
-                    {uploadingDoc ? 'Uploading…' : 'Upload Document'}
+                    {uploadingDoc ? t('projectBuilder.uploading') : t('projectBuilder.uploadDocument')}
                   </Text>
                 </TouchableOpacity>
 
@@ -2548,9 +2547,9 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                 ) : documents.length === 0 ? (
                   <View style={[styles.emptyStub, { backgroundColor: Colors.lightGray, marginTop: 8 }]}>
                     <Ionicons name="cloud-upload-outline" size={28} color={Colors.secondaryText} />
-                    <Text style={{ color: Colors.primaryText, fontWeight: '600', marginTop: 6 }}>No documents yet</Text>
+                    <Text style={{ color: Colors.primaryText, fontWeight: '600', marginTop: 6 }}>{t('projectBuilder.noDocuments')}</Text>
                     <Text style={{ color: Colors.secondaryText, fontSize: 12, marginTop: 2, textAlign: 'center' }}>
-                      Upload contracts, plans, permits, or photos.
+                      {t('projectBuilder.documentsEmptyHelp')}
                     </Text>
                   </View>
                 ) : (
@@ -2627,7 +2626,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
           {/* ============ 8. LINKED ESTIMATE (STUB) ============ */}
           <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
             <SectionHeader
-              title="Linked Estimate"
+              title={t('projectBuilder.sectionEstimate')}
               icon="link-outline"
               sectionKey="estimate"
               expanded={expandedSections.estimate}
@@ -2650,7 +2649,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                       <Ionicons name="link" size={14} color="#7C3AED" />
                       <Text style={{ color: '#7C3AED', fontSize: 11, fontWeight: '700', marginLeft: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                        Linked Estimate
+                        {t('projectBuilder.linkedEstimate')}
                       </Text>
                     </View>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -2692,7 +2691,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                         </Text>
                       </View>
                       <TouchableOpacity onPress={handleUnlinkEstimate} testID="projectBuilder.unlinkEstimateButton" accessibilityLabel="Unlink estimate">
-                        <Text style={{ color: '#DC2626', fontSize: 12, fontWeight: '600' }}>Unlink</Text>
+                        <Text style={{ color: '#DC2626', fontSize: 12, fontWeight: '600' }}>{t('projectBuilder.unlink')}</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -2704,7 +2703,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                     accessibilityLabel="Link an estimate"
                   >
                     <Ionicons name="link-outline" size={20} color={Colors.primaryBlue} />
-                    <Text style={{ color: Colors.primaryBlue, fontWeight: '700', fontSize: 14 }}>Link an Estimate</Text>
+                    <Text style={{ color: Colors.primaryBlue, fontWeight: '700', fontSize: 14 }}>{t('projectBuilder.linkEstimate')}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -2714,7 +2713,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
           {/* ============ 9. REVIEW & SAVE ============ */}
           <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
             <SectionHeader
-              title="Review & Save"
+              title={t('projectBuilder.sectionReview')}
               icon="checkmark-done-outline"
               sectionKey="review"
               expanded={expandedSections.review}
@@ -2724,21 +2723,21 @@ export default function ProjectBuilderScreen({ navigation, route }) {
             />
             {expandedSections.review && (
               <View style={styles.sectionBody}>
-                <Text style={{ color: Colors.primaryText, fontWeight: '600', marginBottom: 8 }}>Summary</Text>
+                <Text style={{ color: Colors.primaryText, fontWeight: '600', marginBottom: 8 }}>{t('projectBuilder.summary')}</Text>
                 <Text style={{ color: Colors.secondaryText, fontSize: 13, marginBottom: 4 }}>
-                  • {name.trim() || '—'} for {client.trim() || '—'}
+                  {t('projectBuilder.summaryNameClient', { name: name.trim() || '—', client: client.trim() || '—' })}
                 </Text>
                 <Text style={{ color: Colors.secondaryText, fontSize: 13, marginBottom: 4 }} testID="projectBuilder.reviewContract">
-                  • Contract ${contractTotal.toLocaleString('en-US')} across {phases.length} phase{phases.length === 1 ? '' : 's'}
+                  {t('projectBuilder.summaryContract', { amount: contractTotal.toLocaleString('en-US'), count: phases.length })}
                 </Text>
                 <Text style={{ color: Colors.secondaryText, fontSize: 13, marginBottom: 4 }}>
-                  • Allocated ${allocatedTotal.toLocaleString('en-US')} ({contractTotal > 0 ? Math.round((allocatedTotal / contractTotal) * 100) : 0}%)
+                  {t('projectBuilder.summaryAllocated', { amount: allocatedTotal.toLocaleString('en-US'), percent: contractTotal > 0 ? Math.round((allocatedTotal / contractTotal) * 100) : 0 })}
                 </Text>
                 <Text style={{ color: Colors.secondaryText, fontSize: 13, marginBottom: 4 }}>
-                  • Timeline {startDate ? formatDate(startDate) : '—'} → {endDate ? formatDate(endDate) : '—'}
+                  {t('projectBuilder.summaryTimeline', { start: startDate ? formatDate(startDate) : '—', end: endDate ? formatDate(endDate) : '—' })}
                 </Text>
                 <Text style={{ color: Colors.secondaryText, fontSize: 13 }}>
-                  • Team: {selectedSupervisor ? '1 supervisor' : 'managed directly'}, {selectedWorkerIds.length} worker{selectedWorkerIds.length === 1 ? '' : 's'}
+                  {t('projectBuilder.summaryTeam', { supervisor: selectedSupervisor ? t('projectBuilder.oneSupervisor') : t('projectBuilder.managedDirectly'), workers: t('projectBuilder.summaryWorkers', { count: selectedWorkerIds.length }) })}
                 </Text>
               </View>
             )}
@@ -2761,7 +2760,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
               <>
                 <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
                 <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16, marginLeft: 8 }}>
-                  Create Project
+                  {t('projectBuilder.createProject')}
                 </Text>
               </>
             )}
@@ -2776,11 +2775,11 @@ export default function ProjectBuilderScreen({ navigation, route }) {
               <View style={[styles.pickerSheet, { backgroundColor: Colors.white }]}>
                 <View style={styles.pickerHeader}>
                   <TouchableOpacity onPress={() => setShowStartPicker(false)} testID="projectBuilder.startPickerCancel" accessibilityLabel="Cancel start date">
-                    <Text style={{ color: Colors.secondaryText }}>Cancel</Text>
+                    <Text style={{ color: Colors.secondaryText }}>{t('common:buttons.cancel')}</Text>
                   </TouchableOpacity>
-                  <Text style={{ fontWeight: '700', color: Colors.primaryText }}>Start Date</Text>
+                  <Text style={{ fontWeight: '700', color: Colors.primaryText }}>{t('projectBuilder.startDate')}</Text>
                   <TouchableOpacity onPress={() => setShowStartPicker(false)} testID="projectBuilder.startPickerDone" accessibilityLabel="Confirm start date">
-                    <Text style={{ color: Colors.primaryBlue, fontWeight: '700' }}>Done</Text>
+                    <Text style={{ color: Colors.primaryBlue, fontWeight: '700' }}>{t('common:buttons.done')}</Text>
                   </TouchableOpacity>
                 </View>
                 <DateTimePicker
@@ -2808,9 +2807,9 @@ export default function ProjectBuilderScreen({ navigation, route }) {
               <View style={[styles.pickerSheet, { backgroundColor: Colors.white, maxHeight: '80%' }]}>
                 <View style={styles.pickerHeader}>
                   <TouchableOpacity onPress={() => setEstimatePickerVisible(false)} testID="projectBuilder.estimatePickerCancel" accessibilityLabel="Cancel estimate picker">
-                    <Text style={{ color: Colors.secondaryText }}>Cancel</Text>
+                    <Text style={{ color: Colors.secondaryText }}>{t('common:buttons.cancel')}</Text>
                   </TouchableOpacity>
-                  <Text style={{ fontWeight: '700', color: Colors.primaryText }}>Select Estimate</Text>
+                  <Text style={{ fontWeight: '700', color: Colors.primaryText }}>{t('projectBuilder.selectEstimate')}</Text>
                   <View style={{ width: 50 }} />
                 </View>
                 <View style={{ paddingHorizontal: 12, paddingBottom: 8 }}>
@@ -2818,7 +2817,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                     style={[styles.input, { backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText, marginBottom: 0 }]}
                     value={estimateSearch}
                     onChangeText={setEstimateSearch}
-                    placeholder="Search by client, project, or #"
+                    placeholder={t('projectBuilder.searchEstimatesPlaceholder')}
                     placeholderTextColor={Colors.placeholderText}
                     autoCapitalize="none"
                     testID="projectBuilder.estimateSearchInput"
@@ -2832,7 +2831,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                 ) : filteredEstimates.length === 0 ? (
                   <View style={{ paddingVertical: 24, alignItems: 'center' }}>
                     <Text style={{ color: Colors.secondaryText, fontSize: 13 }}>
-                      {estimateSearch ? 'No matching estimates.' : 'No estimates yet.'}
+                      {estimateSearch ? t('projectBuilder.noMatchingEstimates') : t('projectBuilder.noEstimatesYet')}
                     </Text>
                   </View>
                 ) : (
@@ -2868,7 +2867,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                               #{item.estimate_number || '—'}
                             </Text>
                             <Text style={{ color: Colors.secondaryText, fontSize: 12, marginTop: 2 }} numberOfLines={1}>
-                              {item.client_name || 'No client'}
+                              {item.client_name || t('projectBuilder.noClient')}
                               {item.project_name ? ` · ${item.project_name}` : ''}
                             </Text>
                             <Text style={{ color: Colors.secondaryText, fontSize: 11, marginTop: 2 }}>{dateStr}</Text>
@@ -2900,11 +2899,11 @@ export default function ProjectBuilderScreen({ navigation, route }) {
               <View style={[styles.pickerSheet, { backgroundColor: Colors.white }]}>
                 <View style={styles.pickerHeader}>
                   <TouchableOpacity onPress={() => setShowEndPicker(false)} testID="projectBuilder.endPickerCancel" accessibilityLabel="Cancel end date">
-                    <Text style={{ color: Colors.secondaryText }}>Cancel</Text>
+                    <Text style={{ color: Colors.secondaryText }}>{t('common:buttons.cancel')}</Text>
                   </TouchableOpacity>
-                  <Text style={{ fontWeight: '700', color: Colors.primaryText }}>End Date</Text>
+                  <Text style={{ fontWeight: '700', color: Colors.primaryText }}>{t('projectBuilder.endDate')}</Text>
                   <TouchableOpacity onPress={() => setShowEndPicker(false)} testID="projectBuilder.endPickerDone" accessibilityLabel="Confirm end date">
-                    <Text style={{ color: Colors.primaryBlue, fontWeight: '700' }}>Done</Text>
+                    <Text style={{ color: Colors.primaryBlue, fontWeight: '700' }}>{t('common:buttons.done')}</Text>
                   </TouchableOpacity>
                 </View>
                 <DateTimePicker

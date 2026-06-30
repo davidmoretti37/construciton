@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
@@ -27,6 +28,7 @@ export default function RouteBuilderScreen({ route: navRoute }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const navigation = useNavigation();
+  const { t } = useTranslation('owner');
 
   // Tomorrow as default
   const defaultDate = (() => {
@@ -67,7 +69,7 @@ export default function RouteBuilderScreen({ route: navRoute }) {
       const data = await fetchDailyVisits(date);
       setAvailable(data?.unrouted || []);
       setStops([]);
-      if (!routeName) setRouteName(`Route — ${formatDate(date)}`);
+      if (!routeName) setRouteName(t('routeBuilder.defaultRouteName', { date: formatDate(date) }));
     } catch (e) {
       console.error('[RouteBuilder] Load error:', e);
     } finally {
@@ -84,7 +86,7 @@ export default function RouteBuilderScreen({ route: navRoute }) {
     d.setDate(d.getDate() + offset);
     const newDate = d.toISOString().split('T')[0];
     setDate(newDate);
-    setRouteName(`Route — ${formatDate(newDate)}`);
+    setRouteName(t('routeBuilder.defaultRouteName', { date: formatDate(newDate) }));
   };
 
   const formatDate = (dateStr) => {
@@ -115,14 +117,14 @@ export default function RouteBuilderScreen({ route: navRoute }) {
 
   const handleSave = async () => {
     if (stops.length === 0) {
-      Alert.alert('No Stops', 'Add at least one visit to the route.');
+      Alert.alert(t('routeBuilder.noStopsTitle'), t('routeBuilder.noStopsMessage'));
       return;
     }
 
     setSaving(true);
     try {
       const route = await createRoute(
-        routeName || `Route — ${formatDate(date)}`,
+        routeName || t('routeBuilder.defaultRouteName', { date: formatDate(date) }),
         date,
         selectedWorker?.id
       );
@@ -131,11 +133,11 @@ export default function RouteBuilderScreen({ route: navRoute }) {
         await addStop(route.id, stop.id, stop.stop_order);
       }
 
-      Alert.alert('Route Created', `${stops.length} stops added.`, [
-        { text: 'OK', onPress: () => navigation.goBack() },
+      Alert.alert(t('routeBuilder.routeCreatedTitle'), t('routeBuilder.routeCreatedMessage', { count: stops.length }), [
+        { text: t('routeBuilder.ok'), onPress: () => navigation.goBack() },
       ]);
     } catch (e) {
-      Alert.alert('Error', 'Failed to create route');
+      Alert.alert(t('common:alerts.error'), t('routeBuilder.failedToCreateRoute'));
       console.error('[RouteBuilder] Save error:', e);
     } finally {
       setSaving(false);
@@ -149,7 +151,7 @@ export default function RouteBuilderScreen({ route: navRoute }) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="close" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Build Route</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('routeBuilder.title')}</Text>
         <TouchableOpacity
           onPress={handleSave}
           disabled={saving || stops.length === 0}
@@ -158,7 +160,7 @@ export default function RouteBuilderScreen({ route: navRoute }) {
           {saving ? (
             <ActivityIndicator size="small" color="#1E40AF" />
           ) : (
-            <Text style={styles.saveBtnText}>Save</Text>
+            <Text style={styles.saveBtnText}>{t('common:buttons.save')}</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -177,25 +179,25 @@ export default function RouteBuilderScreen({ route: navRoute }) {
 
         {/* Route name */}
         <View style={[styles.inputCard, { backgroundColor: Colors.cardBackground }]}>
-          <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Route Name</Text>
+          <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>{t('routeBuilder.routeNameLabel')}</Text>
           <TextInput
             style={[styles.textInput, { color: Colors.primaryText, borderColor: Colors.border }]}
             value={routeName}
             onChangeText={setRouteName}
-            placeholder="Route name..."
+            placeholder={t('routeBuilder.routeNamePlaceholder')}
             placeholderTextColor={Colors.secondaryText}
           />
         </View>
 
         {/* Worker selector */}
         <View style={[styles.inputCard, { backgroundColor: Colors.cardBackground }]}>
-          <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Assign Worker</Text>
+          <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>{t('routeBuilder.assignWorker')}</Text>
           <TouchableOpacity
             style={[styles.pickerBtn, { borderColor: Colors.border }]}
             onPress={() => setShowWorkerPicker(!showWorkerPicker)}
           >
             <Text style={[styles.pickerText, { color: selectedWorker ? Colors.primaryText : Colors.secondaryText }]}>
-              {selectedWorker ? `${selectedWorker.full_name} (${selectedWorker.trade || ''})` : 'Select worker...'}
+              {selectedWorker ? `${selectedWorker.full_name} (${selectedWorker.trade || ''})` : t('routeBuilder.selectWorker')}
             </Text>
             <Ionicons name="chevron-down" size={18} color={Colors.secondaryText} />
           </TouchableOpacity>
@@ -220,12 +222,12 @@ export default function RouteBuilderScreen({ route: navRoute }) {
         {/* Route Stops */}
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-            Route Stops ({stops.length})
+            {t('routeBuilder.routeStops', { count: stops.length })}
           </Text>
         </View>
         {stops.length === 0 && (
           <Text style={[styles.emptyHint, { color: Colors.secondaryText }]}>
-            Add visits from below to build your route
+            {t('routeBuilder.addVisitsHint')}
           </Text>
         )}
         {stops.map((stop, index) => (
@@ -235,7 +237,7 @@ export default function RouteBuilderScreen({ route: navRoute }) {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.stopName, { color: Colors.primaryText }]}>
-                {stop.location_name || stop.location?.name || 'Unknown'}
+                {stop.location_name || stop.location?.name || t('routeBuilder.unknown')}
               </Text>
               <Text style={[styles.stopAddress, { color: Colors.secondaryText }]} numberOfLines={1}>
                 {stop.location_address || stop.location?.address || ''}
@@ -258,14 +260,14 @@ export default function RouteBuilderScreen({ route: navRoute }) {
         {/* Available Visits */}
         <View style={[styles.sectionHeader, { marginTop: Spacing.xl }]}>
           <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-            Available Visits ({available.length})
+            {t('routeBuilder.availableVisits', { count: available.length })}
           </Text>
         </View>
         {loading ? (
           <ActivityIndicator style={{ marginTop: 20 }} color="#1E40AF" />
         ) : available.length === 0 ? (
           <Text style={[styles.emptyHint, { color: Colors.secondaryText }]}>
-            No unrouted visits for this date
+            {t('routeBuilder.noVisitsForDate')}
           </Text>
         ) : (
           available.map(visit => (
@@ -277,7 +279,7 @@ export default function RouteBuilderScreen({ route: navRoute }) {
             >
               <View style={{ flex: 1 }}>
                 <Text style={[styles.stopName, { color: Colors.primaryText }]}>
-                  {visit.location_name || 'Unknown'}
+                  {visit.location_name || t('routeBuilder.unknown')}
                 </Text>
                 <Text style={[styles.stopAddress, { color: Colors.secondaryText }]} numberOfLines={1}>
                   {visit.location_address || ''}

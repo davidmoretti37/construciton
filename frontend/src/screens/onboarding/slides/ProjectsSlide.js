@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions, ScrollView } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -157,12 +158,13 @@ const AnimatedSection = ({ children, delay, isActive, style }) => {
 };
 
 const ProjectsMockup = ({ isActive }) => {
+  const { t } = useTranslation('onboarding');
   return (
     <View style={projectStyles.container}>
       {/* Header - pops in first */}
       <AnimatedSection delay={300} isActive={isActive} style={projectStyles.header}>
         <Ionicons name="grid" size={16} color="#60A5FA" />
-        <Text style={projectStyles.headerText}>PROJECTS</Text>
+        <Text style={projectStyles.headerText}>{t('projectsSlide.mockHeader')}</Text>
       </AnimatedSection>
 
       {/* Project cards grid - staggered pop in */}
@@ -181,26 +183,26 @@ const ProjectsMockup = ({ isActive }) => {
       <AnimatedSection delay={1200} isActive={isActive} style={projectStyles.scheduleSection}>
         <View style={projectStyles.scheduleHeader}>
           <Ionicons name="calendar" size={14} color="#A78BFA" />
-          <Text style={projectStyles.scheduleTitle}>Today's Schedule</Text>
+          <Text style={projectStyles.scheduleTitle}>{t('projectsSlide.todaysSchedule')}</Text>
         </View>
         <View style={projectStyles.scheduleItem}>
-          <Text style={projectStyles.scheduleTime}>8:00 AM</Text>
-          <Text style={projectStyles.scheduleText}>Team A → Kitchen</Text>
+          <Text style={projectStyles.scheduleTime}>{t('projectsSlide.schedule1Time')}</Text>
+          <Text style={projectStyles.scheduleText}>{t('projectsSlide.schedule1Text')}</Text>
         </View>
         <View style={projectStyles.scheduleItem}>
-          <Text style={projectStyles.scheduleTime}>11:00 AM</Text>
-          <Text style={projectStyles.scheduleText}>Inspection → Deck</Text>
+          <Text style={projectStyles.scheduleTime}>{t('projectsSlide.schedule2Time')}</Text>
+          <Text style={projectStyles.scheduleText}>{t('projectsSlide.schedule2Text')}</Text>
         </View>
         <View style={projectStyles.scheduleItem}>
-          <Text style={projectStyles.scheduleTime}>1:00 PM</Text>
-          <Text style={projectStyles.scheduleText}>Team B → Bathroom</Text>
+          <Text style={projectStyles.scheduleTime}>{t('projectsSlide.schedule3Time')}</Text>
+          <Text style={projectStyles.scheduleText}>{t('projectsSlide.schedule3Text')}</Text>
         </View>
       </AnimatedSection>
 
       {/* Workers - staggered pop in */}
       <View style={projectStyles.workersSection}>
         <AnimatedSection delay={1400} isActive={isActive}>
-          <Text style={projectStyles.workersLabel}>On Site</Text>
+          <Text style={projectStyles.workersLabel}>{t('projectsSlide.onSite')}</Text>
         </AnimatedSection>
         <View style={projectStyles.avatarsRow}>
           {WORKERS.map((worker, index) => (
@@ -219,6 +221,7 @@ const ProjectsMockup = ({ isActive }) => {
 };
 
 export default function ProjectsSlide({ isActive = true }) {
+  const { t } = useTranslation('onboarding');
   const [phoneReady, setPhoneReady] = useState(false);
 
   // Staggered entrance animations
@@ -247,8 +250,8 @@ export default function ProjectsSlide({ isActive = true }) {
     >
       {/* Title */}
       <Animated.View style={titleAnim}>
-        <Text style={styles.title}>Everything. One Place.</Text>
-        <Text style={styles.titleAccent}>Zero Stress.</Text>
+        <Text style={styles.title}>{t('projectsSlide.title')}</Text>
+        <Text style={styles.titleAccent}>{t('projectsSlide.titleAccent')}</Text>
       </Animated.View>
 
       {/* Phone mockup with animated content */}
@@ -263,24 +266,24 @@ export default function ProjectsSlide({ isActive = true }) {
         <Animated.View style={feature1Anim}>
           <FeatureBullet
             icon="clipboard"
-            title="See all projects at a glance"
-            description="Know exactly what's happening"
+            title={t('projectsSlide.feature1Title')}
+            description={t('projectsSlide.feature1Description')}
             iconColor="#60A5FA"
           />
         </Animated.View>
         <Animated.View style={feature2Anim}>
           <FeatureBullet
             icon="people"
-            title="Assign crews in seconds"
-            description="Drag, drop, done"
+            title={t('projectsSlide.feature2Title')}
+            description={t('projectsSlide.feature2Description')}
             iconColor="#10B981"
           />
         </Animated.View>
         <Animated.View style={feature3Anim}>
           <FeatureBullet
             icon="notifications"
-            title="Automatic reminders"
-            description="Never miss another deadline"
+            title={t('projectsSlide.feature3Title')}
+            description={t('projectsSlide.feature3Description')}
             iconColor="#F59E0B"
           />
         </Animated.View>
@@ -289,7 +292,7 @@ export default function ProjectsSlide({ isActive = true }) {
       {/* Quote */}
       <Animated.View style={quoteAnim}>
         <Text style={styles.quote}>
-          "From 'where's that file?' to 'I've got this' in one tap."
+          {t('projectsSlide.quote')}
         </Text>
       </Animated.View>
     </ScrollView>

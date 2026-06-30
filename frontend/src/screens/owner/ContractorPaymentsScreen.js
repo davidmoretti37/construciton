@@ -53,7 +53,7 @@ export default function ContractorPaymentsScreen({ route }) {
         if (tx.category !== 'subcontractor' && !(tx.category === 'labor' && !tx.worker_id)) return;
 
         const amount = parseFloat(tx.amount || 0);
-        const name = tx.description || 'Unknown Contractor';
+        const name = tx.description || t('contractorPayments.unknownContractor');
 
         if (!contractorMap[name]) {
           contractorMap[name] = { name, totalPaid: 0, payments: [] };
@@ -62,7 +62,7 @@ export default function ContractorPaymentsScreen({ route }) {
         contractorMap[name].payments.push({
           date: tx.date,
           amount,
-          project: projectMap[tx.project_id] || 'Unknown Project',
+          project: projectMap[tx.project_id] || t('contractorPayments.unknownProject'),
           category: tx.category,
         });
       });
@@ -77,7 +77,7 @@ export default function ContractorPaymentsScreen({ route }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [selectedYear]);
+  }, [selectedYear, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -153,7 +153,7 @@ export default function ContractorPaymentsScreen({ route }) {
                   <View style={styles.contractorInfo}>
                     <Text style={[styles.contractorName, { color: Colors.primaryText }]} numberOfLines={1} testID={`contractorPayments.name.${c.name}`}>{c.name}</Text>
                     <View style={styles.badge1099}>
-                      <Text style={styles.badge1099Text} testID={`contractorPayments.badge1099.${c.name}`}>1099 REQUIRED</Text>
+                      <Text style={styles.badge1099Text} testID={`contractorPayments.badge1099.${c.name}`}>{t('contractorPayments.badge1099Required')}</Text>
                     </View>
                   </View>
                   <Text style={[styles.contractorTotal, { color: '#EF4444' }]} testID={`contractorPayments.total.${c.name}`}>{formatCurrency(c.totalPaid)}</Text>

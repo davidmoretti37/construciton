@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../../constants/theme';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -30,6 +31,7 @@ import {
 const WORKER_GREEN = '#059669';
 
 export default function WorkerCompletionScreen({ route, navigation }) {
+  const { t } = useTranslation('workers');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { user } = useAuth();
@@ -91,9 +93,9 @@ export default function WorkerCompletionScreen({ route, navigation }) {
     } catch (error) {
       console.error('❌ Error saving worker profile:', error);
       Alert.alert(
-        'Error',
-        'Failed to save your profile. Please try again.',
-        [{ text: 'Retry', onPress: () => handleSave() }]
+        t('common:alerts.error'),
+        t('workerCompletion.errorMessage'),
+        [{ text: t('common:buttons.retry'), onPress: () => handleSave() }]
       );
     } finally {
       setSaving(false);
@@ -114,7 +116,7 @@ export default function WorkerCompletionScreen({ route, navigation }) {
           <>
             <ActivityIndicator size="large" color={WORKER_GREEN} />
             <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>
-              Setting up your profile...
+              {t('workerCompletion.loading')}
             </Text>
           </>
         ) : completed ? (
@@ -127,10 +129,10 @@ export default function WorkerCompletionScreen({ route, navigation }) {
             {/* Success Text */}
             <View style={styles.textContainer}>
               <Animated.Text style={[styles.title, { color: Colors.primaryText }, titleAnim]}>
-                You're All Set!
+                {t('workerCompletion.title')}
               </Animated.Text>
               <Animated.Text style={[styles.subtitle, { color: Colors.secondaryText }, subtitleAnim]}>
-                Your profile has been created. You're ready to start tracking your work hours and assignments.
+                {t('workerCompletion.subtitle')}
               </Animated.Text>
             </View>
 
@@ -139,10 +141,10 @@ export default function WorkerCompletionScreen({ route, navigation }) {
               <Ionicons name="information-circle-outline" size={24} color={WORKER_GREEN} />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.infoTitle, { color: WORKER_GREEN }]}>
-                  Waiting for Approval
+                  {t('workerCompletion.waitingForApproval')}
                 </Text>
                 <Text style={[styles.infoText, { color: WORKER_GREEN }]}>
-                  Your contractor will need to approve your account before you can clock in and start working.
+                  {t('workerCompletion.approvalMessage')}
                 </Text>
               </View>
             </Animated.View>
@@ -154,7 +156,7 @@ export default function WorkerCompletionScreen({ route, navigation }) {
                 onPress={handleContinue}
                 activeOpacity={0.8}
               >
-                <Text style={styles.buttonText}>Go to App</Text>
+                <Text style={styles.buttonText}>{t('workerCompletion.goToApp')}</Text>
                 <Ionicons name="arrow-forward" size={20} color="#fff" />
               </TouchableOpacity>
             </Animated.View>
@@ -167,7 +169,7 @@ export default function WorkerCompletionScreen({ route, navigation }) {
                 <View style={[styles.dot, styles.activeDot, { backgroundColor: WORKER_GREEN }]} />
               </View>
               <Text style={[styles.progressText, { color: Colors.secondaryText }]}>
-                Step 3 of 3
+                {t('workerCompletion.stepProgress')}
               </Text>
             </Animated.View>
           </>

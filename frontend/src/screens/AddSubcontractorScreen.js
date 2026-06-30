@@ -11,6 +11,7 @@ import {
   ScrollView, ActivityIndicator, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
 import { LightColors, DarkColors } from '../constants/theme';
 import * as api from '../services/subsService';
@@ -19,6 +20,8 @@ export default function AddSubcontractorScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = isDark ? DarkColors : LightColors;
   const styles = makeStyles(Colors);
+
+  const { t } = useTranslation('common');
 
   const [form, setForm] = useState({
     legal_name: '', primary_email: '', primary_phone: '',
@@ -30,7 +33,7 @@ export default function AddSubcontractorScreen({ navigation }) {
 
   const onSubmit = async () => {
     if (!form.legal_name || !form.primary_email) {
-      Alert.alert('Missing required', 'Legal name and email are required.');
+      Alert.alert(t('addSubcontractor.missingRequiredTitle'), t('addSubcontractor.missingRequiredMessage'));
       return;
     }
     setSubmitting(true);
@@ -41,23 +44,23 @@ export default function AddSubcontractorScreen({ navigation }) {
         primary_phone: form.primary_phone || null,
         tax_id: form.tax_id || null,
         tax_id_type: form.tax_id_type,
-        trades: form.trades.split(',').map((t) => t.trim()).filter(Boolean),
+        trades: form.trades.split(',').map((s) => s.trim()).filter(Boolean),
       });
       if (result.was_existing) {
         Alert.alert(
-          'Found existing sub',
-          'This sub is already on Sylk. We linked them to your account.',
-          [{ text: 'OK', onPress: () => navigation.replace('SubcontractorDetail', { sub_organization_id: result.sub_organization.id }) }]
+          t('addSubcontractor.foundExistingTitle'),
+          t('addSubcontractor.foundExistingMessage'),
+          [{ text: t('addSubcontractor.okButton'), onPress: () => navigation.replace('SubcontractorDetail', { sub_organization_id: result.sub_organization.id }) }]
         );
       } else {
         Alert.alert(
-          'Invitation sent',
-          `Sent to ${form.primary_email}. They'll install Sylk and sign up with this email — their account will be linked automatically.`,
-          [{ text: 'OK', onPress: () => navigation.replace('SubcontractorDetail', { sub_organization_id: result.sub_organization.id }) }]
+          t('addSubcontractor.invitationSentTitle'),
+          t('addSubcontractor.invitationSentMessage', { email: form.primary_email }),
+          [{ text: t('addSubcontractor.okButton'), onPress: () => navigation.replace('SubcontractorDetail', { sub_organization_id: result.sub_organization.id }) }]
         );
       }
     } catch (e) {
-      Alert.alert('Failed', e.message);
+      Alert.alert(t('addSubcontractor.failedTitle'), e.message);
     } finally {
       setSubmitting(false);
     }
@@ -69,34 +72,34 @@ export default function AddSubcontractorScreen({ navigation }) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={26} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={styles.heading}>Add subcontractor</Text>
+        <Text style={styles.heading}>{t('addSubcontractor.title')}</Text>
       </View>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.label}>Legal business name *</Text>
-        <TextInput style={styles.input} value={form.legal_name} onChangeText={(v) => update('legal_name', v)} placeholder="e.g. Mike's Plumbing LLC" />
+        <Text style={styles.label}>{t('addSubcontractor.legalNameLabel')}</Text>
+        <TextInput style={styles.input} value={form.legal_name} onChangeText={(v) => update('legal_name', v)} placeholder={t('addSubcontractor.legalNamePlaceholder')} />
 
-        <Text style={styles.label}>Email *</Text>
-        <TextInput style={styles.input} value={form.primary_email} onChangeText={(v) => update('primary_email', v)} placeholder="mike@plumb.com" keyboardType="email-address" autoCapitalize="none" />
+        <Text style={styles.label}>{t('addSubcontractor.emailLabel')}</Text>
+        <TextInput style={styles.input} value={form.primary_email} onChangeText={(v) => update('primary_email', v)} placeholder={t('addSubcontractor.emailPlaceholder')} keyboardType="email-address" autoCapitalize="none" />
 
-        <Text style={styles.label}>Phone</Text>
-        <TextInput style={styles.input} value={form.primary_phone} onChangeText={(v) => update('primary_phone', v)} placeholder="(555) 123-4567" keyboardType="phone-pad" />
+        <Text style={styles.label}>{t('addSubcontractor.phoneLabel')}</Text>
+        <TextInput style={styles.input} value={form.primary_phone} onChangeText={(v) => update('primary_phone', v)} placeholder={t('addSubcontractor.phonePlaceholder')} keyboardType="phone-pad" />
 
-        <Text style={styles.label}>Tax ID (EIN)</Text>
-        <TextInput style={styles.input} value={form.tax_id} onChangeText={(v) => update('tax_id', v)} placeholder="12-3456789" />
+        <Text style={styles.label}>{t('addSubcontractor.taxIdLabel')}</Text>
+        <TextInput style={styles.input} value={form.tax_id} onChangeText={(v) => update('tax_id', v)} placeholder={t('addSubcontractor.taxIdPlaceholder')} />
 
-        <Text style={styles.label}>Trades (comma-separated)</Text>
-        <TextInput style={styles.input} value={form.trades} onChangeText={(v) => update('trades', v)} placeholder="plumbing, hvac" autoCapitalize="none" />
+        <Text style={styles.label}>{t('addSubcontractor.tradesLabel')}</Text>
+        <TextInput style={styles.input} value={form.trades} onChangeText={(v) => update('trades', v)} placeholder={t('addSubcontractor.tradesPlaceholder')} autoCapitalize="none" />
 
         <TouchableOpacity
           style={[styles.submit, submitting && { opacity: 0.5 }]}
           onPress={onSubmit}
           disabled={submitting}
         >
-          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Send invitation</Text>}
+          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>{t('addSubcontractor.sendInvitation')}</Text>}
         </TouchableOpacity>
 
         <Text style={styles.hint}>
-          We'll email them an invitation. They install Sylk, sign up with this email, and their account links automatically — no separate magic link.
+          {t('addSubcontractor.hint')}
         </Text>
       </ScrollView>
     </SafeAreaView>

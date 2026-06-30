@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import * as Sentry from '@sentry/react-native';
+import { withTranslation } from 'react-i18next';
 import logger from '../utils/logger';
 
 /**
@@ -47,6 +48,8 @@ class ErrorBoundary extends React.Component {
   };
 
   render() {
+    const { t } = this.props;
+
     if (this.state.hasError) {
       if (this.props.fallback) {
         return this.props.fallback;
@@ -54,9 +57,9 @@ class ErrorBoundary extends React.Component {
 
       return (
         <View style={styles.container}>
-          <Text style={styles.title}>Something went wrong</Text>
+          <Text style={styles.title}>{t('errorBoundary.title')}</Text>
           <Text style={styles.message}>
-            The app encountered an unexpected error. Please try again.
+            {t('errorBoundary.message')}
           </Text>
           {__DEV__ && this.state.error && (
             <Text style={styles.errorDetail}>
@@ -64,7 +67,7 @@ class ErrorBoundary extends React.Component {
             </Text>
           )}
           <TouchableOpacity style={styles.button} onPress={this.handleReset}>
-            <Text style={styles.buttonText}>Try Again</Text>
+            <Text style={styles.buttonText}>{t('errorBoundary.tryAgain')}</Text>
           </TouchableOpacity>
         </View>
       );
@@ -120,4 +123,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ErrorBoundary;
+export default withTranslation('common')(ErrorBoundary);

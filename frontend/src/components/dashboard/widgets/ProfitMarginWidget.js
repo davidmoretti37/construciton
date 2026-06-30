@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import SemiCircleGauge from './svg/SemiCircleGauge';
 
 function fmtK(amount) {
@@ -17,6 +18,7 @@ function getGaugeColor(margin) {
 }
 
 export default function ProfitMarginWidget({ margin, healthText, revenue, expenses, size, editMode, onPress }) {
+  const { t } = useTranslation('common');
   const gaugeValue = Math.min(margin, 50) / 50; // Normalize to 0-1 (50% = full)
   const gaugeColor = getGaugeColor(margin);
 
@@ -44,13 +46,13 @@ export default function ProfitMarginWidget({ margin, healthText, revenue, expens
             <Text style={styles.gaugePercentMed}>{margin.toFixed(0)}%</Text>
           </SemiCircleGauge>
           <View style={styles.mediumContent}>
-            <Text style={styles.labelMedium}>PROFIT MARGIN</Text>
+            <Text style={styles.labelMedium}>{t('profitMarginWidget.label')}</Text>
             <View style={styles.pillRow}>
               <View style={styles.tinyPill}>
-                <Text style={styles.pillText}>{fmtK(revenue)} rev</Text>
+                <Text style={styles.pillText}>{t('profitMarginWidget.revenue', { value: fmtK(revenue) })}</Text>
               </View>
               <View style={[styles.tinyPill, { backgroundColor: 'rgba(252,165,165,0.2)' }]}>
-                <Text style={[styles.pillText, { color: '#FCA5A5' }]}>{fmtK(expenses)} exp</Text>
+                <Text style={[styles.pillText, { color: '#FCA5A5' }]}>{t('profitMarginWidget.expenses', { value: fmtK(expenses) })}</Text>
               </View>
             </View>
           </View>
@@ -82,7 +84,7 @@ export default function ProfitMarginWidget({ margin, healthText, revenue, expens
           <Text style={styles.gaugePercent}>{margin.toFixed(1)}%</Text>
         </SemiCircleGauge>
         <Text style={styles.healthLabel}>{healthText}</Text>
-        <Text style={styles.label}>MARGIN</Text>
+        <Text style={styles.label}>{t('profitMarginWidget.margin')}</Text>
       </LinearGradient>
     </TouchableOpacity>
   );

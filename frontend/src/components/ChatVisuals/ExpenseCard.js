@@ -1,11 +1,13 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function ExpenseCard({ data }) {
+  const { t } = useTranslation('chat');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { profile, ownerHidesContract } = useAuth() || {};
@@ -14,8 +16,9 @@ export default function ExpenseCard({ data }) {
   const {
     jobs = [],
     totalExpenses = 0,
-    period = 'All Projects'
+    period,
   } = data;
+  const displayPeriod = period ?? t('expenseCard.allProjects');
 
   const formatCurrency = (amount) => {
     return `$${amount.toLocaleString('en-US')}`;
@@ -27,7 +30,7 @@ export default function ExpenseCard({ data }) {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Ionicons name="cash-outline" size={20} color="#EF4444" />
-          <Text style={[styles.period, { color: Colors.secondaryText }]}>{period}</Text>
+          <Text style={[styles.period, { color: Colors.secondaryText }]}>{displayPeriod}</Text>
         </View>
       </View>
 
@@ -55,7 +58,7 @@ export default function ExpenseCard({ data }) {
             {/* Financial Details */}
             <View style={styles.financialDetails}>
               <Text style={[styles.detailText, { color: Colors.secondaryText }]}>
-                {hideContract ? '' : `Contract: ${formatCurrency(job.contractAmount || 0)} | `}Collected: {formatCurrency(job.incomeCollected)}{hideContract ? '' : ` | Profit: ${formatCurrency(job.profit || 0)}`}
+                {hideContract ? '' : t('expenseCard.contract', { amount: formatCurrency(job.contractAmount || 0) }) + ' | '}{t('expenseCard.collected', { amount: formatCurrency(job.incomeCollected) })}{hideContract ? '' : ' | ' + t('expenseCard.profit', { amount: formatCurrency(job.profit || 0) })}
               </Text>
             </View>
 
@@ -104,19 +107,19 @@ export default function ExpenseCard({ data }) {
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
                 <Text style={[styles.legendText, { color: Colors.secondaryText }]}>
-                  Expenses: {formatCurrency(job.expenses)}
+                  {t('expenseCard.expenses', { amount: formatCurrency(job.expenses) })}
                 </Text>
               </View>
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: '#22C55E' }]} />
                 <Text style={[styles.legendText, { color: Colors.secondaryText }]}>
-                  Profit: {formatCurrency(job.profit || 0)}
+                  {t('expenseCard.profit', { amount: formatCurrency(job.profit || 0) })}
                 </Text>
               </View>
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: Colors.secondaryText }]} />
                 <Text style={[styles.legendText, { color: Colors.secondaryText }]}>
-                  Pending: {formatCurrency((job.contractAmount || 0) - job.incomeCollected)}
+                  {t('expenseCard.pending', { amount: formatCurrency((job.contractAmount || 0) - job.incomeCollected) })}
                 </Text>
               </View>
             </View>
@@ -128,7 +131,7 @@ export default function ExpenseCard({ data }) {
       <View style={[styles.totalSection, { borderTopColor: Colors.border }]}>
         <View style={styles.totalRow}>
           <Text style={[styles.totalLabel, { color: Colors.secondaryText }]}>
-            Total Expenses
+            {t('expenseCard.totalExpenses')}
           </Text>
           <Text style={[styles.totalAmount, { color: '#EF4444' }]}>
             {formatCurrency(totalExpenses)}

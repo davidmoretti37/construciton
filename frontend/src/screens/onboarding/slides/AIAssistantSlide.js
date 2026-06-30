@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions, ScrollView } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -38,6 +39,7 @@ const USER_MESSAGE = "Create an estimate for John's kitchen remodel job";
 const AI_RESPONSE = "Done! I've created estimate #EST-2024-042 for John's kitchen remodel. Total: $12,450. Would you like me to send it to him?";
 
 export default function AIAssistantSlide({ isActive = true }) {
+  const { t } = useTranslation('onboarding');
   const [chatState, setChatState] = useState(CHAT_STATES.EMPTY);
   const [showFeatures, setShowFeatures] = useState(false);
 
@@ -96,8 +98,8 @@ export default function AIAssistantSlide({ isActive = true }) {
     >
       {/* Title */}
       <Animated.View style={titleAnim}>
-        <Text style={styles.title}>Your Business.</Text>
-        <Text style={styles.titleAccent}>Voice Activated.</Text>
+        <Text style={styles.title}>{t('aIAssistantSlide.title')}</Text>
+        <Text style={styles.titleAccent}>{t('aIAssistantSlide.titleAccent')}</Text>
       </Animated.View>
 
       {/* Chat mockup */}
@@ -108,8 +110,8 @@ export default function AIAssistantSlide({ isActive = true }) {
             <Ionicons name="sparkles" size={20} color="#3B82F6" />
           </View>
           <View>
-            <Text style={styles.aiName}>AI Assistant</Text>
-            <Text style={styles.aiStatus}>Always available</Text>
+            <Text style={styles.aiName}>{t('aIAssistantSlide.aiName')}</Text>
+            <Text style={styles.aiStatus}>{t('aIAssistantSlide.aiStatus')}</Text>
           </View>
         </View>
 
@@ -159,7 +161,7 @@ export default function AIAssistantSlide({ isActive = true }) {
         {/* Input hint */}
         <View style={styles.inputHint}>
           <Ionicons name="mic" size={18} color="#64748B" />
-          <Text style={styles.inputText}>Type or speak your request...</Text>
+          <Text style={styles.inputText}>{t('aIAssistantSlide.inputPlaceholder')}</Text>
         </View>
       </Animated.View>
 
@@ -168,24 +170,24 @@ export default function AIAssistantSlide({ isActive = true }) {
         <Animated.View style={feature1Anim}>
           <FeatureBullet
             icon="chatbubbles"
-            title="Just say what you need"
-            description="Natural language commands"
+            title={t('aIAssistantSlide.feature1Title')}
+            description={t('aIAssistantSlide.feature1Description')}
             iconColor="#60A5FA"
           />
         </Animated.View>
         <Animated.View style={feature2Anim}>
           <FeatureBullet
             icon="bulb"
-            title="AI that knows your business"
-            description="Your clients, your prices, your style"
+            title={t('aIAssistantSlide.feature2Title')}
+            description={t('aIAssistantSlide.feature2Description')}
             iconColor="#FBBF24"
           />
         </Animated.View>
         <Animated.View style={feature3Anim}>
           <FeatureBullet
             icon="flash"
-            title="Actions, not just answers"
-            description="It actually does the work for you"
+            title={t('aIAssistantSlide.feature3Title')}
+            description={t('aIAssistantSlide.feature3Description')}
             iconColor="#A78BFA"
           />
         </Animated.View>
@@ -194,7 +196,7 @@ export default function AIAssistantSlide({ isActive = true }) {
       {/* Quote - types out */}
       <Animated.View style={quoteAnim}>
         <TypewriterText
-          text='"Like having a $100K assistant for the price of a coffee."'
+          text={t('aIAssistantSlide.quote')}
           style={styles.quote}
           speed={30}
           isActive={showFeatures}

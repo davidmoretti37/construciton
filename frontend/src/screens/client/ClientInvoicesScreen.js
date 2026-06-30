@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { fetchProjectInvoices, payInvoice } from '../../services/clientPortalApi';
 
 const C = {
@@ -30,6 +31,7 @@ const STATUS = {
 };
 
 export default function ClientInvoicesScreen({ route, navigation }) {
+  const { t } = useTranslation('invoices');
   const { projectId } = route.params;
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -58,11 +60,11 @@ export default function ClientInvoicesScreen({ route, navigation }) {
         await Linking.openURL(result.url);
         // useFocusEffect reloads when the client returns from checkout.
       } else {
-        Alert.alert('Payment', result?.message || 'Unable to start payment right now.');
+        Alert.alert(t('clientInvoices.paymentAlertTitle'), result?.message || t('clientInvoices.paymentAlertBody'));
         loadData();
       }
     } catch (e) {
-      Alert.alert('Payment Error', e.message || 'Failed to start payment');
+      Alert.alert(t('clientInvoices.paymentErrorTitle'), e.message || t('clientInvoices.paymentErrorBody'));
     } finally { setPaying(null); }
   };
 
@@ -78,7 +80,7 @@ export default function ClientInvoicesScreen({ route, navigation }) {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={22} color="#fff" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Invoices</Text>
+          <Text style={styles.headerTitle}>{t('clientInvoices.title')}</Text>
           <View style={{ width: 36 }} />
         </SafeAreaView>
       </LinearGradient>
@@ -93,9 +95,9 @@ export default function ClientInvoicesScreen({ route, navigation }) {
             <View style={styles.emptyIcon}>
               <Ionicons name="cloud-offline-outline" size={40} color={C.textMuted} />
             </View>
-            <Text style={styles.emptyTitle}>Couldn't load invoices</Text>
+            <Text style={styles.emptyTitle}>{t('clientInvoices.errorTitle')}</Text>
             <TouchableOpacity style={styles.retryBtn} onPress={() => loadData()} activeOpacity={0.8}>
-              <Text style={styles.retryBtnText}>Retry</Text>
+              <Text style={styles.retryBtnText}>{t('clientInvoices.retry')}</Text>
             </TouchableOpacity>
           </View>
         ) : invoices.length === 0 ? (
@@ -103,7 +105,7 @@ export default function ClientInvoicesScreen({ route, navigation }) {
             <View style={styles.emptyIcon}>
               <Ionicons name="receipt-outline" size={40} color={C.textMuted} />
             </View>
-            <Text style={styles.emptyTitle}>No invoices yet</Text>
+            <Text style={styles.emptyTitle}>{t('clientInvoices.emptyTitle')}</Text>
           </View>
         ) : (
           invoices.map((invoice) => {
@@ -136,7 +138,7 @@ export default function ClientInvoicesScreen({ route, navigation }) {
                 <View style={[styles.cardRow, { marginTop: 8 }]}>
                   <Text style={styles.amount}>${amount.toLocaleString()}</Text>
                   <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
-                    <Text style={[styles.statusText, { color: status.text }]}>{status.label}</Text>
+                    <Text style={[styles.statusText, { color: status.text }]}>{t(`clientInvoices.status.${invoice.status && STATUS[invoice.status] ? invoice.status : 'unpaid'}`)}</Text>
                   </View>
                 </View>
 
@@ -153,7 +155,7 @@ export default function ClientInvoicesScreen({ route, navigation }) {
                     ) : (
                       <>
                         <Ionicons name="card-outline" size={16} color="#fff" />
-                        <Text style={styles.payBtnText}>Pay ${remaining.toLocaleString()}</Text>
+                        <Text style={styles.payBtnText}>{t('clientInvoices.payAmount', { amount: remaining.toLocaleString() })}</Text>
                       </>
                     )}
                   </TouchableOpacity>

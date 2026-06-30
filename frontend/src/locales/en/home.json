@@ -6,7 +6,9 @@
     "minuteAgo": "1 min ago",
     "minutesAgo": "{{count}} mins ago",
     "hourAgo": "1 hour ago",
-    "hoursAgo": "{{count}} hours ago"
+    "hoursAgo": "{{count}} hours ago",
+    "today": "Today",
+    "yesterday": "Yesterday"
   },
   "fallbacks": {
     "worker": "Worker",
@@ -51,5 +53,47 @@
     "onSiteProjects": "On-Site Projects",
     "projectsNeedingAttention": "Projects Needing Attention",
     "noProjectsFound": "No projects found"
+  },
+  "clockIn": {
+    "successMessage": "You have clocked in successfully!",
+    "failedCheckDb": "Failed to clock in. Please check if the supervisor_time_tracking table exists in your database.",
+    "failedWithError": "Failed to clock in: {{message}}",
+    "noProjectsTitle": "No Projects",
+    "noProjectsMessage": "You need to have at least one project to clock in.",
+    "selectProjectTitle": "Select Project",
+    "noProjectsAvailable": "No projects available"
+  },
+  "clockOut": {
+    "title": "Clocked Out",
+    "workedHours": "You worked {{hours}}",
+    "failed": "Failed to clock out",
+    "failedWithError": "Failed to clock out: {{message}}"
+  },
+  "errors": {
+    "unknown": "Unknown error"
+  },
+  "margin": {
+    "healthy": "Healthy",
+    "moderate": "Moderate",
+    "atRisk": "At risk"
+  },
+  "workers": {
+    "unknownWorker": "Worker"
+  },
+  "retryBanner": {
+    "message": "Failed to load data. Tap to retry."
+  },
+  "forgottenClockOut": {
+    "title": "Forgotten Clock-Outs",
+    "alertTitle": "Clock Out Worker",
+    "alertMessage": "Clock out {{name}}?",
+    "clockOutButton": "Clock Out",
+    "successMessage": "{{name}} clocked out."
+  },
+  "editDashboard": {
+    "reset": "Reset",
+    "title": "Editing Dashboard",
+    "addWidget": "Add a widget",
+    "emptyMessage": "Tap to add widgets to your dashboard"
   }
 }

@@ -115,12 +115,12 @@ export default function BankTransactionAssignScreen() {
         });
 
         const msg = overheadType === 'recurring'
-          ? `Marked as recurring overhead ($${Math.abs(transaction.amount).toFixed(2)}/${overheadFrequency})`
-          : `Marked as one-time overhead ($${Math.abs(transaction.amount).toFixed(2)})`;
+          ? t('bankTransactionAssign.overheadRecurringMsg', { amount: Math.abs(transaction.amount).toFixed(2), frequency: overheadFrequency })
+          : t('bankTransactionAssign.overheadOneTimeMsg', { amount: Math.abs(transaction.amount).toFixed(2) });
 
-        Alert.alert('Assigned to Overhead', msg, [{ text: 'OK', onPress: () => navigation.goBack() }]);
+        Alert.alert(t('bankTransactionAssign.assignedToOverhead'), msg, [{ text: t('common:buttons.ok'), onPress: () => navigation.goBack() }]);
       } catch (error) {
-        Alert.alert('Error', error.message || 'Failed to assign as overhead');
+        Alert.alert(t('common:alerts.error'), error.message || t('bankTransactionAssign.failedAsOverhead'));
       } finally {
         setSubmitting(false);
       }
@@ -208,25 +208,25 @@ export default function BankTransactionAssignScreen() {
               onPress={() => setMode('project')}
             >
               <Ionicons name="briefcase-outline" size={16} color={mode === 'project' ? '#FFF' : Colors.secondaryText} />
-              <Text style={[styles.modeBtnText, { color: mode === 'project' ? '#FFF' : Colors.secondaryText }]}>Project</Text>
+              <Text style={[styles.modeBtnText, { color: mode === 'project' ? '#FFF' : Colors.secondaryText }]}>{t('bankTransactionAssign.modeProject')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.modeBtn, mode === 'overhead' && { backgroundColor: '#F59E0B' }]}
               onPress={() => setMode('overhead')}
             >
               <Ionicons name="business-outline" size={16} color={mode === 'overhead' ? '#FFF' : Colors.secondaryText} />
-              <Text style={[styles.modeBtnText, { color: mode === 'overhead' ? '#FFF' : Colors.secondaryText }]}>Overhead</Text>
+              <Text style={[styles.modeBtnText, { color: mode === 'overhead' ? '#FFF' : Colors.secondaryText }]}>{t('bankTransactionAssign.modeOverhead')}</Text>
             </TouchableOpacity>
           </View>
 
           {/* Description */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>Description</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>{t('bankTransactionAssign.descriptionLabel')}</Text>
             <TextInput
               style={[styles.input, { backgroundColor: Colors.cardBackground, borderColor: Colors.border, color: Colors.primaryText }]}
               value={description}
               onChangeText={setDescription}
-              placeholder={mode === 'overhead' ? 'e.g., Truck Payment, Office Rent' : t('transactionAssign.descriptionPlaceholder')}
+              placeholder={mode === 'overhead' ? t('bankTransactionAssign.overheadDescPlaceholder') : t('transactionAssign.descriptionPlaceholder')}
               placeholderTextColor={Colors.placeholderText}
             />
           </View>
@@ -235,21 +235,21 @@ export default function BankTransactionAssignScreen() {
             <>
               {/* Overhead Type */}
               <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>Type</Text>
+                <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>{t('bankTransactionAssign.typeLabel')}</Text>
                 <View style={styles.categoryGrid}>
                   <TouchableOpacity
                     style={[styles.categoryItem, { backgroundColor: overheadType === 'one_time' ? '#F59E0B' : Colors.cardBackground, borderColor: overheadType === 'one_time' ? '#F59E0B' : Colors.border }]}
                     onPress={() => setOverheadType('one_time')}
                   >
                     <Ionicons name="receipt-outline" size={18} color={overheadType === 'one_time' ? '#FFF' : Colors.secondaryText} />
-                    <Text style={[styles.categoryLabel, { color: overheadType === 'one_time' ? '#FFF' : Colors.primaryText }]}>One-time</Text>
+                    <Text style={[styles.categoryLabel, { color: overheadType === 'one_time' ? '#FFF' : Colors.primaryText }]}>{t('bankTransactionAssign.oneTime')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.categoryItem, { backgroundColor: overheadType === 'recurring' ? '#F59E0B' : Colors.cardBackground, borderColor: overheadType === 'recurring' ? '#F59E0B' : Colors.border }]}
                     onPress={() => setOverheadType('recurring')}
                   >
                     <Ionicons name="repeat-outline" size={18} color={overheadType === 'recurring' ? '#FFF' : Colors.secondaryText} />
-                    <Text style={[styles.categoryLabel, { color: overheadType === 'recurring' ? '#FFF' : Colors.primaryText }]}>Recurring</Text>
+                    <Text style={[styles.categoryLabel, { color: overheadType === 'recurring' ? '#FFF' : Colors.primaryText }]}>{t('bankTransactionAssign.recurring')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -257,7 +257,7 @@ export default function BankTransactionAssignScreen() {
               {/* Frequency (only for recurring) */}
               {overheadType === 'recurring' && (
                 <View style={styles.section}>
-                  <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>Frequency</Text>
+                  <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>{t('bankTransactionAssign.frequencyLabel')}</Text>
                   <View style={styles.categoryGrid}>
                     {['weekly', 'biweekly', 'monthly', 'quarterly', 'annually'].map(f => (
                       <TouchableOpacity
@@ -266,7 +266,7 @@ export default function BankTransactionAssignScreen() {
                         onPress={() => setOverheadFrequency(f)}
                       >
                         <Text style={[styles.categoryLabel, { color: overheadFrequency === f ? '#FFF' : Colors.primaryText }]}>
-                          {f.charAt(0).toUpperCase() + f.slice(1)}
+                          {t(`bankTransactionAssign.frequency.${f}`)}
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -347,7 +347,7 @@ export default function BankTransactionAssignScreen() {
                 <Ionicons name={mode === 'overhead' ? 'business' : 'checkmark'} size={20} color="#FFF" />
                 <Text style={styles.submitButtonText}>
                   {mode === 'overhead'
-                    ? (overheadType === 'recurring' ? 'Add as Recurring Overhead' : 'Mark as Overhead')
+                    ? (overheadType === 'recurring' ? t('bankTransactionAssign.addAsRecurringOverhead') : t('bankTransactionAssign.markAsOverhead'))
                     : t('transactionAssign.assignTo', { name: selectedProject?.name || 'Project' })
                   }
                 </Text>

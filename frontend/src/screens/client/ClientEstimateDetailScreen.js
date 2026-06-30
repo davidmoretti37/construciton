@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { respondToEstimate, fetchProjectEstimates, fetchEstimateSigningLink, fetchEstimateSignature } from '../../services/clientPortalApi';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -41,6 +42,7 @@ const CHANGE_REASONS = [
 export default function ClientEstimateDetailScreen({ route, navigation }) {
   const { estimate: estimateProp, project } = route.params || {};
   const { profile } = useAuth();
+  const { t } = useTranslation('common');
 
   // Local copy so status updates re-render immediately
   const [estimate, setEstimate] = useState(estimateProp);
@@ -104,14 +106,14 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
       setShowChanges(false);
 
       const messages = {
-        accepted: ['Accepted', 'Your contractor has been notified — they\'ll get started on next steps.'],
-        rejected: ['Declined', 'Your contractor has been notified.'],
-        changes_requested: ['Changes Requested', 'Your contractor has been notified and will revise the estimate.'],
+        accepted: [t('clientEstimateDetail.acceptedTitle'), t('clientEstimateDetail.acceptedBody')],
+        rejected: [t('clientEstimateDetail.declinedTitle'), t('clientEstimateDetail.declinedBody')],
+        changes_requested: [t('clientEstimateDetail.changesRequestedTitle'), t('clientEstimateDetail.changesRequestedBody')],
       };
       const [title, body] = messages[action];
-      Alert.alert(title, body, [{ text: 'OK', onPress: () => navigation.goBack() }]);
+      Alert.alert(title, body, [{ text: t('clientEstimateDetail.ok'), onPress: () => navigation.goBack() }]);
     } catch (e) {
-      Alert.alert('Error', e.message || 'Failed to respond');
+      Alert.alert(t('common:alerts.error'), e.message || t('clientEstimateDetail.failedToRespond'));
     } finally {
       setSubmitting(false);
     }
@@ -123,13 +125,13 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
     // tell them to use the email/portal sign link.
     if (estimate?.signature_required) {
       Alert.alert(
-        'Signature required',
-        'This estimate needs your signature. Tap "Sign Estimate" to sign it securely in the app.'
+        t('clientEstimateDetail.signatureRequiredTitle'),
+        t('clientEstimateDetail.signatureRequiredBody')
       );
       return;
     }
     if (!acceptName.trim()) {
-      Alert.alert('Name Required', 'Please type your name to accept.');
+      Alert.alert(t('clientEstimateDetail.nameRequiredTitle'), t('clientEstimateDetail.nameRequiredBody'));
       return;
     }
     respond('accepted', `Accepted by ${acceptName.trim()}`);
@@ -138,7 +140,7 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
   const handleDecline = () => {
     const reason = selectedChip === 'Other' ? declineReason : (selectedChip || declineReason);
     if (!reason.trim()) {
-      Alert.alert('Reason needed', 'Please share why you\'re declining so the contractor can follow up.');
+      Alert.alert(t('clientEstimateDetail.reasonNeededTitle'), t('clientEstimateDetail.reasonNeededBody'));
       return;
     }
     respond('rejected', reason);
@@ -156,12 +158,12 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
           onSigned: () => setEstimate((prev) => ({ ...prev, status: 'accepted', accepted_date: new Date().toISOString() })),
         });
       } else if (res?.already_signed) {
-        Alert.alert('Already signed', 'This estimate has already been signed.');
+        Alert.alert(t('clientEstimateDetail.alreadySignedTitle'), t('clientEstimateDetail.alreadySignedBody'));
       } else {
-        Alert.alert('Cannot sign', res?.error || 'No active signing link.');
+        Alert.alert(t('clientEstimateDetail.cannotSignTitle'), res?.error || t('clientEstimateDetail.noActiveSigningLink'));
       }
     } catch (e) {
-      Alert.alert('Sign failed', e?.message || 'Could not start signing.');
+      Alert.alert(t('clientEstimateDetail.signFailedTitle'), e?.message || t('clientEstimateDetail.couldNotStartSigning'));
     } finally {
       setLoadingSigningUrl(false);
     }
@@ -169,7 +171,7 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
 
   const handleRequestChanges = () => {
     if (!changesNotes.trim()) {
-      Alert.alert('Tell them what to change', 'Add a note about what you\'d like to be different.');
+      Alert.alert(t('clientEstimateDetail.tellThemToChangeTitle'), t('clientEstimateDetail.tellThemToChangeBody'));
       return;
     }
     respond('changes_requested', changesNotes.trim());
@@ -182,7 +184,7 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="chevron-back" size={26} color={C.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Estimate</Text>
+          <Text style={styles.headerTitle}>{t('clientEstimateDetail.estimate')}</Text>
           <View style={{ width: 26 }} />
         </View>
       </SafeAreaView>
@@ -196,7 +198,7 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
         </View>
 
         {/* Header */}
-        <Text style={styles.title}>{estimate?.estimate_number || 'Estimate'}</Text>
+        <Text style={styles.title}>{estimate?.estimate_number || t('clientEstimateDetail.estimate')}</Text>
         {estimate?.project_name ? <Text style={styles.subtitle}>{estimate.project_name}</Text> : null}
 
         {/* Signature-required notice */}
@@ -204,18 +206,18 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
           <View style={styles.signatureNotice}>
             <Ionicons name="shield-checkmark-outline" size={16} color="#1E40AF" />
             <Text style={styles.signatureNoticeText}>
-              This estimate requires your signature. Tap "Sign Estimate" below to sign it securely in the app.
+              {t('clientEstimateDetail.signatureNotice')}
             </Text>
           </View>
         )}
 
         {/* Total */}
         <View style={styles.costCard}>
-          <Text style={styles.costLabel}>ESTIMATE TOTAL</Text>
+          <Text style={styles.costLabel}>{t('clientEstimateDetail.estimateTotal')}</Text>
           <Text style={styles.costAmount}>${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
           {estimate?.valid_until && (
             <Text style={styles.costSub}>
-              Valid until {new Date(estimate.valid_until).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+              {t('clientEstimateDetail.validUntil', { date: new Date(estimate.valid_until).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) })}
             </Text>
           )}
         </View>
@@ -223,7 +225,7 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
         {/* Line items */}
         {lineItems.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>LINE ITEMS</Text>
+            <Text style={styles.sectionLabel}>{t('clientEstimateDetail.lineItems')}</Text>
             <View style={styles.lineItemsCard}>
               {lineItems.map((item, i) => {
                 const qty = item.quantity != null ? Number(item.quantity) : null;
@@ -247,18 +249,18 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
               })}
               {subtotal > 0 && (
                 <View style={[styles.lineItem, styles.lineItemBorder]}>
-                  <Text style={styles.lineItemDesc}>Subtotal</Text>
+                  <Text style={styles.lineItemDesc}>{t('clientEstimateDetail.subtotal')}</Text>
                   <Text style={styles.lineItemAmount}>${subtotal.toLocaleString()}</Text>
                 </View>
               )}
               {taxAmount > 0 && (
                 <View style={[styles.lineItem, styles.lineItemBorder]}>
-                  <Text style={styles.lineItemDesc}>Tax{taxRate ? ` (${taxRate}%)` : ''}</Text>
+                  <Text style={styles.lineItemDesc}>{t('clientEstimateDetail.tax')}{taxRate ? ` (${taxRate}%)` : ''}</Text>
                   <Text style={styles.lineItemAmount}>${taxAmount.toLocaleString()}</Text>
                 </View>
               )}
               <View style={[styles.lineItem, styles.lineItemTotal]}>
-                <Text style={styles.lineItemTotalLabel}>Total</Text>
+                <Text style={styles.lineItemTotalLabel}>{t('clientEstimateDetail.total')}</Text>
                 <Text style={styles.lineItemTotalAmount}>${total.toLocaleString()}</Text>
               </View>
             </View>
@@ -268,7 +270,7 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
         {/* Scope description if present */}
         {estimate?.scope?.description && (
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>SCOPE OF WORK</Text>
+            <Text style={styles.sectionLabel}>{t('clientEstimateDetail.scopeOfWork')}</Text>
             <View style={styles.scopeCard}>
               <Text style={styles.scopeText}>{estimate.scope.description}</Text>
             </View>
@@ -278,16 +280,16 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
         {/* Notes / payment terms */}
         {(estimate?.notes || estimate?.payment_terms) && (
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>DETAILS</Text>
+            <Text style={styles.sectionLabel}>{t('clientEstimateDetail.details')}</Text>
             {estimate?.payment_terms && (
               <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Payment terms</Text>
+                <Text style={styles.detailLabel}>{t('clientEstimateDetail.paymentTerms')}</Text>
                 <Text style={styles.detailValue}>{estimate.payment_terms}</Text>
               </View>
             )}
             {estimate?.notes && (
               <View style={[styles.detailRow, { flexDirection: 'column', alignItems: 'flex-start', gap: 4 }]}>
-                <Text style={styles.detailLabel}>Notes</Text>
+                <Text style={styles.detailLabel}>{t('clientEstimateDetail.notes')}</Text>
                 <Text style={[styles.detailValue, { textAlign: 'left' }]}>{estimate.notes}</Text>
               </View>
             )}
@@ -297,7 +299,7 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
         {/* Signature card — visible after the client has signed */}
         {signature?.signer_name && (
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>SIGNATURE</Text>
+            <Text style={styles.sectionLabel}>{t('clientEstimateDetail.signature')}</Text>
             <View style={styles.signatureCard}>
               {signature.signature_png_url && (
                 <Image
@@ -308,7 +310,7 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
               )}
               <Text style={styles.signatureName}>{signature.signer_name}</Text>
               <Text style={styles.signatureMeta}>
-                Signed {signature.signed_at ? new Date(signature.signed_at).toLocaleString() : ''}
+                {t('clientEstimateDetail.signedAt', { date: signature.signed_at ? new Date(signature.signed_at).toLocaleString() : '' })}
               </Text>
             </View>
           </View>
@@ -317,23 +319,23 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
         {/* Accept Sheet */}
         {showAccept && (
           <View style={styles.actionSheet}>
-            <Text style={styles.actionTitle}>Accept Estimate</Text>
+            <Text style={styles.actionTitle}>{t('clientEstimateDetail.acceptEstimate')}</Text>
             <Text style={styles.actionSubtitle}>
-              By accepting, you authorize the contractor to proceed with this scope at this price.
+              {t('clientEstimateDetail.acceptSubtitle')}
             </Text>
             <TextInput
               style={styles.nameInput}
-              placeholder="Type your full name"
+              placeholder={t('clientEstimateDetail.typeFullName')}
               placeholderTextColor={C.textMuted}
               value={acceptName}
               onChangeText={setAcceptName}
               autoCapitalize="words"
             />
             <TouchableOpacity style={styles.acceptBtn} onPress={handleAccept} disabled={submitting}>
-              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.acceptBtnText}>Confirm Acceptance</Text>}
+              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.acceptBtnText}>{t('clientEstimateDetail.confirmAcceptance')}</Text>}
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowAccept(false)} style={styles.cancelLink}>
-              <Text style={styles.cancelLinkText}>Cancel</Text>
+              <Text style={styles.cancelLinkText}>{t('common:buttons.cancel')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -341,8 +343,8 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
         {/* Decline Sheet */}
         {showDecline && (
           <View style={styles.actionSheet}>
-            <Text style={styles.actionTitle}>Decline Estimate</Text>
-            <Text style={styles.actionSubtitle}>Why are you declining?</Text>
+            <Text style={styles.actionTitle}>{t('clientEstimateDetail.declineEstimate')}</Text>
+            <Text style={styles.actionSubtitle}>{t('clientEstimateDetail.whyDeclining')}</Text>
             <View style={styles.chipRow}>
               {CHANGE_REASONS.map((chip) => (
                 <TouchableOpacity
@@ -357,7 +359,7 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
             {selectedChip === 'Other' && (
               <TextInput
                 style={styles.reasonInput}
-                placeholder="Add details..."
+                placeholder={t('clientEstimateDetail.addDetails')}
                 placeholderTextColor={C.textMuted}
                 value={declineReason}
                 onChangeText={setDeclineReason}
@@ -365,10 +367,10 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
               />
             )}
             <TouchableOpacity style={styles.declineBtn} onPress={handleDecline} disabled={submitting || !selectedChip}>
-              {submitting ? <ActivityIndicator color={C.red} /> : <Text style={styles.declineBtnText}>Confirm Decline</Text>}
+              {submitting ? <ActivityIndicator color={C.red} /> : <Text style={styles.declineBtnText}>{t('clientEstimateDetail.confirmDecline')}</Text>}
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowDecline(false)} style={styles.cancelLink}>
-              <Text style={styles.cancelLinkText}>Cancel</Text>
+              <Text style={styles.cancelLinkText}>{t('common:buttons.cancel')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -376,13 +378,13 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
         {/* Request Changes Sheet */}
         {showChanges && (
           <View style={styles.actionSheet}>
-            <Text style={styles.actionTitle}>Request Changes</Text>
+            <Text style={styles.actionTitle}>{t('clientEstimateDetail.requestChanges')}</Text>
             <Text style={styles.actionSubtitle}>
-              Tell your contractor what you'd like adjusted. They'll revise and resend.
+              {t('clientEstimateDetail.requestChangesSubtitle')}
             </Text>
             <TextInput
               style={styles.changesInput}
-              placeholder="e.g. Can you change the tile to something less expensive? Also add the vanity install."
+              placeholder={t('clientEstimateDetail.requestChangesPlaceholder')}
               placeholderTextColor={C.textMuted}
               value={changesNotes}
               onChangeText={setChangesNotes}
@@ -390,10 +392,10 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
               autoFocus
             />
             <TouchableOpacity style={styles.changesBtn} onPress={handleRequestChanges} disabled={submitting}>
-              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.changesBtnText}>Send Request</Text>}
+              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.changesBtnText}>{t('clientEstimateDetail.sendRequest')}</Text>}
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowChanges(false)} style={styles.cancelLink}>
-              <Text style={styles.cancelLinkText}>Cancel</Text>
+              <Text style={styles.cancelLinkText}>{t('common:buttons.cancel')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -405,24 +407,24 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
       {isPending && !showAccept && !showDecline && !showChanges && (
         <SafeAreaView edges={['bottom']} style={styles.bottomBar}>
           <TouchableOpacity style={styles.declineAction} onPress={() => setShowDecline(true)}>
-            <Text style={styles.declineActionText}>Decline</Text>
+            <Text style={styles.declineActionText}>{t('clientEstimateDetail.decline')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.changesAction} onPress={() => setShowChanges(true)}>
-            <Text style={styles.changesActionText}>Request Changes</Text>
+            <Text style={styles.changesActionText}>{t('clientEstimateDetail.requestChanges')}</Text>
           </TouchableOpacity>
           {estimate?.signature_required ? (
             <TouchableOpacity style={styles.acceptAction} onPress={handleOpenSigning} disabled={loadingSigningUrl}>
               {loadingSigningUrl ? <ActivityIndicator color="#fff" /> : (
                 <>
                   <Ionicons name="create-outline" size={18} color="#fff" />
-                  <Text style={styles.acceptActionText}>Sign Estimate</Text>
+                  <Text style={styles.acceptActionText}>{t('clientEstimateDetail.signEstimate')}</Text>
                 </>
               )}
             </TouchableOpacity>
           ) : (
             <TouchableOpacity style={styles.acceptAction} onPress={() => setShowAccept(true)}>
               <Ionicons name="checkmark-circle" size={18} color="#fff" />
-              <Text style={styles.acceptActionText}>Accept</Text>
+              <Text style={styles.acceptActionText}>{t('clientEstimateDetail.accept')}</Text>
             </TouchableOpacity>
           )}
         </SafeAreaView>

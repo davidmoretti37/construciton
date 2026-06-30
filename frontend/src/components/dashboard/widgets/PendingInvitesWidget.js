@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -12,6 +13,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 export default function PendingInvitesWidget({ pendingInvites, totalSupervisors, size, editMode, onPress }) {
+  const { t } = useTranslation('common');
   const rock = useSharedValue(0);
 
   useEffect(() => {
@@ -51,7 +53,7 @@ export default function PendingInvitesWidget({ pendingInvites, totalSupervisors,
           style={size === 'medium' ? styles.gradientMedium : styles.gradientSmall}
         >
           <Ionicons name="checkmark-circle" size={24} color="rgba(255,255,255,0.6)" />
-          <Text style={styles.allAccepted}>All accepted</Text>
+          <Text style={styles.allAccepted}>{t('pendingInvitesWidget.allAccepted')}</Text>
         </LinearGradient>
       </TouchableOpacity>
     );
@@ -76,9 +78,9 @@ export default function PendingInvitesWidget({ pendingInvites, totalSupervisors,
           </Animated.View>
           <View style={styles.mediumContent}>
             <Text style={styles.valueMedium}>{pendingInvites}</Text>
-            <Text style={styles.labelMedium}>PENDING INVITES</Text>
+            <Text style={styles.labelMedium}>{t('pendingInvitesWidget.pendingInvites')}</Text>
           </View>
-          <Text style={styles.ofTotal}>of {totalSupervisors}</Text>
+          <Text style={styles.ofTotal}>{t('pendingInvitesWidget.ofTotal', { total: totalSupervisors })}</Text>
         </LinearGradient>
       </TouchableOpacity>
     );
@@ -101,7 +103,7 @@ export default function PendingInvitesWidget({ pendingInvites, totalSupervisors,
           <Ionicons name="mail-unread" size={22} color="#BAE6FD" />
         </Animated.View>
         <Text style={styles.valueSmall}>{pendingInvites}</Text>
-        <Text style={styles.label}>INVITES</Text>
+        <Text style={styles.label}>{t('pendingInvitesWidget.invites')}</Text>
       </LinearGradient>
     </TouchableOpacity>
   );

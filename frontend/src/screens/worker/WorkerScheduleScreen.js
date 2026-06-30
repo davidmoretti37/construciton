@@ -161,7 +161,7 @@ export default function WorkerScheduleScreen({ navigation, embedded = false }) {
     // Auto-expand all projects
     const projects = {};
     filtered.forEach(task => {
-      const name = task.projects?.name || 'Unknown Project';
+      const name = task.projects?.name || t('workerSchedule.unknownProject');
       projects[name] = true;
     });
     setExpandedProjects(projects);
@@ -280,7 +280,7 @@ export default function WorkerScheduleScreen({ navigation, embedded = false }) {
 
   // Group day tasks by project
   const groupedTasks = dayTasks.reduce((acc, task) => {
-    const projectName = task.projects?.name || 'Unknown Project';
+    const projectName = task.projects?.name || t('workerSchedule.unknownProject');
     if (!acc[projectName]) acc[projectName] = [];
     acc[projectName].push(task);
     return acc;
@@ -373,7 +373,7 @@ export default function WorkerScheduleScreen({ navigation, embedded = false }) {
           {!scheduleLoading && (
             <View style={styles.scheduleCategory}>
               <Text style={[styles.categoryLabel, { color: Colors.warningOrange }]}>
-                Tasks
+                {t('workerSchedule.tasksLabel')}
               </Text>
 
               {dayTasks.length === 0 ? (
@@ -500,7 +500,7 @@ export default function WorkerScheduleScreen({ navigation, embedded = false }) {
           {!scheduleLoading && dayVisits.length > 0 && (
             <View style={styles.scheduleCategory}>
               <Text style={[styles.categoryLabel, { color: '#059669' }]}>
-                Service Visits
+                {t('workerSchedule.serviceVisitsLabel')}
               </Text>
               {dayVisits.map((visit) => (
                 <TouchableOpacity
@@ -527,7 +527,7 @@ export default function WorkerScheduleScreen({ navigation, embedded = false }) {
                         { color: Colors.primaryText },
                         visit.status === 'completed' && { textDecorationLine: 'line-through', color: Colors.secondaryText }
                       ]}>
-                        {visit.service_locations?.name || 'Visit'}
+                        {visit.service_locations?.name || t('workerSchedule.visitFallback')}
                       </Text>
                       <Text style={{ fontSize: 12, color: Colors.secondaryText, marginTop: 2 }} numberOfLines={1}>
                         {visit.service_locations?.address}
@@ -535,7 +535,7 @@ export default function WorkerScheduleScreen({ navigation, embedded = false }) {
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
                         <View style={{ backgroundColor: '#05966915', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
                           <Text style={{ fontSize: 11, color: '#059669', fontWeight: '600' }}>
-                            {visit.service_plans?.name || 'Service'}
+                            {visit.service_plans?.name || t('workerSchedule.serviceFallback')}
                           </Text>
                         </View>
                         {visit.scheduled_time && (

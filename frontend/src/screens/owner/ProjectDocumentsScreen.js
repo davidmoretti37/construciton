@@ -16,6 +16,7 @@ import {
   TextInput, ActivityIndicator, Alert, Modal, Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -44,6 +45,7 @@ const TYPE_VISUAL = {
 };
 
 export default function ProjectDocumentsScreen({ route, navigation }) {
+  const { t } = useTranslation('owner');
   const { projectId, openAdd } = route?.params || {};
   const { isDark = false } = useTheme() || {};
   const Colors = isDark ? DarkColors : LightColors;
@@ -123,7 +125,7 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
         if (!docTitle) setDocTitle(a?.name?.replace(/\.[^.]+$/, '') || '');
       }
     } catch (e) {
-      Alert.alert('Could not pick file', e.message);
+      Alert.alert(t('projectDocuments.couldNotPickFile'), e.message);
     } finally {
       pickerBusyRef.current = false;
     }
@@ -146,10 +148,10 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
           size: a.fileSize,
         });
         setDocCategory('photo');
-        if (!docTitle) setDocTitle(`Photo ${new Date().toLocaleDateString()}`);
+        if (!docTitle) setDocTitle(t('projectDocuments.photoTitleDefault', { date: new Date().toLocaleDateString() }));
       }
     } catch (e) {
-      Alert.alert('Could not pick photo', e.message);
+      Alert.alert(t('projectDocuments.couldNotPickPhoto'), e.message);
     } finally {
       pickerBusyRef.current = false;
     }
@@ -157,11 +159,11 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
 
   const onUpload = async () => {
     if (!pickedFile) {
-      Alert.alert('Pick a file first');
+      Alert.alert(t('projectDocuments.pickFileFirst'));
       return;
     }
     if (!docTitle.trim()) {
-      Alert.alert('Add a title');
+      Alert.alert(t('projectDocuments.addTitlePrompt'));
       return;
     }
     setUploading(true);
@@ -192,7 +194,7 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
         }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || 'Upload failed');
+      if (!res.ok) throw new Error(json.error || t('projectDocuments.uploadFailed'));
 
       // Reset modal
       setAddOpen(false);
@@ -205,7 +207,7 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
       setIsImportant(false);
       await load();
     } catch (e) {
-      Alert.alert('Upload failed', e.message);
+      Alert.alert(t('projectDocuments.uploadFailed'), e.message);
     } finally {
       setUploading(false);
     }
@@ -221,7 +223,7 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.signedUrl) throw new Error(json.error || 'No URL');
+      if (!res.ok || !json.signedUrl) throw new Error(json.error || t('projectDocuments.noUrl'));
 
       const ext = (doc.file_name || '').split('.').pop()?.toLowerCase();
       const isPDF = doc.file_type === 'pdf' || ext === 'pdf';
@@ -233,7 +235,7 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
         fileType: isPDF ? 'pdf' : isImage ? 'image' : 'document',
       });
     } catch (e) {
-      Alert.alert('Could not open', e.message);
+      Alert.alert(t('projectDocuments.couldNotOpen'), e.message);
     } finally {
       setOpeningId(null);
     }
@@ -241,12 +243,12 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
 
   const onDeleteDoc = (doc) => {
     Alert.alert(
-      'Delete document?',
-      `Remove "${doc.file_name}"? This can't be undone.`,
+      t('projectDocuments.deleteConfirmTitle'),
+      t('projectDocuments.deleteConfirmBody', { name: doc.file_name }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
         {
-          text: 'Delete', style: 'destructive',
+          text: t('common:buttons.delete'), style: 'destructive',
           onPress: async () => {
             try {
               const { error } = await supabase
@@ -256,7 +258,7 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
               if (error) throw error;
               await load();
             } catch (e) {
-              Alert.alert('Could not delete', e.message);
+              Alert.alert(t('projectDocuments.couldNotDelete'), e.message);
             }
           },
         },
@@ -280,9 +282,9 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
           <Ionicons name="chevron-back" size={26} color={Colors.primaryText} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text testID="projectDocuments.title" style={styles.headerTitle}>Documents</Text>
+          <Text testID="projectDocuments.title" style={styles.headerTitle}>{t('projectDocuments.title')}</Text>
           <Text testID="projectDocuments.count" style={styles.headerSub}>
-            {docs.length} document{docs.length === 1 ? '' : 's'}
+            {t('projectDocuments.documentCount', { count: docs.length })}
           </Text>
         </View>
         <TouchableOpacity testID="projectDocuments.addButton" accessibilityLabel="Add document" onPress={() => setAddOpen(true)} style={styles.addIconBtn} activeOpacity={0.7}>
@@ -299,7 +301,7 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
           style={styles.searchInput}
           value={search}
           onChangeText={setSearch}
-          placeholder="Search documents"
+          placeholder={t('projectDocuments.searchPlaceholder')}
           placeholderTextColor={Colors.placeholder || '#9CA3AF'}
         />
         {search ? (
@@ -325,7 +327,7 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
             >
               <Ionicons name={f.icon} size={13} color={isActive ? '#fff' : Colors.primaryText} />
               <Text style={[styles.chipText, isActive && { color: '#fff', fontWeight: '700' }]}>
-                {f.label}{n > 0 ? `  ${n}` : ''}
+                {t(`projectDocuments.filters.${f.key}`)}{n > 0 ? `  ${n}` : ''}
               </Text>
             </TouchableOpacity>
           );
@@ -337,8 +339,8 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
         {loadError && docs.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="cloud-offline-outline" size={42} color={Colors.secondaryText} />
-            <Text style={styles.emptyTitle}>Couldn't load documents</Text>
-            <Text style={styles.emptyBody}>Check your connection and try again.</Text>
+            <Text style={styles.emptyTitle}>{t('projectDocuments.loadErrorTitle')}</Text>
+            <Text style={styles.emptyBody}>{t('projectDocuments.loadErrorBody')}</Text>
             <TouchableOpacity
               testID="projectDocuments.retryButton"
               accessibilityLabel="Retry loading documents"
@@ -347,19 +349,19 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
               activeOpacity={0.85}
             >
               <Ionicons name="refresh" size={18} color="#fff" />
-              <Text style={styles.submitBtnText}>Retry</Text>
+              <Text style={styles.submitBtnText}>{t('common:buttons.retry')}</Text>
             </TouchableOpacity>
           </View>
         ) : filtered.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="folder-open-outline" size={42} color={Colors.secondaryText} />
             <Text style={styles.emptyTitle}>
-              {search || filter !== 'all' ? 'No matches' : 'No documents yet'}
+              {search || filter !== 'all' ? t('projectDocuments.noMatchesTitle') : t('projectDocuments.emptyTitle')}
             </Text>
             <Text style={styles.emptyBody}>
               {search || filter !== 'all'
-                ? 'Try a different filter or clear your search.'
-                : 'Tap + to add plans, contracts, photos, or specs.'}
+                ? t('projectDocuments.noMatchesBody')
+                : t('projectDocuments.emptyBody')}
             </Text>
           </View>
         ) : (
@@ -398,7 +400,7 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
                       {d.visible_to_workers && <View style={[styles.visChip, { backgroundColor: '#10B98115' }]}><Text style={[styles.visChipText, { color: '#10B981' }]}>W</Text></View>}
                       {d.visible_to_clients && <View style={[styles.visChip, { backgroundColor: '#1E40AF15' }]}><Text style={[styles.visChipText, { color: '#1E40AF' }]}>C</Text></View>}
                       {!d.visible_to_subs && !d.visible_to_workers && !d.visible_to_clients && (
-                        <Text style={[styles.metaText, { fontStyle: 'italic' }]}>Private</Text>
+                        <Text style={[styles.metaText, { fontStyle: 'italic' }]}>{t('projectDocuments.private')}</Text>
                       )}
                     </View>
                   </View>
@@ -417,7 +419,7 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalSheet, { backgroundColor: Colors.cardBackground }]}>
             <View style={styles.modalHeader}>
-              <Text testID="projectDocuments.modalTitle" style={styles.modalTitle}>Add document</Text>
+              <Text testID="projectDocuments.modalTitle" style={styles.modalTitle}>{t('projectDocuments.modalTitle')}</Text>
               <TouchableOpacity testID="projectDocuments.modalCloseButton" accessibilityLabel="Close" onPress={() => !uploading && setAddOpen(false)}>
                 <Ionicons name="close" size={24} color={Colors.primaryText} />
               </TouchableOpacity>
@@ -448,29 +450,29 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
                 <View style={styles.pickerRow}>
                   <TouchableOpacity testID="projectDocuments.pickFileButton" accessibilityLabel="Pick PDF or file" style={styles.pickerBtn} onPress={onPickFile} activeOpacity={0.7}>
                     <Ionicons name="document-attach-outline" size={26} color={Colors.primaryText} />
-                    <Text style={styles.pickerBtnText}>PDF / file</Text>
+                    <Text style={styles.pickerBtnText}>{t('projectDocuments.pickFileLabel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity testID="projectDocuments.pickPhotoButton" accessibilityLabel="Pick photo" style={styles.pickerBtn} onPress={onPickPhoto} activeOpacity={0.7}>
                     <Ionicons name="images-outline" size={26} color={Colors.primaryText} />
-                    <Text style={styles.pickerBtnText}>Photo</Text>
+                    <Text style={styles.pickerBtnText}>{t('projectDocuments.pickPhotoLabel')}</Text>
                   </TouchableOpacity>
                 </View>
               )}
 
               {/* Title */}
-              <Text style={styles.fieldLabel}>Title</Text>
+              <Text style={styles.fieldLabel}>{t('projectDocuments.titleLabel')}</Text>
               <TextInput
                 testID="projectDocuments.titleInput"
                 accessibilityLabel="Document title"
                 style={styles.input}
                 value={docTitle}
                 onChangeText={setDocTitle}
-                placeholder="e.g. Plans Rev 3"
+                placeholder={t('projectDocuments.titlePlaceholder')}
                 placeholderTextColor={Colors.placeholder || '#9CA3AF'}
               />
 
               {/* Category */}
-              <Text style={styles.fieldLabel}>Type</Text>
+              <Text style={styles.fieldLabel}>{t('projectDocuments.typeLabel')}</Text>
               <View style={styles.catGrid}>
                 {FILTERS.filter((f) => f.key !== 'all').map((c) => {
                   const isActive = docCategory === c.key;
@@ -484,25 +486,25 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
                       activeOpacity={0.7}
                     >
                       <Ionicons name={c.icon} size={14} color={isActive ? '#fff' : Colors.primaryText} />
-                      <Text style={[styles.catChipText, isActive && { color: '#fff', fontWeight: '700' }]}>{c.label}</Text>
+                      <Text style={[styles.catChipText, isActive && { color: '#fff', fontWeight: '700' }]}>{t(`projectDocuments.filters.${c.key}`)}</Text>
                     </TouchableOpacity>
                   );
                 })}
               </View>
 
               {/* Visibility */}
-              <Text style={styles.fieldLabel}>Who can see this</Text>
-              <Text style={styles.fieldHint}>Owner and supervisors always see all documents.</Text>
-              <CheckRow testID="projectDocuments.visSubsCheck" label="Subcontractors" sub="Subs with active engagements on this project" value={visSubs} onChange={setVisSubs} color="#8B5CF6" Colors={Colors} styles={styles} />
-              <CheckRow testID="projectDocuments.visWorkersCheck" label="Workers"        sub="Workers assigned to this project"               value={visWorkers} onChange={setVisWorkers} color="#10B981" Colors={Colors} styles={styles} />
-              <CheckRow testID="projectDocuments.visClientsCheck" label="Client"         sub="Visible in the client portal"                   value={visClients} onChange={setVisClients} color="#1E40AF" Colors={Colors} styles={styles} />
+              <Text style={styles.fieldLabel}>{t('projectDocuments.visibilityLabel')}</Text>
+              <Text style={styles.fieldHint}>{t('projectDocuments.visibilityHint')}</Text>
+              <CheckRow testID="projectDocuments.visSubsCheck" label={t('projectDocuments.visSubsLabel')} sub={t('projectDocuments.visSubsSub')} value={visSubs} onChange={setVisSubs} color="#8B5CF6" Colors={Colors} styles={styles} />
+              <CheckRow testID="projectDocuments.visWorkersCheck" label={t('projectDocuments.visWorkersLabel')}        sub={t('projectDocuments.visWorkersSub')}               value={visWorkers} onChange={setVisWorkers} color="#10B981" Colors={Colors} styles={styles} />
+              <CheckRow testID="projectDocuments.visClientsCheck" label={t('projectDocuments.visClientsLabel')}         sub={t('projectDocuments.visClientsSub')}                   value={visClients} onChange={setVisClients} color="#1E40AF" Colors={Colors} styles={styles} />
 
               {/* Important */}
               <View style={{ marginTop: 14 }}>
                 <CheckRow
                   testID="projectDocuments.importantCheck"
-                  label="Mark as important"
-                  sub="Surfaces with a star badge in everyone's list"
+                  label={t('projectDocuments.importantLabel')}
+                  sub={t('projectDocuments.importantSub')}
                   value={isImportant}
                   onChange={setIsImportant}
                   color="#F59E0B"
@@ -525,7 +527,7 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
                 ) : (
                   <>
                     <Ionicons name="cloud-upload" size={18} color="#fff" />
-                    <Text style={styles.submitBtnText}>Upload</Text>
+                    <Text style={styles.submitBtnText}>{t('projectDocuments.upload')}</Text>
                   </>
                 )}
               </TouchableOpacity>

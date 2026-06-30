@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Line } from 'react-native-svg';
+import { useTranslation } from 'react-i18next';
 
 const STAGES = [
   { key: 'draft',    label: 'Draft',   color: '#C4B5FD', source: 'estimates' },
@@ -13,6 +14,7 @@ const STAGES = [
 ];
 
 export default function PipelineWidget({ pipeline, size, editMode, onEstimatesPress, onInvoicesPress }) {
+  const { t } = useTranslation('common');
   const estimates = pipeline?.estimates || {};
   const invoices = pipeline?.invoices || {};
 
@@ -28,7 +30,7 @@ export default function PipelineWidget({ pipeline, size, editMode, onEstimatesPr
           end={{ x: 1, y: 1 }}
           style={styles.gradientLarge}
         >
-          <Text style={styles.title}>Pipeline</Text>
+          <Text style={styles.title}>{t('pipelineWidget.title')}</Text>
 
           <TouchableOpacity
             style={styles.section}
@@ -36,7 +38,7 @@ export default function PipelineWidget({ pipeline, size, editMode, onEstimatesPr
             activeOpacity={editMode ? 1 : 0.7}
             disabled={editMode}
           >
-            <Text style={styles.sectionLabel}>ESTIMATES</Text>
+            <Text style={styles.sectionLabel}>{t('pipelineWidget.estimatesLabel')}</Text>
             <View style={styles.stagesRow}>
               {STAGES.filter(s => s.source === 'estimates').map((stage, i, arr) => (
                 <React.Fragment key={stage.key}>
@@ -64,7 +66,7 @@ export default function PipelineWidget({ pipeline, size, editMode, onEstimatesPr
             activeOpacity={editMode ? 1 : 0.7}
             disabled={editMode}
           >
-            <Text style={styles.sectionLabel}>INVOICES</Text>
+            <Text style={styles.sectionLabel}>{t('pipelineWidget.invoicesLabel')}</Text>
             <View style={styles.stagesRow}>
               {STAGES.filter(s => s.source === 'invoices').map((stage, i, arr) => (
                 <React.Fragment key={stage.key}>
@@ -106,7 +108,7 @@ export default function PipelineWidget({ pipeline, size, editMode, onEstimatesPr
         end={{ x: 1, y: 0 }}
         style={styles.gradientMedium}
       >
-        <Text style={styles.titleMedium}>Pipeline</Text>
+        <Text style={styles.titleMedium}>{t('pipelineWidget.title')}</Text>
         <View style={styles.compactRow}>
           {allStages.map((stage, i) => (
             <React.Fragment key={stage.key}>

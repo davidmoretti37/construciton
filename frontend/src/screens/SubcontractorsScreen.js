@@ -11,12 +11,14 @@ import {
   ActivityIndicator, SafeAreaView, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
 import { LightColors, DarkColors } from '../constants/theme';
 import * as api from '../services/subsService';
 import TeamFilterAndSearch from '../components/TeamFilterAndSearch';
 
 export default function SubcontractorsScreen({ navigation }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = isDark ? DarkColors : LightColors;
   const styles = makeStyles(Colors);
@@ -33,7 +35,7 @@ export default function SubcontractorsScreen({ navigation }) {
       setSubs(list);
     } catch (e) {
       console.warn('[SubcontractorsScreen] load:', e.message);
-      Alert.alert('Could not load subs', e.message);
+      Alert.alert(t('subcontractors.loadError'), e.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -80,13 +82,13 @@ export default function SubcontractorsScreen({ navigation }) {
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: Colors.background }]}>
       <View style={styles.headerRow}>
-        <Text style={styles.heading}>Team</Text>
+        <Text style={styles.heading}>{t('subcontractors.title')}</Text>
         <TouchableOpacity
           style={[styles.addBtn, { backgroundColor: Colors.primaryBlue }]}
           onPress={() => navigation.navigate('AddSubcontractor')}
         >
           <Ionicons name="add" size={20} color="#fff" />
-          <Text style={styles.addBtnText}>Add sub</Text>
+          <Text style={styles.addBtnText}>{t('subcontractors.addSub')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -115,8 +117,8 @@ export default function SubcontractorsScreen({ navigation }) {
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="people-outline" size={48} color={Colors.secondaryText} />
-              <Text style={styles.emptyText}>No subcontractors yet.</Text>
-              <Text style={styles.emptySub}>Tap "Add sub" to invite your first one.</Text>
+              <Text style={styles.emptyText}>{t('subcontractors.emptyTitle')}</Text>
+              <Text style={styles.emptySub}>{t('subcontractors.emptySub')}</Text>
             </View>
           }
           refreshControl={

@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchMessages, sendMessage } from '../../services/clientPortalApi';
 
@@ -26,6 +27,7 @@ const C = {
 };
 
 export default function ClientMessagesScreen({ route, navigation }) {
+  const { t } = useTranslation('common');
   const { projectId, projectName } = route.params || {};
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -96,7 +98,7 @@ export default function ClientMessagesScreen({ route, navigation }) {
       console.error('Message send error:', e);
       setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
       setText(content);
-      Alert.alert('Failed to send', 'Your message could not be sent. Please try again.');
+      Alert.alert(t('clientMessages.sendErrorTitle'), t('clientMessages.sendErrorBody'));
     } finally {
       sendingRef.current = false;
       setSending(false);
@@ -154,7 +156,7 @@ export default function ClientMessagesScreen({ route, navigation }) {
             <Ionicons name="chevron-back" size={26} color={C.text} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle} numberOfLines={1}>Messages</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>{t('clientMessages.title')}</Text>
             {projectName && <Text style={styles.headerSubtitle} numberOfLines={1}>{projectName}</Text>}
           </View>
           <View style={{ width: 26 }} />
@@ -167,14 +169,14 @@ export default function ClientMessagesScreen({ route, navigation }) {
         ) : error ? (
           <View style={styles.emptyState}>
             <Ionicons name="cloud-offline-outline" size={44} color={C.textMuted} />
-            <Text style={styles.emptyText}>Couldn't load messages</Text>
-            <Text style={styles.emptySubtext}>Check your connection and try again</Text>
+            <Text style={styles.emptyText}>{t('clientMessages.errorLoading')}</Text>
+            <Text style={styles.emptySubtext}>{t('clientMessages.errorSubtext')}</Text>
             <TouchableOpacity
               style={styles.retryBtn}
               onPress={() => { setLoading(true); loadMessages(); }}
               activeOpacity={0.7}
             >
-              <Text style={styles.retryBtnText}>Retry</Text>
+              <Text style={styles.retryBtnText}>{t('common:buttons.retry')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -188,8 +190,8 @@ export default function ClientMessagesScreen({ route, navigation }) {
             ListEmptyComponent={
               <View style={styles.emptyState}>
                 <Ionicons name="chatbubbles-outline" size={44} color={C.textMuted} />
-                <Text style={styles.emptyText}>No messages yet</Text>
-                <Text style={styles.emptySubtext}>Send a message to your contractor</Text>
+                <Text style={styles.emptyText}>{t('clientMessages.emptyTitle')}</Text>
+                <Text style={styles.emptySubtext}>{t('clientMessages.emptySubtext')}</Text>
               </View>
             }
           />
@@ -200,7 +202,7 @@ export default function ClientMessagesScreen({ route, navigation }) {
           <View style={styles.inputWrapper}>
             <TextInput
               style={styles.input}
-              placeholder="Type a message..."
+              placeholder={t('clientMessages.inputPlaceholder')}
               placeholderTextColor={C.textMuted}
               value={text}
               onChangeText={setText}

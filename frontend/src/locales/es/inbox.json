@@ -33,5 +33,8 @@
     "success": "Tu número está activo: {{phone}}",
     "failed": "No se pudo aprovisionar: {{error}}",
     "current_number": "Tu número: {{phone}}"
+  },
+  "inbox": {
+    "refresh": "Actualizar"
   }
 }

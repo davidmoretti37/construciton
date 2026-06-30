@@ -142,24 +142,24 @@ export default function EstimatesDetailScreen({ navigation, route }) {
 
   const handleConvertToProject = (estimate) => {
     Alert.alert(
-      'Convert to Project?',
-      `This will create a new project from "${estimate.client_name || estimate.project_name}" and mark the estimate as accepted.`,
+      tCommon('estimatesDetail.convertToProjectTitle'),
+      tCommon('estimatesDetail.convertToProjectBody', { name: estimate.client_name || estimate.project_name }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: tCommon('buttons.cancel'), style: 'cancel' },
         {
-          text: 'Convert',
+          text: tCommon('estimatesDetail.convert'),
           onPress: async () => {
             try {
               const project = await createProjectFromEstimate(estimate.id);
               if (project) {
-                Alert.alert('Success', `Project "${project.name}" created successfully.`);
+                Alert.alert(tCommon('alerts.success'), tCommon('estimatesDetail.projectCreatedSuccess', { name: project.name }));
                 await loadEstimates();
               } else {
-                Alert.alert('Error', 'Failed to create project from estimate.');
+                Alert.alert(tCommon('alerts.error'), tCommon('estimatesDetail.failedToCreateProject'));
               }
             } catch (e) {
               console.error('Error converting estimate:', e);
-              Alert.alert('Error', 'Failed to convert estimate to project.');
+              Alert.alert(tCommon('alerts.error'), tCommon('estimatesDetail.failedToConvertEstimate'));
             }
           },
         },
@@ -251,7 +251,7 @@ export default function EstimatesDetailScreen({ navigation, route }) {
               testID="estimatesDetail.searchInput"
               accessibilityLabel="Search estimates"
               style={[styles.searchInput, { color: Colors.primaryText }]}
-              placeholder="Search estimates..."
+              placeholder={tCommon('estimatesDetail.searchPlaceholder')}
               placeholderTextColor={Colors.secondaryText}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -326,10 +326,10 @@ export default function EstimatesDetailScreen({ navigation, route }) {
                 <View style={styles.cardHeader}>
                   <View style={styles.cardHeaderLeft}>
                     <Text testID={`estimatesDetail.row.${estimate.id}.clientName`} style={[styles.clientName, { color: Colors.primaryText }]}>
-                      {estimate.client_name || estimate.clientName || 'No client'}
+                      {estimate.client_name || estimate.clientName || tCommon('estimatesDetail.noClient')}
                     </Text>
                     <Text style={[styles.projectName, { color: Colors.secondaryText }]}>
-                      {estimate.project_name || estimate.projectName || 'No project name'}
+                      {estimate.project_name || estimate.projectName || tCommon('estimatesDetail.noProjectName')}
                     </Text>
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -376,7 +376,7 @@ export default function EstimatesDetailScreen({ navigation, route }) {
                     onPress={(e) => { e.stopPropagation(); handleConvertToProject(estimate); }}
                   >
                     <Ionicons name="arrow-forward-circle-outline" size={16} color="#3B82F6" />
-                    <Text style={{ fontSize: 13, color: '#3B82F6', fontWeight: '600' }}>Convert to Project</Text>
+                    <Text style={{ fontSize: 13, color: '#3B82F6', fontWeight: '600' }}>{tCommon('estimatesDetail.convertToProject')}</Text>
                   </TouchableOpacity>
                 )}
               </TouchableOpacity>
@@ -449,13 +449,13 @@ export default function EstimatesDetailScreen({ navigation, route }) {
             )}
             {signature && (
               <View style={{ marginHorizontal: 16, marginTop: 16, marginBottom: 8, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.white }}>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: Colors.secondaryText, letterSpacing: 0.5, marginBottom: 12 }}>SIGNATURE</Text>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: Colors.secondaryText, letterSpacing: 0.5, marginBottom: 12 }}>{tCommon('estimatesDetail.signatureLabel')}</Text>
                 {signature.signaturePngUrl && (
                   <Image source={{ uri: signature.signaturePngUrl }} style={{ width: '100%', height: 140, marginBottom: 12 }} resizeMode="contain" />
                 )}
                 <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.primaryText }}>{signature.signerName}</Text>
                 <Text style={{ fontSize: 12, color: Colors.secondaryText, marginTop: 4 }}>
-                  Signed {signature.signedAt ? new Date(signature.signedAt).toLocaleString() : ''}
+                  {tCommon('estimatesDetail.signedAt', { date: signature.signedAt ? new Date(signature.signedAt).toLocaleString() : '' })}
                 </Text>
                 {signature.signedPdfUrl && (
                   <TouchableOpacity
@@ -464,7 +464,7 @@ export default function EstimatesDetailScreen({ navigation, route }) {
                     style={{ marginTop: 12, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: Colors.primaryBlue, alignSelf: 'flex-start' }}
                     onPress={() => navigation.navigate('DocumentViewer', { url: signature.signedPdfUrl, title: 'Signed Estimate' })}
                   >
-                    <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>View signed PDF</Text>
+                    <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>{tCommon('estimatesDetail.viewSignedPdf')}</Text>
                   </TouchableOpacity>
                 )}
               </View>

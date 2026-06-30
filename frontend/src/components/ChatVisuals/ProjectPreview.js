@@ -360,11 +360,11 @@ export default function ProjectPreview({ data, onAction }) {
 
     if (hasTasks) {
       Alert.alert(
-        'Delete Section',
-        `"${phase.name || 'Untitled'}" has ${phase.tasks.length} tasks. Delete anyway?`,
+        t('chat:projectPreview.deleteSection'),
+        t('chat:projectPreview.deleteSectionConfirm', { name: phase.name || t('chat:projectPreview.untitled'), count: phase.tasks.length }),
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Delete', style: 'destructive', onPress: doRemove },
+          { text: t('actions.cancel'), style: 'cancel' },
+          { text: t('buttons.delete'), style: 'destructive', onPress: doRemove },
         ]
       );
     } else {
@@ -753,9 +753,10 @@ export default function ProjectPreview({ data, onAction }) {
                 onPress={() => {
                   const sample = ownerPatternsApplied.sampleCount || 0;
                   const type = (ownerPatternsApplied.type || 'project').replace(/_/g, ' ');
+                  const typeLabel = `${type}${sample === 1 ? '' : 's'}`;
                   Alert.alert(
-                    ownerPatternsApplied.confidence === 'high' ? 'Learned' : 'Suggested',
-                    `Based on your last ${sample} ${type}${sample === 1 ? '' : 's'}.`
+                    ownerPatternsApplied.confidence === 'high' ? t('chat:projectPreview.learned') : t('chat:projectPreview.suggested'),
+                    t('chat:projectPreview.basedOnLast', { count: sample, type: typeLabel })
                   );
                 }}
                 style={{
@@ -776,7 +777,7 @@ export default function ProjectPreview({ data, onAction }) {
                   color="#10B981"
                 />
                 <Text style={{ fontSize: 11, fontWeight: '700', color: '#10B981' }}>
-                  {ownerPatternsApplied.confidence === 'high' ? 'Learned' : 'Suggested'}
+                  {ownerPatternsApplied.confidence === 'high' ? t('chat:projectPreview.learned') : t('chat:projectPreview.suggested')}
                 </Text>
               </TouchableOpacity>
             )}
@@ -840,13 +841,13 @@ export default function ProjectPreview({ data, onAction }) {
         )}
         {location && (
           <View style={styles.infoRow}>
-            <Text style={[styles.label, { color: Colors.secondaryText }]}>Location:</Text>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('chat:projectPreview.location')}:</Text>
             {isEditing ? (
               <TextInput
                 style={[styles.editInput, styles.value, { color: Colors.primaryText, borderColor: Colors.border, flex: 1 }]}
                 value={location}
                 onChangeText={(value) => setEditedData(prev => ({ ...prev, location: value }))}
-                placeholder="Address"
+                placeholder={t('chat:projectPreview.addressPlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
               />
             ) : (
@@ -856,7 +857,7 @@ export default function ProjectPreview({ data, onAction }) {
         )}
         {contractAmount > 0 && (
           <View style={styles.infoRow}>
-            <Text style={[styles.label, { color: Colors.secondaryText }]}>Contract:</Text>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('chat:projectPreview.contract')}:</Text>
             {isEditing ? (
               <TextInput
                 style={[styles.editInput, styles.value, { color: '#16A34A', fontWeight: '700', borderColor: Colors.border }]}
@@ -959,7 +960,7 @@ export default function ProjectPreview({ data, onAction }) {
                       style={[styles.editInput, styles.phaseName, { color: Colors.primaryText, borderColor: Colors.border, flex: 1 }]}
                       value={phase.name}
                       onChangeText={(value) => handleRenameSection(phaseIndex, value)}
-                      placeholder="Section name"
+                      placeholder={t('chat:projectPreview.sectionNamePlaceholder')}
                       placeholderTextColor={Colors.secondaryText}
                     />
                   ) : (
@@ -1050,19 +1051,19 @@ export default function ProjectPreview({ data, onAction }) {
                                     style={[styles.editInput, styles.taskText, { color: Colors.primaryText, borderColor: Colors.border }]}
                                     value={task.description}
                                     onChangeText={(value) => handleUpdateTask(phaseIndex, taskIndex, value)}
-                                    placeholder="Task description"
+                                    placeholder={t('chat:projectPreview.taskDescriptionPlaceholder')}
                                     placeholderTextColor={Colors.secondaryText}
                                     multiline
                                   />
                                   {otherPhases.length > 0 && (
                                     <TouchableOpacity
                                       onPress={() => {
-                                        Alert.alert('Move Task', `Move to:`, [
+                                        Alert.alert(t('chat:projectPreview.moveTask'), t('chat:projectPreview.moveToPrompt'), [
                                           ...otherPhases.map(p => ({
-                                            text: p.name || 'Untitled',
+                                            text: p.name || t('chat:projectPreview.untitled'),
                                             onPress: () => handleMoveTaskBetweenSections(phaseIndex, taskIndex, phases.indexOf(p)),
                                           })),
-                                          { text: 'Cancel', style: 'cancel' },
+                                          { text: t('actions.cancel'), style: 'cancel' },
                                         ]);
                                       }}
                                       style={{ paddingHorizontal: 4 }}
@@ -1087,7 +1088,7 @@ export default function ProjectPreview({ data, onAction }) {
                         ))
                       )
                     ) : (
-                      <Text style={{ color: Colors.secondaryText, fontStyle: 'italic', fontSize: 13 }}>No tasks yet</Text>
+                      <Text style={{ color: Colors.secondaryText, fontStyle: 'italic', fontSize: 13 }}>{t('chat:projectPreview.noTasksYet')}</Text>
                     )}
                   </View>
 
@@ -1113,7 +1114,7 @@ export default function ProjectPreview({ data, onAction }) {
               style={[styles.addSectionButton, { borderColor: Colors.primaryBlue }]}
             >
               <Ionicons name="add-circle-outline" size={18} color={Colors.primaryBlue} />
-              <Text style={{ color: Colors.primaryBlue, fontWeight: '600', fontSize: 14 }}>Add Section</Text>
+              <Text style={{ color: Colors.primaryBlue, fontWeight: '600', fontSize: 14 }}>{t('chat:projectPreview.addSection')}</Text>
             </TouchableOpacity>
           )}
 
@@ -1181,7 +1182,7 @@ export default function ProjectPreview({ data, onAction }) {
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Ionicons name="checkbox-outline" size={18} color="#8B5CF6" />
-              <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginBottom: 0 }]}>Daily Checklist</Text>
+              <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginBottom: 0 }]}>{t('chat:projectPreview.dailyChecklist')}</Text>
             </View>
             {isEditing && (
               <TouchableOpacity
@@ -1189,7 +1190,7 @@ export default function ProjectPreview({ data, onAction }) {
                 style={[styles.addTaskButton, { backgroundColor: '#8B5CF615', borderColor: '#8B5CF6' }]}
               >
                 <Ionicons name="add" size={14} color="#8B5CF6" />
-                <Text style={[styles.addTaskText, { color: '#8B5CF6' }]}>Add</Text>
+                <Text style={[styles.addTaskText, { color: '#8B5CF6' }]}>{t('buttons.add')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -1214,7 +1215,7 @@ export default function ProjectPreview({ data, onAction }) {
                       style={[styles.editInput, { color: Colors.primaryText, borderColor: Colors.border, flex: 1 }]}
                       value={itemTitle}
                       onChangeText={(v) => handleUpdateChecklistItem(index, 'title', v)}
-                      placeholder="Item name"
+                      placeholder={t('chat:projectPreview.itemNamePlaceholder')}
                       placeholderTextColor={Colors.secondaryText}
                     />
                     {itemType === 'quantity' && (
@@ -1222,7 +1223,7 @@ export default function ProjectPreview({ data, onAction }) {
                         style={[styles.editInput, { color: Colors.primaryText, borderColor: Colors.border, width: 55, textAlign: 'center' }]}
                         value={quantityUnit}
                         onChangeText={(v) => handleUpdateChecklistItem(index, 'quantity_unit', v)}
-                        placeholder="unit"
+                        placeholder={t('chat:projectPreview.unitPlaceholder')}
                         placeholderTextColor={Colors.secondaryText}
                       />
                     )}
@@ -1256,7 +1257,7 @@ export default function ProjectPreview({ data, onAction }) {
             );
           })}
           {checklistItems.length === 0 && isEditing && (
-            <Text style={{ color: Colors.secondaryText, fontStyle: 'italic', fontSize: 13 }}>No checklist items yet</Text>
+            <Text style={{ color: Colors.secondaryText, fontStyle: 'italic', fontSize: 13 }}>{t('chat:projectPreview.noChecklistItems')}</Text>
           )}
         </View>
       ) : null}
@@ -1267,7 +1268,7 @@ export default function ProjectPreview({ data, onAction }) {
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Ionicons name="people-outline" size={18} color="#10B981" />
-              <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginBottom: 0 }]}>Crew Roles</Text>
+              <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginBottom: 0 }]}>{t('chat:projectPreview.crewRoles')}</Text>
             </View>
             {isEditing && (
               <TouchableOpacity
@@ -1275,7 +1276,7 @@ export default function ProjectPreview({ data, onAction }) {
                 style={[styles.addTaskButton, { backgroundColor: '#10B98115', borderColor: '#10B981' }]}
               >
                 <Ionicons name="add" size={14} color="#10B981" />
-                <Text style={[styles.addTaskText, { color: '#10B981' }]}>Add</Text>
+                <Text style={[styles.addTaskText, { color: '#10B981' }]}>{t('buttons.add')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -1292,7 +1293,7 @@ export default function ProjectPreview({ data, onAction }) {
                       style={[styles.editInput, { color: Colors.primaryText, borderColor: Colors.border, flex: 1 }]}
                       value={roleName}
                       onChangeText={(v) => handleUpdateLaborRole(index, 'role_name', v)}
-                      placeholder="Role name"
+                      placeholder={t('chat:projectPreview.roleNamePlaceholder')}
                       placeholderTextColor={Colors.secondaryText}
                     />
                     <Text style={{ color: Colors.secondaryText, fontSize: 12 }}>x</Text>
@@ -1320,7 +1321,7 @@ export default function ProjectPreview({ data, onAction }) {
             );
           })}
           {laborRoles.length === 0 && isEditing && (
-            <Text style={{ color: Colors.secondaryText, fontStyle: 'italic', fontSize: 13 }}>No crew roles yet</Text>
+            <Text style={{ color: Colors.secondaryText, fontStyle: 'italic', fontSize: 13 }}>{t('chat:projectPreview.noCrewRoles')}</Text>
           )}
         </View>
       ) : null}
@@ -1369,7 +1370,7 @@ export default function ProjectPreview({ data, onAction }) {
         ) : (
           <View style={{ flexDirection: 'column', gap: 8, width: '100%' }}>
             <Text style={{ fontSize: 11, color: '#94A3B8', textAlign: 'center' }}>
-              70% pre-filled — tap Configure to add budgets, supervisor, checklist
+              {t('chat:projectPreview.preFilledHint')}
             </Text>
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <TouchableOpacity
@@ -1410,7 +1411,7 @@ export default function ProjectPreview({ data, onAction }) {
                 ) : (
                   <Ionicons name="flash-outline" size={16} color="#0F172A" />
                 )}
-                <Text style={{ fontWeight: '600', color: '#0F172A' }}>{isSaving ? t('actions.saving') : 'Save Now'}</Text>
+                <Text style={{ fontWeight: '600', color: '#0F172A' }}>{isSaving ? t('actions.saving') : t('chat:projectPreview.saveNow')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
@@ -1434,7 +1435,7 @@ export default function ProjectPreview({ data, onAction }) {
                 }}
               >
                 <Ionicons name="options-outline" size={16} color="#FFFFFF" />
-                <Text style={{ fontWeight: '600', color: '#FFFFFF' }}>Configure Details</Text>
+                <Text style={{ fontWeight: '600', color: '#FFFFFF' }}>{t('chat:projectPreview.configureDetails')}</Text>
               </TouchableOpacity>
             </View>
           </View>

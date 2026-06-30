@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   View,
   Text,
@@ -67,6 +68,7 @@ function relativeTime(iso) {
 }
 
 export default function IntegrationsScreen({ navigation }) {
+  const { t } = useTranslation('owner');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const styles = makeStyles(Colors, isDark);
@@ -153,7 +155,7 @@ export default function IntegrationsScreen({ navigation }) {
       }
       throw new Error('Unexpected connect response');
     } catch (e) {
-      Alert.alert('Connect failed', e.message);
+      Alert.alert(t('integrations.connectFailedTitle'), e.message);
     } finally {
       setBusyType(null);
     }
@@ -161,12 +163,12 @@ export default function IntegrationsScreen({ navigation }) {
 
   const handleDisconnect = (integration) => {
     Alert.alert(
-      `Disconnect ${integration.name}?`,
-      'Sylk will lose access to this integration. You can reconnect anytime.',
+      t('integrations.disconnectConfirmTitle', { name: integration.name }),
+      t('integrations.disconnectConfirmBody'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
         {
-          text: 'Disconnect',
+          text: t('integrations.disconnect'),
           style: 'destructive',
           onPress: async () => {
             setBusyType(integration.type);
@@ -179,7 +181,7 @@ export default function IntegrationsScreen({ navigation }) {
               });
               await load();
             } catch (e) {
-              Alert.alert('Disconnect failed', e.message);
+              Alert.alert(t('integrations.disconnectFailedTitle'), e.message);
             } finally {
               setBusyType(null);
             }
@@ -196,7 +198,7 @@ export default function IntegrationsScreen({ navigation }) {
           <TouchableOpacity testID="integrations.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={26} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text testID="integrations.title" style={styles.headerTitle}>Integrations</Text>
+          <Text testID="integrations.title" style={styles.headerTitle}>{t('integrations.title')}</Text>
         </View>
         <ActivityIndicator size="large" color={Colors.primaryBlue} style={{ marginTop: 60 }} />
       </SafeAreaView>
@@ -209,11 +211,11 @@ export default function IntegrationsScreen({ navigation }) {
         <TouchableOpacity testID="integrations.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={26} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text testID="integrations.title" style={styles.headerTitle}>Integrations</Text>
+        <Text testID="integrations.title" style={styles.headerTitle}>{t('integrations.title')}</Text>
       </View>
 
       <Text style={styles.intro}>
-        Connect external tools so Foreman can read your data across systems.
+        {t('integrations.intro')}
       </Text>
 
       <ScrollView
@@ -237,8 +239,11 @@ export default function IntegrationsScreen({ navigation }) {
             <View testID="integrations.warnBanner" style={styles.warnBanner}>
               <Ionicons name="warning" size={18} color="#92400E" />
               <Text testID="integrations.warnBannerText" style={styles.warnBannerText}>
-                {broken.length} integration{broken.length === 1 ? '' : 's'} need attention.
-                Tap <Text style={{ fontWeight: '700' }}>Reconnect</Text> below to restore access.
+                {broken.length === 1
+                  ? t('integrations.warnBanner_singular')
+                  : t('integrations.warnBanner_plural', { count: broken.length })}{' '}
+                <Text style={{ fontWeight: '700' }}>{t('integrations.reconnect')}</Text>
+                {' '}{t('integrations.warnBannerSuffix')}
               </Text>
             </View>
           );
@@ -281,16 +286,16 @@ export default function IntegrationsScreen({ navigation }) {
                   <Text testID={`integrations.name.${intg.type}`} style={styles.cardTitle}>{intg.name}</Text>
                   <Text style={styles.cardDescription} numberOfLines={3}>{intg.description}</Text>
                   {intg.coming_soon && (
-                    <Text testID={`integrations.comingSoon.${intg.type}`} style={styles.comingSoon}>Coming soon</Text>
+                    <Text testID={`integrations.comingSoon.${intg.type}`} style={styles.comingSoon}>{t('integrations.comingSoon')}</Text>
                   )}
                   {isConnected && (
                     <View>
                       <Text testID={`integrations.statusConnected.${intg.type}`} style={styles.statusOk}>
-                        ✓ Connected{intg.connection.connected_at ? ` · ${relativeTime(intg.connection.connected_at)}` : ''}
+                        {t('integrations.statusConnected')}{intg.connection.connected_at ? ` · ${relativeTime(intg.connection.connected_at)}` : ''}
                       </Text>
                       {lastSynced && (
                         <Text style={styles.statusSynced}>
-                          Last synced {relativeTime(lastSynced)}
+                          {t('integrations.lastSynced', { time: relativeTime(lastSynced) })}
                         </Text>
                       )}
                     </View>
@@ -298,20 +303,20 @@ export default function IntegrationsScreen({ navigation }) {
                   {isExpired && (
                     <View>
                       <Text testID={`integrations.statusExpired.${intg.type}`} style={styles.statusWarn}>
-                        ⚠ Session expired
+                        {t('integrations.statusExpired')}
                       </Text>
                       <Text style={styles.statusErrorDetail} numberOfLines={2}>
-                        {lastError || 'Token expired or refresh failed. Reconnect to restore access.'}
+                        {lastError || t('integrations.tokenExpiredError')}
                       </Text>
                     </View>
                   )}
                   {isError && (
                     <View>
                       <Text testID={`integrations.statusError.${intg.type}`} style={styles.statusError}>
-                        ⚠ Connection error
+                        {t('integrations.statusError')}
                       </Text>
                       <Text style={styles.statusErrorDetail} numberOfLines={3}>
-                        {lastError || 'Something went wrong. Try reconnecting.'}
+                        {lastError || t('integrations.connectionError')}
                       </Text>
                     </View>
                   )}
@@ -322,15 +327,15 @@ export default function IntegrationsScreen({ navigation }) {
                       <ActivityIndicator size="small" color={Colors.primaryBlue} />
                     ) : needsReconnect ? (
                       <TouchableOpacity testID={`integrations.reconnectButton.${intg.type}`} accessibilityLabel={`Reconnect ${intg.name}`} onPress={() => handleConnect(intg)} style={styles.btnReconnect}>
-                        <Text style={styles.btnReconnectText}>Reconnect</Text>
+                        <Text style={styles.btnReconnectText}>{t('integrations.reconnect')}</Text>
                       </TouchableOpacity>
                     ) : isConnected ? (
                       <TouchableOpacity testID={`integrations.disconnectButton.${intg.type}`} accessibilityLabel={`Disconnect ${intg.name}`} onPress={() => handleDisconnect(intg)} style={styles.btnGhost}>
-                        <Text style={styles.btnGhostText}>Disconnect</Text>
+                        <Text style={styles.btnGhostText}>{t('integrations.disconnect')}</Text>
                       </TouchableOpacity>
                     ) : (
                       <TouchableOpacity testID={`integrations.connectButton.${intg.type}`} accessibilityLabel={`Connect ${intg.name}`} onPress={() => handleConnect(intg)} style={styles.btnPrimary}>
-                        <Text style={styles.btnPrimaryText}>Connect</Text>
+                        <Text style={styles.btnPrimaryText}>{t('integrations.connect')}</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -341,7 +346,7 @@ export default function IntegrationsScreen({ navigation }) {
         })}
 
         <Text style={styles.footnote}>
-          Tokens are encrypted at rest and scoped to your account. Disconnect anytime — Sylk keeps no copies after that.
+          {t('integrations.footnote')}
         </Text>
       </ScrollView>
     </SafeAreaView>

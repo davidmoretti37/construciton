@@ -19,7 +19,7 @@ import { getUserProfile, saveUserProfile, markFeatureUpdateComplete } from '../.
 export default function PhaseTemplateSetupScreen({ navigation, route, onComplete, isUpdate = false }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
-  const { t } = useTranslation('common');
+  const { t } = useTranslation('onboarding');
 
   const selectedServices = route?.params?.selectedServices || [];
 
@@ -115,7 +115,7 @@ export default function PhaseTemplateSetupScreen({ navigation, route, onComplete
 
   const removePhase = (id) => {
     if (phases.length === 1) {
-      Alert.alert(t('alerts.cannotRemove'), t('messages.atLeastOne'));
+      Alert.alert(t('phaseTemplateSetup.alertCannotRemoveTitle'), t('phaseTemplateSetup.alertAtLeastOneMessage'));
       return;
     }
     setPhases(phases.filter((p) => p.id !== id));
@@ -162,7 +162,7 @@ export default function PhaseTemplateSetupScreen({ navigation, route, onComplete
     const validPhases = phases.filter((p) => p.name.trim() !== '');
 
     if (validPhases.length === 0) {
-      Alert.alert(t('alerts.required'), t('messages.atLeastOne'));
+      Alert.alert(t('phaseTemplateSetup.alertRequiredTitle'), t('phaseTemplateSetup.alertAtLeastOneMessage'));
       return;
     }
 
@@ -187,7 +187,7 @@ export default function PhaseTemplateSetupScreen({ navigation, route, onComplete
         }
       } catch (error) {
         console.error('Error saving phases template:', error);
-        Alert.alert(t('alerts.error'), t('messages.failedToSave'));
+        Alert.alert(t('common:alerts.error'), t('phaseTemplateSetup.alertFailedToSaveMessage'));
       }
     } else {
       navigation.navigate('BusinessInfo', {
@@ -220,7 +220,7 @@ export default function PhaseTemplateSetupScreen({ navigation, route, onComplete
         <View style={[styles.loadingContainer]}>
           <ActivityIndicator size="large" color={Colors.primaryBlue} />
           <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>
-            Preparing your workflow phases...
+            {t('phaseTemplateSetup.loadingText')}
           </Text>
         </View>
       </SafeAreaView>
@@ -232,16 +232,16 @@ export default function PhaseTemplateSetupScreen({ navigation, route, onComplete
       {/* Header */}
       <View style={[styles.header, { backgroundColor: Colors.background }]}>
         <Text style={[styles.title, { color: Colors.primaryText }]}>
-          {isUpdate ? '🎉 New Feature!' : 'Workflow Phases'}
+          {isUpdate ? t('phaseTemplateSetup.titleNewFeature') : t('phaseTemplateSetup.titleDefault')}
         </Text>
         <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>
           {isUpdate
-            ? 'Set up your typical workflow to create estimates faster with AI'
-            : 'Review and customize your workflow phases'}
+            ? t('phaseTemplateSetup.subtitleNewFeature')
+            : t('phaseTemplateSetup.subtitleDefault')}
         </Text>
         {selectedServices.length > 0 && (
           <Text style={[styles.helpText, { color: Colors.secondaryText }]}>
-            Based on: {selectedServices.map(s => s.name).join(', ')}
+            {t('phaseTemplateSetup.basedOn', { services: selectedServices.map(s => s.name).join(', ') })}
           </Text>
         )}
       </View>
@@ -264,7 +264,7 @@ export default function PhaseTemplateSetupScreen({ navigation, route, onComplete
                   style={[styles.phaseNameInput, { color: Colors.primaryText }]}
                   value={phase.name}
                   onChangeText={(value) => updatePhase(phase.id, 'name', value)}
-                  placeholder="Phase Name"
+                  placeholder={t('phaseTemplateSetup.phaseNamePlaceholder')}
                   placeholderTextColor={Colors.secondaryText}
                 />
               </View>
@@ -290,7 +290,7 @@ export default function PhaseTemplateSetupScreen({ navigation, route, onComplete
                   placeholderTextColor={Colors.secondaryText}
                   keyboardType="number-pad"
                 />
-                <Text style={[styles.metaLabel, { color: Colors.secondaryText }]}>days</Text>
+                <Text style={[styles.metaLabel, { color: Colors.secondaryText }]}>{t('phaseTemplateSetup.days')}</Text>
               </View>
 
               <View style={styles.metaItem}>
@@ -303,7 +303,7 @@ export default function PhaseTemplateSetupScreen({ navigation, route, onComplete
                   placeholderTextColor={Colors.secondaryText}
                   keyboardType="decimal-pad"
                 />
-                <Text style={[styles.metaLabel, { color: Colors.secondaryText }]}>% budget</Text>
+                <Text style={[styles.metaLabel, { color: Colors.secondaryText }]}>{t('phaseTemplateSetup.budgetPercent')}</Text>
               </View>
             </View>
 
@@ -311,7 +311,7 @@ export default function PhaseTemplateSetupScreen({ navigation, route, onComplete
             <View style={styles.tasksSection}>
               <View style={styles.tasksSectionHeader}>
                 <Text style={[styles.tasksLabel, { color: Colors.secondaryText }]}>
-                  Common Tasks
+                  {t('phaseTemplateSetup.commonTasks')}
                 </Text>
                 <TouchableOpacity
                   onPress={() => addTask(phase.id)}
@@ -328,7 +328,7 @@ export default function PhaseTemplateSetupScreen({ navigation, route, onComplete
                     style={[styles.taskInput, { color: Colors.primaryText }]}
                     value={task}
                     onChangeText={(value) => updateTask(phase.id, taskIndex, value)}
-                    placeholder={`Task ${taskIndex + 1}`}
+                    placeholder={t('phaseTemplateSetup.taskPlaceholder', { number: taskIndex + 1 })}
                     placeholderTextColor={Colors.secondaryText}
                   />
                   {phase.tasks.length > 1 && (
@@ -352,7 +352,7 @@ export default function PhaseTemplateSetupScreen({ navigation, route, onComplete
         >
           <Ionicons name="add-circle-outline" size={24} color={Colors.primaryBlue} />
           <Text style={[styles.addPhaseText, { color: Colors.primaryBlue }]}>
-            Add Another Phase
+            {t('phaseTemplateSetup.addAnotherPhase')}
           </Text>
         </TouchableOpacity>
 
@@ -366,7 +366,7 @@ export default function PhaseTemplateSetupScreen({ navigation, route, onComplete
           onPress={handleSkip}
         >
           <Text style={[styles.skipText, { color: Colors.secondaryText }]}>
-            Skip for Now
+            {t('phaseTemplateSetup.skipForNow')}
           </Text>
         </TouchableOpacity>
 
@@ -374,7 +374,7 @@ export default function PhaseTemplateSetupScreen({ navigation, route, onComplete
           style={[styles.continueButton, { backgroundColor: Colors.primaryBlue }]}
           onPress={handleContinue}
         >
-          <Text style={styles.continueText}>Save & Continue</Text>
+          <Text style={styles.continueText}>{t('phaseTemplateSetup.saveAndContinue')}</Text>
           <Ionicons name="checkmark" size={20} color="#fff" />
         </TouchableOpacity>
       </View>

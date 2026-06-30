@@ -75,7 +75,7 @@ const SupervisorCard = ({ supervisor, onPress, Colors, tOwner, testID }) => {
 
       <View style={styles.cardInfo}>
         <Text testID={`ownerWorkers.supervisorName.${supervisor.id}`} style={[styles.cardName, { color: Colors.primaryText }]} numberOfLines={1}>
-          {supervisor.business_name || supervisor.email?.split('@')[0] || 'Supervisor'}
+          {supervisor.business_name || supervisor.email?.split('@')[0] || tOwner('ownerWorkers.supervisorFallback')}
         </Text>
         {isClockedIn && (
           <View style={styles.clockedInRow}>
@@ -108,16 +108,17 @@ const SupervisorCard = ({ supervisor, onPress, Colors, tOwner, testID }) => {
 
 // Worker Card Horizontal (matches SupervisorCard style)
 const WorkerCardHorizontal = ({ worker, index, onPress, Colors, t }) => {
+  const { t: tOwner } = useTranslation('owner');
   const initial = worker.full_name?.charAt(0)?.toUpperCase() || 'W';
   const statusColor = worker.status === 'active' ? OWNER_COLORS.success : '#9CA3AF';
   const isClockedIn = !!worker.clocked_in_project_name;
 
   // Format payment info
   const getPaymentInfo = () => {
-    if (worker.hourly_rate) return `$${worker.hourly_rate}/hr`;
-    if (worker.daily_rate) return `$${worker.daily_rate}/day`;
-    if (worker.weekly_salary) return `$${worker.weekly_salary}/wk`;
-    if (worker.project_rate) return `$${worker.project_rate}/project`;
+    if (worker.hourly_rate) return tOwner('ownerWorkers.rateHourly', { rate: worker.hourly_rate });
+    if (worker.daily_rate) return tOwner('ownerWorkers.rateDaily', { rate: worker.daily_rate });
+    if (worker.weekly_salary) return tOwner('ownerWorkers.rateWeekly', { rate: worker.weekly_salary });
+    if (worker.project_rate) return tOwner('ownerWorkers.rateProject', { rate: worker.project_rate });
     return null;
   };
 
@@ -135,7 +136,7 @@ const WorkerCardHorizontal = ({ worker, index, onPress, Colors, t }) => {
 
       <View style={styles.cardInfo}>
         <Text testID={`ownerWorkers.workerName.${worker.id}`} style={[styles.cardName, { color: Colors.primaryText }]} numberOfLines={1}>
-          {worker.full_name || 'Worker'}
+          {worker.full_name || tOwner('ownerWorkers.workerFallback')}
         </Text>
         {worker.trade && (
           <Text style={[styles.cardSubtitle, { color: Colors.secondaryText }]} numberOfLines={1}>
@@ -155,7 +156,7 @@ const WorkerCardHorizontal = ({ worker, index, onPress, Colors, t }) => {
             <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.primaryLight}1A` }]}>
               <Ionicons name="briefcase" size={12} color={OWNER_COLORS.primaryLight} />
               <Text style={[styles.statBadgeText, { color: OWNER_COLORS.primaryLight }]}>
-                {worker.assignment_count} {worker.assignment_count === 1 ? 'job' : 'jobs'}
+                {worker.assignment_count} {worker.assignment_count === 1 ? tOwner('ownerWorkers.jobLabelOne') : tOwner('ownerWorkers.jobLabelOther')}
               </Text>
             </View>
           )}
@@ -184,7 +185,7 @@ const PendingInviteCard = ({ invite, onCancel, Colors, tOwner }) => (
 
     <View style={styles.supervisorInfo}>
       <Text style={[styles.supervisorName, { color: Colors.primaryText }]} numberOfLines={1}>
-        {invite.full_name || invite.email?.split('@')[0] || 'Pending'}
+        {invite.full_name || invite.email?.split('@')[0] || tOwner('ownerWorkers.pendingFallback')}
       </Text>
       <Text style={[styles.supervisorEmail, { color: Colors.secondaryText }]} numberOfLines={1}>
         {invite.email}
@@ -207,11 +208,13 @@ const PendingInviteCard = ({ invite, onCancel, Colors, tOwner }) => (
 );
 
 // Per-section error / retry affordance
-const SectionError = ({ onRetry, Colors }) => (
+const SectionError = ({ onRetry, Colors }) => {
+  const { t } = useTranslation('owner');
+  return (
   <View style={styles.errorSection}>
     <Ionicons name="cloud-offline-outline" size={22} color={OWNER_COLORS.error} />
     <Text style={[styles.errorSectionText, { color: Colors.secondaryText }]}>
-      Couldn't load. Check your connection.
+      {t('ownerWorkers.loadError')}
     </Text>
     <TouchableOpacity
       testID="ownerWorkers.retryButton"
@@ -221,10 +224,11 @@ const SectionError = ({ onRetry, Colors }) => (
       activeOpacity={0.7}
     >
       <Ionicons name="refresh" size={16} color={OWNER_COLORS.primary} />
-      <Text style={[styles.retryButtonText, { color: OWNER_COLORS.primary }]}>Retry</Text>
+      <Text style={[styles.retryButtonText, { color: OWNER_COLORS.primary }]}>{t('common:buttons.retry')}</Text>
     </TouchableOpacity>
   </View>
-);
+  );
+};
 
 export default function OwnerWorkersScreen() {
   const { isDark = false } = useTheme() || {};
@@ -370,7 +374,7 @@ export default function OwnerWorkersScreen() {
         // Build clock-in map: supervisor_id -> project name
         const clockInMap = {};
         (clockIns || []).forEach(ci => {
-          clockInMap[ci.supervisor_id] = ci.projects?.name || ci.service_plans?.name || 'Unknown Job';
+          clockInMap[ci.supervisor_id] = ci.projects?.name || ci.service_plans?.name || tOwner('ownerWorkers.unknownJob');
         });
 
         // Fetch correct active project counts (user_id OR assigned_supervisor_id)
@@ -410,7 +414,7 @@ export default function OwnerWorkersScreen() {
       setSupervisorsLoading(false);
       setRefreshing(false);
     }
-  }, [user?.id]);
+  }, [user?.id, tOwner]);
 
   // Fetch workers for Team tab with clock-in and assignment data
   const fetchWorkers = useCallback(async () => {
@@ -433,7 +437,7 @@ export default function OwnerWorkersScreen() {
         // Build clock-in map: worker_id -> project name
         const clockInMap = {};
         (clockIns || []).forEach(ci => {
-          clockInMap[ci.worker_id] = ci.projects?.name || ci.service_plans?.name || 'Unknown Job';
+          clockInMap[ci.worker_id] = ci.projects?.name || ci.service_plans?.name || tOwner('ownerWorkers.unknownJob');
         });
 
         // Fetch project assignment counts
@@ -464,7 +468,7 @@ export default function OwnerWorkersScreen() {
     } finally {
       setWorkersLoading(false);
     }
-  }, []);
+  }, [tOwner]);
 
   // Fetch subcontractors for the Team tab
   const fetchSubcontractors = useCallback(async () => {
@@ -577,13 +581,13 @@ export default function OwnerWorkersScreen() {
         fetchSupervisors();
 
         // Let user pick Gmail or Apple Mail
-        const businessName = profile?.business_name || 'our company';
-        const greeting = invitedName ? `Hi ${invitedName},` : 'Hi,';
+        const businessName = profile?.business_name || tOwner('ownerWorkers.ourCompany');
+        const greeting = invitedName ? tOwner('ownerWorkers.greetingNamed', { name: invitedName }) : tOwner('ownerWorkers.greeting');
         const inviteLink = `https://construciton-production.up.railway.app/invite?email=${encodeURIComponent(invitedEmail)}&role=supervisor`;
         openEmailPicker(
           invitedEmail,
-          `You're invited to join ${businessName} on Sylk`,
-          `${greeting}\n\nYou've been invited to join ${businessName} as a Supervisor on Sylk — the construction management app.\n\nTap here to get started:\n${inviteLink}\n\nAs a supervisor, you'll be able to manage projects, track workers, handle finances, and more.\n\nLooking forward to working with you!\n\n— ${profile?.business_name || 'Your team'}`,
+          tOwner('ownerWorkers.inviteSubject', { businessName }),
+          tOwner('ownerWorkers.supervisorInviteBody', { greeting, businessName, inviteLink, team: profile?.business_name || tOwner('ownerWorkers.yourTeam') }),
         );
       }
     } catch (error) {
@@ -627,13 +631,13 @@ export default function OwnerWorkersScreen() {
     }
 
     if (!workerForm.email.trim()) {
-      Alert.alert('Required', 'Email is required to send the worker an invite to the app.');
+      Alert.alert(tOwner('ownerWorkers.requiredTitle'), tOwner('ownerWorkers.emailRequiredBody'));
       return;
     }
 
     // Basic email format check
     if (!/\S+@\S+\.\S+/.test(workerForm.email.trim())) {
-      Alert.alert('Invalid Email', 'Please enter a valid email address.');
+      Alert.alert(tOwner('ownerWorkers.invalidEmailTitle'), tOwner('ownerWorkers.invalidEmailBody'));
       return;
     }
 
@@ -693,13 +697,13 @@ export default function OwnerWorkersScreen() {
 
       // Let user pick Gmail or Apple Mail if worker has email
       if (hasEmail) {
-        const businessName = profile?.business_name || 'our company';
-        const greeting = workerName ? `Hi ${workerName},` : 'Hi,';
+        const businessName = profile?.business_name || tOwner('ownerWorkers.ourCompany');
+        const greeting = workerName ? tOwner('ownerWorkers.greetingNamed', { name: workerName }) : tOwner('ownerWorkers.greeting');
         const inviteLink = `https://construciton-production.up.railway.app/invite?email=${encodeURIComponent(workerEmail)}&role=worker`;
         openEmailPicker(
           workerEmail,
-          `You're invited to join ${businessName} on Sylk`,
-          `${greeting}\n\nYou've been invited to join ${businessName} as a Worker on Sylk — the construction management app.\n\nTap here to get started:\n${inviteLink}\n\nLooking forward to working with you!\n\n— ${profile?.business_name || 'Your team'}`,
+          tOwner('ownerWorkers.inviteSubject', { businessName }),
+          tOwner('ownerWorkers.workerInviteBody', { greeting, businessName, inviteLink, team: profile?.business_name || tOwner('ownerWorkers.yourTeam') }),
         );
       } else {
         Alert.alert(t('success.title'), t('success.workerAdded'));
@@ -730,7 +734,7 @@ export default function OwnerWorkersScreen() {
               color={activeTab === 'schedule' ? OWNER_COLORS.primary : Colors.secondaryText}
             />
             <Text style={[styles.tabText, activeTab === 'schedule' && { color: OWNER_COLORS.primary, fontWeight: '600' }]}>
-              Schedule
+              {tOwner('ownerWorkers.tabSchedule')}
             </Text>
           </TouchableOpacity>
 
@@ -746,7 +750,7 @@ export default function OwnerWorkersScreen() {
               color={activeTab === 'reports' ? OWNER_COLORS.primary : Colors.secondaryText}
             />
             <Text style={[styles.tabText, activeTab === 'reports' && { color: OWNER_COLORS.primary, fontWeight: '600' }]}>
-              Reports
+              {tOwner('ownerWorkers.tabReports')}
             </Text>
           </TouchableOpacity>
 
@@ -762,7 +766,7 @@ export default function OwnerWorkersScreen() {
               color={activeTab === 'team' ? OWNER_COLORS.primary : Colors.secondaryText}
             />
             <Text style={[styles.tabText, activeTab === 'team' && { color: OWNER_COLORS.primary, fontWeight: '600' }]}>
-              Team
+              {tOwner('ownerWorkers.tabTeam')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -779,7 +783,7 @@ export default function OwnerWorkersScreen() {
                 accessibilityLabel="Search team"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
-                placeholder="Search team..."
+                placeholder={tOwner('ownerWorkers.searchPlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 style={[styles.searchInput, { color: Colors.primaryText }]}
                 autoFocus
@@ -798,7 +802,7 @@ export default function OwnerWorkersScreen() {
                 activeOpacity={0.8}
               >
                 <Ionicons name="add-circle-outline" size={20} color="#fff" />
-                <Text style={styles.addButtonText}>Add Team Member</Text>
+                <Text style={styles.addButtonText}>{tOwner('teamPicker.addTeamMember')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 testID="ownerWorkers.filterButton"
@@ -844,12 +848,12 @@ export default function OwnerWorkersScreen() {
           onPress={() => setShowFilterMenu(false)}
         >
           <View style={[styles.filterMenuContainer, { backgroundColor: Colors.cardBackground || '#fff' }]}>
-            <Text style={[styles.filterMenuTitle, { color: Colors.secondaryText }]}>FILTER TEAM</Text>
+            <Text style={[styles.filterMenuTitle, { color: Colors.secondaryText }]}>{tOwner('ownerWorkers.filterTeam').toUpperCase()}</Text>
             {[
-              { key: 'all', label: 'All', icon: 'people-outline' },
-              { key: 'supervisors', label: 'Supervisors', icon: 'shield-checkmark-outline' },
-              { key: 'workers', label: 'Workers', icon: 'person-outline' },
-              { key: 'subcontractors', label: 'Subcontractors', icon: 'construct-outline' },
+              { key: 'all', label: tOwner('ownerWorkers.filterAll'), icon: 'people-outline' },
+              { key: 'supervisors', label: tOwner('supervisors.title'), icon: 'shield-checkmark-outline' },
+              { key: 'workers', label: t('title'), icon: 'person-outline' },
+              { key: 'subcontractors', label: tOwner('ownerWorkers.subcontractors'), icon: 'construct-outline' },
             ].map((opt) => {
               const isActive = teamFilter === opt.key;
               return (
@@ -916,7 +920,7 @@ export default function OwnerWorkersScreen() {
         {pendingInvites.length > 0 && (
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>
-              PENDING INVITATIONS
+              {tOwner('supervisors.pendingInvites')}
             </Text>
             {pendingInvites.map((invite, index) => (
               <PendingInviteCard
@@ -974,7 +978,7 @@ export default function OwnerWorkersScreen() {
                   ) : (
                     <View style={styles.emptySection}>
                       <Text style={[styles.emptySectionText, { color: Colors.secondaryText }]}>
-                        {term ? 'No supervisors match.' : tOwner('supervisors.emptyTitle')}
+                        {term ? tOwner('ownerWorkers.noSupervisorsMatch') : tOwner('supervisors.emptyTitle')}
                       </Text>
                     </View>
                   )}
@@ -1007,7 +1011,7 @@ export default function OwnerWorkersScreen() {
                   ) : (
                     <View style={styles.emptySection}>
                       <Text style={[styles.emptySectionText, { color: Colors.secondaryText }]}>
-                        {term ? 'No workers match.' : t('noWorkers')}
+                        {term ? tOwner('ownerWorkers.noWorkersMatch') : t('noWorkers')}
                       </Text>
                     </View>
                   )}
@@ -1017,7 +1021,7 @@ export default function OwnerWorkersScreen() {
               {showSubcontractors && (
                 <View style={styles.section}>
                   <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>
-                    SUBCONTRACTORS
+                    {tOwner('ownerWorkers.subcontractors').toUpperCase()}
                   </Text>
                   {subcontractorsLoading ? (
                     <View style={styles.loadingContainer}>
@@ -1044,7 +1048,7 @@ export default function OwnerWorkersScreen() {
                           <Text testID={`ownerWorkers.subName.${sub.id}`} style={[styles.subName, { color: Colors.primaryText }]}>{sub.legal_name}</Text>
                           <Text style={[styles.subMeta, { color: Colors.secondaryText }]}>
                             {(sub.trades || []).join(', ') || '—'}
-                            {sub.engagements?.length ? ` · ${sub.engagements.length} active job${sub.engagements.length === 1 ? '' : 's'}` : ''}
+                            {sub.engagements?.length ? ` · ${sub.engagements.length} ${sub.engagements.length === 1 ? tOwner('ownerWorkers.activeJobLabelOne') : tOwner('ownerWorkers.activeJobLabelOther')}` : ''}
                           </Text>
                         </View>
                         <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />
@@ -1060,7 +1064,7 @@ export default function OwnerWorkersScreen() {
                     >
                       <Ionicons name="construct-outline" size={20} color="#8B5CF6" />
                       <Text style={[styles.emptySectionText, { color: Colors.secondaryText, marginTop: 6 }]}>
-                        {term ? 'No subcontractors match.' : 'No subcontractors yet. Tap to add your first one.'}
+                        {term ? tOwner('ownerWorkers.noSubcontractorsMatch') : tOwner('ownerWorkers.noSubcontractorsYet')}
                       </Text>
                     </TouchableOpacity>
                   )}
@@ -1147,9 +1151,9 @@ export default function OwnerWorkersScreen() {
                 <Ionicons name="construct-outline" size={24} color="#fff" />
               </View>
               <View style={styles.roleInfo}>
-                <Text style={[styles.roleTitle, { color: Colors.primaryText }]}>Add Subcontractor</Text>
+                <Text style={[styles.roleTitle, { color: Colors.primaryText }]}>{tOwner('ownerWorkers.addSubcontractor')}</Text>
                 <Text style={[styles.roleDescription, { color: Colors.secondaryText }]}>
-                  Outside contractor hired for specific work
+                  {tOwner('ownerWorkers.subcontractorDesc')}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
@@ -1181,10 +1185,10 @@ export default function OwnerWorkersScreen() {
           <SafeAreaView style={styles.modalSafeArea}>
             <View style={[styles.modalHeader, { borderBottomColor: Colors.border }]}>
               <TouchableOpacity testID="ownerWorkers.supervisorModalCancel" accessibilityLabel="Cancel" onPress={() => setShowAddModal(false)}>
-                <Text style={{ color: Colors.secondaryText }}>Cancel</Text>
+                <Text style={{ color: Colors.secondaryText }}>{t('actions.cancel')}</Text>
               </TouchableOpacity>
               <Text testID="ownerWorkers.supervisorModalTitle" style={[styles.modalTitle, { color: Colors.primaryText }]}>
-                Add Supervisor
+                {tOwner('teamPicker.addSupervisor')}
               </Text>
               <TouchableOpacity
                 testID="ownerWorkers.supervisorSubmitButton"
@@ -1193,7 +1197,7 @@ export default function OwnerWorkersScreen() {
                 disabled={inviting || !inviteForm.email.trim()}
               >
                 <View style={[styles.sendBadge, { backgroundColor: inviteForm.email.trim() ? OWNER_COLORS.primary : `${OWNER_COLORS.primary}30` }]}>
-                  <Text style={styles.sendText}>{inviting ? '...' : 'Send'}</Text>
+                  <Text style={styles.sendText}>{inviting ? '...' : tOwner('ownerWorkers.send')}</Text>
                 </View>
               </TouchableOpacity>
             </View>
@@ -1201,7 +1205,7 @@ export default function OwnerWorkersScreen() {
             <ScrollView style={styles.modalContent}>
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: Colors.primaryText }]}>
-                  Email Address <Text style={{ color: OWNER_COLORS.error }}>*</Text>
+                  {tOwner('supervisors.email')} <Text style={{ color: OWNER_COLORS.error }}>*</Text>
                 </Text>
                 <View style={[styles.inputContainer, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
                   <Ionicons name="mail-outline" size={20} color={Colors.secondaryText} />
@@ -1211,7 +1215,7 @@ export default function OwnerWorkersScreen() {
                     style={[styles.input, { color: Colors.primaryText }]}
                     value={inviteForm.email}
                     onChangeText={(text) => setInviteForm({ ...inviteForm, email: text })}
-                    placeholder="supervisor@email.com"
+                    placeholder={tOwner('ownerWorkers.supervisorEmailPlaceholder')}
                     placeholderTextColor={Colors.secondaryText}
                     keyboardType="email-address"
                     autoCapitalize="none"
@@ -1221,7 +1225,7 @@ export default function OwnerWorkersScreen() {
 
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: Colors.primaryText }]}>
-                  Full Name <Text style={{ color: Colors.secondaryText }}>(optional)</Text>
+                  {tOwner('supervisors.fullName')} <Text style={{ color: Colors.secondaryText }}>{tOwner('ownerWorkers.optional')}</Text>
                 </Text>
                 <View style={[styles.inputContainer, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
                   <Ionicons name="person-outline" size={20} color={Colors.secondaryText} />
@@ -1231,7 +1235,7 @@ export default function OwnerWorkersScreen() {
                     style={[styles.input, { color: Colors.primaryText }]}
                     value={inviteForm.fullName}
                     onChangeText={(text) => setInviteForm({ ...inviteForm, fullName: text })}
-                    placeholder="John Doe"
+                    placeholder={tOwner('ownerWorkers.namePlaceholder')}
                     placeholderTextColor={Colors.secondaryText}
                   />
                 </View>
@@ -1239,7 +1243,7 @@ export default function OwnerWorkersScreen() {
 
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: Colors.primaryText }]}>
-                  Phone <Text style={{ color: Colors.secondaryText }}>(optional)</Text>
+                  {tOwner('ownerWorkers.phoneLabel')} <Text style={{ color: Colors.secondaryText }}>{tOwner('ownerWorkers.optional')}</Text>
                 </Text>
                 <View style={[styles.inputContainer, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
                   <Ionicons name="call-outline" size={20} color={Colors.secondaryText} />
@@ -1249,7 +1253,7 @@ export default function OwnerWorkersScreen() {
                     style={[styles.input, { color: Colors.primaryText }]}
                     value={inviteForm.phone}
                     onChangeText={(text) => setInviteForm({ ...inviteForm, phone: text })}
-                    placeholder="+1 555-1234"
+                    placeholder={tOwner('ownerWorkers.phonePlaceholder')}
                     placeholderTextColor={Colors.secondaryText}
                     keyboardType="phone-pad"
                   />
@@ -1259,14 +1263,14 @@ export default function OwnerWorkersScreen() {
               {/* Payment Type Selection */}
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: Colors.primaryText }]}>
-                  Payment Type <Text style={{ color: OWNER_COLORS.error }}>*</Text>
+                  {tOwner('ownerWorkers.paymentTypeLabel')} <Text style={{ color: OWNER_COLORS.error }}>*</Text>
                 </Text>
                 <View style={styles.paymentTypeRow}>
                   {[
-                    { key: 'hourly', label: 'Hourly', icon: 'time-outline' },
-                    { key: 'daily', label: 'Daily', icon: 'today-outline' },
-                    { key: 'weekly', label: 'Weekly', icon: 'calendar-outline' },
-                    { key: 'project_based', label: 'Project', icon: 'briefcase-outline' },
+                    { key: 'hourly', label: tOwner('ownerWorkers.paymentHourly'), icon: 'time-outline' },
+                    { key: 'daily', label: tOwner('ownerWorkers.paymentDaily'), icon: 'today-outline' },
+                    { key: 'weekly', label: tOwner('ownerWorkers.paymentWeekly'), icon: 'calendar-outline' },
+                    { key: 'project_based', label: tOwner('ownerWorkers.paymentProject'), icon: 'briefcase-outline' },
                   ].map((type) => (
                     <TouchableOpacity
                       key={type.key}
@@ -1298,9 +1302,9 @@ export default function OwnerWorkersScreen() {
               {/* Payment Rate Input */}
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: Colors.primaryText }]}>
-                  {inviteForm.paymentType === 'hourly' ? 'Hourly Rate' :
-                   inviteForm.paymentType === 'daily' ? 'Daily Rate' :
-                   inviteForm.paymentType === 'weekly' ? 'Weekly Salary' : 'Project Rate'}
+                  {inviteForm.paymentType === 'hourly' ? tOwner('ownerWorkers.hourlyRateLabel') :
+                   inviteForm.paymentType === 'daily' ? tOwner('ownerWorkers.dailyRateLabel') :
+                   inviteForm.paymentType === 'weekly' ? tOwner('ownerWorkers.weeklySalaryLabel') : tOwner('ownerWorkers.projectRateLabel')}
                   <Text style={{ color: OWNER_COLORS.error }}> *</Text>
                 </Text>
                 <View style={[styles.inputContainer, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
@@ -1328,9 +1332,9 @@ export default function OwnerWorkersScreen() {
                     keyboardType="decimal-pad"
                   />
                   <Text style={{ color: Colors.secondaryText }}>
-                    /{inviteForm.paymentType === 'hourly' ? 'hr' :
-                      inviteForm.paymentType === 'daily' ? 'day' :
-                      inviteForm.paymentType === 'weekly' ? 'wk' : 'project'}
+                    /{inviteForm.paymentType === 'hourly' ? tOwner('ownerWorkers.unitHr') :
+                      inviteForm.paymentType === 'daily' ? tOwner('ownerWorkers.unitDay') :
+                      inviteForm.paymentType === 'weekly' ? tOwner('ownerWorkers.unitWk') : tOwner('ownerWorkers.unitProject')}
                   </Text>
                 </View>
               </View>
@@ -1338,7 +1342,7 @@ export default function OwnerWorkersScreen() {
               <View style={[styles.infoBox, { backgroundColor: `${OWNER_COLORS.primary}08` }]}>
                 <Ionicons name="information-circle" size={20} color={OWNER_COLORS.primary} />
                 <Text style={[styles.infoText, { color: Colors.secondaryText }]}>
-                  The supervisor will receive an invitation when they sign up with this email address.
+                  {tOwner('supervisors.inviteInfo')}
                 </Text>
               </View>
             </ScrollView>
@@ -1360,10 +1364,10 @@ export default function OwnerWorkersScreen() {
           <SafeAreaView style={styles.modalSafeArea}>
             <View style={[styles.modalHeader, { borderBottomColor: Colors.border }]}>
               <TouchableOpacity testID="ownerWorkers.workerModalCancel" accessibilityLabel="Cancel" onPress={() => setShowAddWorkerModal(false)}>
-                <Text style={{ color: Colors.secondaryText }}>Cancel</Text>
+                <Text style={{ color: Colors.secondaryText }}>{t('actions.cancel')}</Text>
               </TouchableOpacity>
               <Text testID="ownerWorkers.workerModalTitle" style={[styles.modalTitle, { color: Colors.primaryText }]}>
-                Add Worker
+                {tOwner('teamPicker.addWorker')}
               </Text>
               <TouchableOpacity
                 testID="ownerWorkers.workerSubmitButton"
@@ -1372,7 +1376,7 @@ export default function OwnerWorkersScreen() {
                 disabled={addingWorker || !workerForm.name.trim()}
               >
                 <View style={[styles.sendBadge, { backgroundColor: workerForm.name.trim() ? OWNER_COLORS.success : `${OWNER_COLORS.success}30` }]}>
-                  <Text style={styles.sendText}>{addingWorker ? '...' : 'Add'}</Text>
+                  <Text style={styles.sendText}>{addingWorker ? '...' : tOwner('common:buttons.add')}</Text>
                 </View>
               </TouchableOpacity>
             </View>
@@ -1380,7 +1384,7 @@ export default function OwnerWorkersScreen() {
             <ScrollView style={styles.modalContent}>
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: Colors.primaryText }]}>
-                  Full Name <Text style={{ color: OWNER_COLORS.error }}>*</Text>
+                  {tOwner('supervisors.fullName')} <Text style={{ color: OWNER_COLORS.error }}>*</Text>
                 </Text>
                 <View style={[styles.inputContainer, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
                   <Ionicons name="person-outline" size={20} color={Colors.secondaryText} />
@@ -1390,7 +1394,7 @@ export default function OwnerWorkersScreen() {
                     style={[styles.input, { color: Colors.primaryText }]}
                     value={workerForm.name}
                     onChangeText={(text) => setWorkerForm({ ...workerForm, name: text })}
-                    placeholder="John Doe"
+                    placeholder={tOwner('ownerWorkers.namePlaceholder')}
                     placeholderTextColor={Colors.secondaryText}
                   />
                 </View>
@@ -1398,7 +1402,7 @@ export default function OwnerWorkersScreen() {
 
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: Colors.primaryText }]}>
-                  Email <Text style={{ color: '#EF4444' }}>*</Text>
+                  {tOwner('ownerWorkers.emailLabel')} <Text style={{ color: '#EF4444' }}>*</Text>
                 </Text>
                 <View style={[styles.inputContainer, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
                   <Ionicons name="mail-outline" size={20} color={Colors.secondaryText} />
@@ -1408,7 +1412,7 @@ export default function OwnerWorkersScreen() {
                     style={[styles.input, { color: Colors.primaryText }]}
                     value={workerForm.email}
                     onChangeText={(text) => setWorkerForm({ ...workerForm, email: text })}
-                    placeholder="worker@email.com"
+                    placeholder={tOwner('ownerWorkers.workerEmailPlaceholder')}
                     placeholderTextColor={Colors.secondaryText}
                     keyboardType="email-address"
                     autoCapitalize="none"
@@ -1418,7 +1422,7 @@ export default function OwnerWorkersScreen() {
 
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: Colors.primaryText }]}>
-                  Phone <Text style={{ color: Colors.secondaryText }}>(optional)</Text>
+                  {tOwner('ownerWorkers.phoneLabel')} <Text style={{ color: Colors.secondaryText }}>{tOwner('ownerWorkers.optional')}</Text>
                 </Text>
                 <View style={[styles.inputContainer, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
                   <Ionicons name="call-outline" size={20} color={Colors.secondaryText} />
@@ -1428,7 +1432,7 @@ export default function OwnerWorkersScreen() {
                     style={[styles.input, { color: Colors.primaryText }]}
                     value={workerForm.phone}
                     onChangeText={(text) => setWorkerForm({ ...workerForm, phone: text })}
-                    placeholder="+1 555-1234"
+                    placeholder={tOwner('ownerWorkers.phonePlaceholder')}
                     placeholderTextColor={Colors.secondaryText}
                     keyboardType="phone-pad"
                   />
@@ -1437,7 +1441,7 @@ export default function OwnerWorkersScreen() {
 
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: Colors.primaryText }]}>
-                  Trade/Role <Text style={{ color: Colors.secondaryText }}>(optional)</Text>
+                  {tOwner('ownerWorkers.tradeRoleLabel')} <Text style={{ color: Colors.secondaryText }}>{tOwner('ownerWorkers.optional')}</Text>
                 </Text>
                 <View style={[styles.inputContainer, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
                   <Ionicons name="construct-outline" size={20} color={Colors.secondaryText} />
@@ -1447,7 +1451,7 @@ export default function OwnerWorkersScreen() {
                     style={[styles.input, { color: Colors.primaryText }]}
                     value={workerForm.trade}
                     onChangeText={(text) => setWorkerForm({ ...workerForm, trade: text })}
-                    placeholder="Carpenter, Electrician, etc."
+                    placeholder={tOwner('ownerWorkers.tradePlaceholder')}
                     placeholderTextColor={Colors.secondaryText}
                   />
                 </View>
@@ -1456,14 +1460,14 @@ export default function OwnerWorkersScreen() {
               {/* Payment Type Selection */}
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: Colors.primaryText }]}>
-                  Payment Type <Text style={{ color: OWNER_COLORS.error }}>*</Text>
+                  {tOwner('ownerWorkers.paymentTypeLabel')} <Text style={{ color: OWNER_COLORS.error }}>*</Text>
                 </Text>
                 <View style={styles.paymentTypeRow}>
                   {[
-                    { key: 'hourly', label: 'Hourly', icon: 'time-outline' },
-                    { key: 'daily', label: 'Daily', icon: 'today-outline' },
-                    { key: 'weekly', label: 'Weekly', icon: 'calendar-outline' },
-                    { key: 'project_based', label: 'Project', icon: 'briefcase-outline' },
+                    { key: 'hourly', label: tOwner('ownerWorkers.paymentHourly'), icon: 'time-outline' },
+                    { key: 'daily', label: tOwner('ownerWorkers.paymentDaily'), icon: 'today-outline' },
+                    { key: 'weekly', label: tOwner('ownerWorkers.paymentWeekly'), icon: 'calendar-outline' },
+                    { key: 'project_based', label: tOwner('ownerWorkers.paymentProject'), icon: 'briefcase-outline' },
                   ].map((type) => (
                     <TouchableOpacity
                       key={type.key}
@@ -1495,9 +1499,9 @@ export default function OwnerWorkersScreen() {
               {/* Payment Rate Input */}
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: Colors.primaryText }]}>
-                  {workerForm.paymentType === 'hourly' ? 'Hourly Rate' :
-                   workerForm.paymentType === 'daily' ? 'Daily Rate' :
-                   workerForm.paymentType === 'weekly' ? 'Weekly Salary' : 'Project Rate'}
+                  {workerForm.paymentType === 'hourly' ? tOwner('ownerWorkers.hourlyRateLabel') :
+                   workerForm.paymentType === 'daily' ? tOwner('ownerWorkers.dailyRateLabel') :
+                   workerForm.paymentType === 'weekly' ? tOwner('ownerWorkers.weeklySalaryLabel') : tOwner('ownerWorkers.projectRateLabel')}
                   <Text style={{ color: OWNER_COLORS.error }}> *</Text>
                 </Text>
                 <View style={[styles.inputContainer, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
@@ -1525,9 +1529,9 @@ export default function OwnerWorkersScreen() {
                     keyboardType="decimal-pad"
                   />
                   <Text style={{ color: Colors.secondaryText }}>
-                    /{workerForm.paymentType === 'hourly' ? 'hr' :
-                      workerForm.paymentType === 'daily' ? 'day' :
-                      workerForm.paymentType === 'weekly' ? 'wk' : 'project'}
+                    /{workerForm.paymentType === 'hourly' ? tOwner('ownerWorkers.unitHr') :
+                      workerForm.paymentType === 'daily' ? tOwner('ownerWorkers.unitDay') :
+                      workerForm.paymentType === 'weekly' ? tOwner('ownerWorkers.unitWk') : tOwner('ownerWorkers.unitProject')}
                   </Text>
                 </View>
               </View>

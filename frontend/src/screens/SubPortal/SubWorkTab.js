@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { LightColors, DarkColors } from '../../constants/theme';
@@ -25,6 +26,7 @@ import * as api from '../../services/subPortalService';
 const SUB_VIOLET = '#8B5CF6';
 
 export default function SubWorkTab({ navigation }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = isDark ? DarkColors : LightColors;
   const styles = makeStyles(Colors);
@@ -59,7 +61,7 @@ export default function SubWorkTab({ navigation }) {
       });
       if (!result.canceled) setInvFile(result.assets?.[0]);
     } catch (e) {
-      Alert.alert('Could not pick file', e.message);
+      Alert.alert(t('subWorkTab.couldNotPickFile'), e.message);
     } finally {
       pickerBusyRef.current = false;
     }
@@ -68,10 +70,10 @@ export default function SubWorkTab({ navigation }) {
   const onSubmitInvoice = async () => {
     if (!invoiceForEng) return;
     const amt = Number(invAmount);
-    if (!amt || amt <= 0) { Alert.alert('Add an amount'); return; }
-    if (!invFile) { Alert.alert('Attach the invoice PDF'); return; }
+    if (!amt || amt <= 0) { Alert.alert(t('subWorkTab.addAmount')); return; }
+    if (!invFile) { Alert.alert(t('subWorkTab.attachInvoicePdf')); return; }
     if (invDueAt && !/^\d{4}-\d{2}-\d{2}$/.test(invDueAt.trim())) {
-      Alert.alert('Invalid due date', 'Use YYYY-MM-DD or leave blank.');
+      Alert.alert(t('subWorkTab.invalidDueDate'), t('subWorkTab.invalidDueDateBody'));
       return;
     }
     setInvSubmitting(true);
@@ -85,11 +87,17 @@ export default function SubWorkTab({ navigation }) {
         amount: amt,
         due_at: invDueAt.trim() || null,
       });
-      Alert.alert('Invoice sent', `$${amt.toLocaleString()} sent to ${invoiceForEng.gc_business_name || 'the contractor'}.`,
-        [{ text: 'OK', onPress: closeInvoice }]);
+      Alert.alert(
+        t('subWorkTab.invoiceSent'),
+        t('subWorkTab.invoiceSentBody', {
+          amount: amt.toLocaleString(),
+          contractor: invoiceForEng.gc_business_name || t('subWorkTab.theContractor'),
+        }),
+        [{ text: t('subWorkTab.ok'), onPress: closeInvoice }]
+      );
       load();
     } catch (e) {
-      Alert.alert('Could not send', e.message || 'Try again');
+      Alert.alert(t('subWorkTab.couldNotSend'), e.message || t('subWorkTab.tryAgain'));
     } finally {
       setInvSubmitting(false);
     }
@@ -135,11 +143,13 @@ export default function SubWorkTab({ navigation }) {
       contentContainerStyle={styles.scroll}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.secondaryText} />}
     >
-      <Text style={styles.headerTitle}>Jobs</Text>
+      <Text style={styles.headerTitle}>{t('subWorkTab.title')}</Text>
       <Text style={styles.headerSub}>
         {engagements.length === 0
-          ? "Jobs you've been hired for show up here."
-          : `${engagements.length} job${engagements.length === 1 ? '' : 's'}`}
+          ? t('subWorkTab.emptySubtitle')
+          : (engagements.length === 1
+              ? t('subWorkTab.jobCountOne', { count: engagements.length })
+              : t('subWorkTab.jobCountOther', { count: engagements.length }))}
       </Text>
 
       {engagements.length === 0 ? (
@@ -147,23 +157,23 @@ export default function SubWorkTab({ navigation }) {
           <View style={styles.emptyIconWrap}>
             <Ionicons name="briefcase-outline" size={26} color={Colors.secondaryText} />
           </View>
-          <Text style={styles.emptyTitle}>No jobs yet</Text>
+          <Text style={styles.emptyTitle}>{t('subWorkTab.noJobsTitle')}</Text>
           <Text style={styles.emptyBody}>
-            Once a contractor accepts a bid, the job lands here with all the docs, dates, and tasks for the work.
+            {t('subWorkTab.noJobsBody')}
           </Text>
         </View>
       ) : (
         <>
-          <Group title="In progress"  items={active}    accent="#10B981" canInvoice navigation={navigation} Colors={Colors} styles={styles} onSendInvoice={setInvoiceForEng} />
-          <Group title="Upcoming"     items={upcoming}  accent="#3B82F6" canInvoice navigation={navigation} Colors={Colors} styles={styles} onSendInvoice={setInvoiceForEng} />
-          <Group title="Completed"    items={completed} accent="#6B7280" canInvoice navigation={navigation} Colors={Colors} styles={styles} onSendInvoice={setInvoiceForEng} muted />
-          <Group title="Cancelled"    items={cancelled} accent="#DC2626" navigation={navigation} Colors={Colors} styles={styles} muted />
+          <Group title={t('subWorkTab.groupInProgress')}  items={active}    accent="#10B981" canInvoice navigation={navigation} Colors={Colors} styles={styles} onSendInvoice={setInvoiceForEng} />
+          <Group title={t('subWorkTab.groupUpcoming')}     items={upcoming}  accent="#3B82F6" canInvoice navigation={navigation} Colors={Colors} styles={styles} onSendInvoice={setInvoiceForEng} />
+          <Group title={t('subWorkTab.groupCompleted')}    items={completed} accent="#6B7280" canInvoice navigation={navigation} Colors={Colors} styles={styles} onSendInvoice={setInvoiceForEng} muted />
+          <Group title={t('subWorkTab.groupCancelled')}    items={cancelled} accent="#DC2626" navigation={navigation} Colors={Colors} styles={styles} muted />
         </>
       )}
 
       {/* Pitch a contractor — secondary action at the bottom */}
       <View style={{ marginTop: 30 }}>
-        <Text style={styles.sectionTitle}>Looking for work?</Text>
+        <Text style={styles.sectionTitle}>{t('subWorkTab.lookingForWork')}</Text>
         <TouchableOpacity
           style={styles.proposeCta}
           activeOpacity={0.7}
@@ -173,9 +183,9 @@ export default function SubWorkTab({ navigation }) {
             <Ionicons name="paper-plane-outline" size={18} color={SUB_VIOLET} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.proposeCtaTitle}>Send a proposal</Text>
+            <Text style={styles.proposeCtaTitle}>{t('subWorkTab.sendProposal')}</Text>
             <Text style={styles.proposeCtaBody}>
-              Reach out to a contractor with your scope, price, and timeline.
+              {t('subWorkTab.sendProposalBody')}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} />
@@ -190,17 +200,17 @@ export default function SubWorkTab({ navigation }) {
           <View style={[styles.invSheet, { backgroundColor: Colors.cardBackground }]}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>Send invoice</Text>
+              <Text style={styles.sheetTitle}>{t('subWorkTab.sendInvoice')}</Text>
               <TouchableOpacity onPress={closeInvoice} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Ionicons name="close" size={22} color={Colors.secondaryText} />
               </TouchableOpacity>
             </View>
             <Text style={styles.sheetSub}>
-              {invoiceForEng?.trade ? `${invoiceForEng.trade} · ` : ''}{invoiceForEng?.project?.name || 'Job'}
+              {invoiceForEng?.trade ? `${invoiceForEng.trade} · ` : ''}{invoiceForEng?.project?.name || t('subWorkTab.jobFallback')}
               {invoiceForEng?.gc_business_name ? `  ·  ${invoiceForEng.gc_business_name}` : ''}
             </Text>
 
-            <Text style={styles.fieldLabel}>Amount</Text>
+            <Text style={styles.fieldLabel}>{t('subWorkTab.amount')}</Text>
             <View style={styles.amountWrap}>
               <Text style={styles.dollar}>$</Text>
               <TextInput
@@ -213,7 +223,7 @@ export default function SubWorkTab({ navigation }) {
               />
             </View>
 
-            <Text style={styles.fieldLabel}>Due date (optional)</Text>
+            <Text style={styles.fieldLabel}>{t('subWorkTab.dueDateOptional')}</Text>
             <TextInput
               style={styles.input}
               placeholder="YYYY-MM-DD"
@@ -223,7 +233,7 @@ export default function SubWorkTab({ navigation }) {
               autoCapitalize="none"
             />
 
-            <Text style={styles.fieldLabel}>Invoice file (PDF)</Text>
+            <Text style={styles.fieldLabel}>{t('subWorkTab.invoiceFilePdf')}</Text>
             {invFile ? (
               <View style={styles.filePicked}>
                 <View style={styles.fileIcon}>
@@ -237,13 +247,13 @@ export default function SubWorkTab({ navigation }) {
             ) : (
               <TouchableOpacity style={styles.pickBtn} onPress={onPickInvoiceFile} activeOpacity={0.7}>
                 <Ionicons name="document-attach-outline" size={20} color={Colors.primaryText} />
-                <Text style={styles.pickBtnText}>Pick a PDF</Text>
+                <Text style={styles.pickBtnText}>{t('subWorkTab.pickPdf')}</Text>
               </TouchableOpacity>
             )}
 
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
               <TouchableOpacity style={styles.cancelBtn} onPress={closeInvoice} disabled={invSubmitting} activeOpacity={0.7}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
+                <Text style={styles.cancelBtnText}>{t('common:buttons.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.sendBtn, invSubmitting && { opacity: 0.6 }]}
@@ -256,7 +266,7 @@ export default function SubWorkTab({ navigation }) {
                 ) : (
                   <>
                     <Ionicons name="paper-plane" size={16} color="#fff" />
-                    <Text style={styles.sendBtnText}>Send invoice</Text>
+                    <Text style={styles.sendBtnText}>{t('subWorkTab.sendInvoice')}</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -269,6 +279,7 @@ export default function SubWorkTab({ navigation }) {
 }
 
 function Group({ title, items, accent, muted, canInvoice, navigation, Colors, styles, onSendInvoice }) {
+  const { t } = useTranslation('common');
   if (!items?.length) return null;
   return (
     <View style={{ marginTop: 18 }}>
@@ -283,9 +294,9 @@ function Group({ title, items, accent, muted, canInvoice, navigation, Colors, st
             >
               <View style={styles.jobTopRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.jobTitle} numberOfLines={1}>{e.trade || 'Job'}</Text>
+                  <Text style={styles.jobTitle} numberOfLines={1}>{e.trade || t('subWorkTab.jobFallback')}</Text>
                   <Text style={styles.jobProject} numberOfLines={1}>
-                    {e.project?.name || 'Project'}
+                    {e.project?.name || t('subWorkTab.projectFallback')}
                     {e.gc_business_name ? `  ·  ${e.gc_business_name}` : ''}
                   </Text>
                 </View>
@@ -314,7 +325,7 @@ function Group({ title, items, accent, muted, canInvoice, navigation, Colors, st
                 onPress={() => onSendInvoice?.(e)}
               >
                 <Ionicons name="cash-outline" size={14} color="#10B981" />
-                <Text style={styles.sendInvoiceText}>Send invoice</Text>
+                <Text style={styles.sendInvoiceText}>{t('subWorkTab.sendInvoice')}</Text>
               </TouchableOpacity>
             )}
           </View>

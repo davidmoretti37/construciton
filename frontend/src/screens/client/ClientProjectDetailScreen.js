@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { fetchProject, fetchProjectPhotos, fetchProjectSummaries } from '../../services/clientPortalApi';
 
 const { width: SW } = Dimensions.get('window');
@@ -26,6 +27,7 @@ const C = {
 
 export default function ClientProjectDetailScreen({ route, navigation }) {
   const { projectId } = route.params;
+  const { t } = useTranslation('projects');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [project, setProject] = useState(null);
@@ -71,15 +73,15 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
     return (
       <View style={styles.loadingContainer}>
         <Ionicons name="cloud-offline-outline" size={40} color={C.textMuted} />
-        <Text style={styles.errorTitle}>Couldn't load project</Text>
-        <Text style={styles.errorSubtext}>Something went wrong. Please try again.</Text>
+        <Text style={styles.errorTitle}>{t('clientProjectDetail.errorTitle')}</Text>
+        <Text style={styles.errorSubtext}>{t('clientProjectDetail.errorSubtext')}</Text>
         <TouchableOpacity
           style={styles.retryBtn}
           onPress={() => { setLoading(true); loadData(); }}
           activeOpacity={0.8}
         >
           <Ionicons name="refresh" size={16} color="#fff" />
-          <Text style={styles.retryBtnText}>Retry</Text>
+          <Text style={styles.retryBtnText}>{t('common:buttons.retry')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -88,7 +90,7 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
   if (!project) {
     return (
       <View style={styles.loadingContainer}>
-        <Text style={{ color: C.textSec }}>Project not found</Text>
+        <Text style={{ color: C.textSec }}>{t('clientProjectDetail.projectNotFound')}</Text>
       </View>
     );
   }
@@ -159,7 +161,7 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
               activeOpacity={0.8}
             >
               <Ionicons name="receipt-outline" size={18} color="#fff" />
-              <Text style={styles.actionPrimaryText}>Invoices</Text>
+              <Text style={styles.actionPrimaryText}>{t('clientProjectDetail.invoices')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.actionSecondary}
@@ -167,14 +169,14 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
               activeOpacity={0.8}
             >
               <Ionicons name="chatbubbles-outline" size={18} color={C.text} />
-              <Text style={styles.actionSecondaryText}>Messages</Text>
+              <Text style={styles.actionSecondaryText}>{t('clientProjectDetail.messages')}</Text>
             </TouchableOpacity>
           </View>
 
           {/* Phase Stepper */}
           {phases.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>PHASES</Text>
+              <Text style={styles.sectionLabel}>{t('clientProjectDetail.phasesLabel')}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stepper}>
                 {phases.map((phase, i) => {
                   const isCompleted = phase.status === 'completed';
@@ -210,7 +212,7 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
           {/* Photos */}
           {photoUrls.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>PHOTOS</Text>
+              <Text style={styles.sectionLabel}>{t('clientProjectDetail.photosLabel')}</Text>
               <View style={styles.photoGrid}>
                 {photoUrls.map((url, i) => (
                   <Image
@@ -230,14 +232,14 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
 
           {/* AI Weekly Summaries — always show section */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>WEEKLY UPDATES</Text>
+            <Text style={styles.sectionLabel}>{t('clientProjectDetail.weeklyUpdatesLabel')}</Text>
             {summaries.length > 0 ? (
               summaries.slice(0, 3).map((summary, i) => (
                 <View key={summary.id || i} style={[styles.summaryCard, i > 0 && { marginTop: 10 }]}>
                   <View style={styles.summaryHeader}>
                     <Ionicons name="sparkles" size={14} color={C.amber} />
                     <Text style={styles.summaryDate}>
-                      {summary.week_label || (summary.created_at ? new Date(summary.created_at).toLocaleDateString() : 'This week')}
+                      {summary.week_label || (summary.created_at ? new Date(summary.created_at).toLocaleDateString() : t('clientProjectDetail.thisWeek'))}
                     </Text>
                   </View>
                   <Text style={styles.summaryText}>{summary.summary || summary.content}</Text>
@@ -247,15 +249,15 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
               <View style={styles.summaryCard}>
                 <View style={styles.summaryHeader}>
                   <Ionicons name="sparkles" size={14} color={C.amber} />
-                  <Text style={styles.summaryDate}>This week</Text>
+                  <Text style={styles.summaryDate}>{t('clientProjectDetail.thisWeek')}</Text>
                 </View>
                 <Text style={styles.summaryText}>{project.weekly_summary}</Text>
               </View>
             ) : (
               <View style={styles.summaryEmpty}>
                 <Ionicons name="sparkles-outline" size={28} color={C.textMuted} />
-                <Text style={styles.summaryEmptyText}>No updates yet</Text>
-                <Text style={styles.summaryEmptySubtext}>Your contractor will share weekly progress updates here</Text>
+                <Text style={styles.summaryEmptyText}>{t('clientProjectDetail.noUpdatesYet')}</Text>
+                <Text style={styles.summaryEmptySubtext}>{t('clientProjectDetail.noUpdatesSubtext')}</Text>
               </View>
             )}
           </View>

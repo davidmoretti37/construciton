@@ -131,7 +131,7 @@ const SupervisorCard = ({ supervisor, onPress, Colors, isDark, index, t }) => {
 
         <View style={styles.supervisorInfo}>
           <Text style={[styles.supervisorName, { color: Colors.primaryText }]} numberOfLines={1}>
-            {supervisor.business_name || supervisor.email?.split('@')[0] || 'Supervisor'}
+            {supervisor.business_name || supervisor.email?.split('@')[0] || t('supervisors.supervisorFallback')}
           </Text>
           <Text style={[styles.supervisorEmail, { color: Colors.secondaryText }]} numberOfLines={1}>
             {supervisor.email}
@@ -176,7 +176,7 @@ const PendingInviteCard = ({ invite, onCancel, Colors, isDark, index, t }) => (
 
     <View style={styles.supervisorInfo}>
       <Text style={[styles.supervisorName, { color: Colors.primaryText }]} numberOfLines={1}>
-        {invite.full_name || invite.email?.split('@')[0] || 'Pending'}
+        {invite.full_name || invite.email?.split('@')[0] || t('supervisors.pendingFallback')}
       </Text>
       <Text style={[styles.supervisorEmail, { color: Colors.secondaryText }]} numberOfLines={1}>
         {invite.email}
@@ -416,13 +416,13 @@ export default function SupervisorsScreen() {
         fetchSupervisors();
 
         // Let user pick Gmail or Apple Mail
-        const businessName = profile?.business_name || 'our company';
-        const supervisorGreeting = invitedName ? `Hi ${invitedName},` : 'Hi,';
+        const businessName = profile?.business_name || t('supervisors.ourCompany');
+        const supervisorGreeting = invitedName ? t('supervisors.greetingName', { name: invitedName }) : t('supervisors.greeting');
         const inviteLink = `https://construciton-production.up.railway.app/invite?email=${encodeURIComponent(invitedEmail)}&role=supervisor`;
         openEmailPicker(
           invitedEmail,
-          `You're invited to join ${businessName} on Sylk`,
-          `${supervisorGreeting}\n\nYou've been invited to join ${businessName} as a Supervisor on Sylk — the construction management app.\n\nTap here to get started:\n${inviteLink}\n\nAs a supervisor, you'll be able to manage projects, track workers, handle finances, and more.\n\nLooking forward to working with you!\n\n— ${profile?.business_name || 'Your team'}`,
+          t('supervisors.emailSubject', { businessName }),
+          t('supervisors.emailBody', { greeting: supervisorGreeting, businessName, inviteLink, teamName: profile?.business_name || t('supervisors.yourTeam') }),
         );
       }
     } catch (error) {
@@ -608,7 +608,7 @@ export default function SupervisorsScreen() {
                     style={[styles.input, { color: Colors.primaryText }]}
                     value={inviteForm.email}
                     onChangeText={(text) => setInviteForm({ ...inviteForm, email: text })}
-                    placeholder="supervisor@email.com"
+                    placeholder={t('supervisors.emailPlaceholder')}
                     placeholderTextColor={Colors.secondaryText}
                     keyboardType="email-address"
                     autoCapitalize="none"
@@ -631,7 +631,7 @@ export default function SupervisorsScreen() {
                     style={[styles.input, { color: Colors.primaryText }]}
                     value={inviteForm.fullName}
                     onChangeText={(text) => setInviteForm({ ...inviteForm, fullName: text })}
-                    placeholder="John Doe"
+                    placeholder={t('supervisors.namePlaceholder')}
                     placeholderTextColor={Colors.secondaryText}
                     autoCapitalize="words"
                   />
@@ -652,7 +652,7 @@ export default function SupervisorsScreen() {
                     style={[styles.input, { color: Colors.primaryText }]}
                     value={inviteForm.phone}
                     onChangeText={(text) => setInviteForm({ ...inviteForm, phone: text })}
-                    placeholder="+1 555-1234"
+                    placeholder={t('supervisors.phonePlaceholder')}
                     placeholderTextColor={Colors.secondaryText}
                     keyboardType="phone-pad"
                   />
@@ -661,10 +661,10 @@ export default function SupervisorsScreen() {
 
               <View style={[styles.permissionsSection, { borderColor: Colors.border }]}>
                 <Text style={[styles.permissionsTitle, { color: Colors.primaryText }]}>
-                  Permissions
+                  {t('supervisors.permissionsTitle')}
                 </Text>
                 <Text style={[styles.permissionsSubtitle, { color: Colors.secondaryText }]}>
-                  Choose what this supervisor can do. You can change these any time.
+                  {t('supervisors.permissionsSubtitle')}
                 </Text>
                 {SUPERVISOR_PERMISSIONS.map((perm) => (
                   <View

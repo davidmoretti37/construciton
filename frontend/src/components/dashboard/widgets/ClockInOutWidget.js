@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Supervisor clock-in/out widget. Renders at `large` size only — designed to
@@ -19,6 +20,7 @@ export default function ClockInOutWidget({
   Colors,
   formatHoursMinutes,
 }) {
+  const { t } = useTranslation('common');
   const isActive = !!activeSession;
   const statusColor = isActive ? (Colors?.successGreen || '#10B981') : (Colors?.secondaryText || '#9CA3AF');
   const projectName = activeSession?.projects?.name || activeSession?.service_plans?.name || '';
@@ -35,11 +37,11 @@ export default function ClockInOutWidget({
         <View style={styles.statusGroup}>
           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
           <Text style={[styles.statusLabel, { color: textSecondary }]}>
-            {isActive ? 'Active' : 'Offline'}
+            {isActive ? t('clockInOutWidget.statusActive') : t('clockInOutWidget.statusOffline')}
           </Text>
         </View>
         <View style={styles.todayHoursGroup}>
-          <Text style={[styles.todayLabel, { color: textSecondary }]}>Today</Text>
+          <Text style={[styles.todayLabel, { color: textSecondary }]}>{t('clockInOutWidget.today')}</Text>
           <Text style={[styles.todayValue, { color: textPrimary }]}>
             {formatHoursMinutes ? formatHoursMinutes(supervisorTodayHours || 0) : `${(supervisorTodayHours || 0).toFixed(1)}h`}
           </Text>
@@ -73,7 +75,7 @@ export default function ClockInOutWidget({
               color="#fff"
             />
             <Text style={styles.actionButtonText}>
-              {isActive ? 'Clock Out' : 'Clock In'}
+              {isActive ? t('clockInOutWidget.clockOut') : t('clockInOutWidget.clockIn')}
             </Text>
           </>
         )}

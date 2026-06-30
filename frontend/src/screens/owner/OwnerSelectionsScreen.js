@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
@@ -42,6 +43,7 @@ async function ownerFetch(path, options = {}) {
 }
 
 export default function OwnerSelectionsScreen({ route, navigation }) {
+  const { t } = useTranslation('owner');
   const { projectId, projectName } = route.params || {};
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -84,11 +86,11 @@ export default function OwnerSelectionsScreen({ route, navigation }) {
 
   const handleCreate = async () => {
     if (!client?.id) {
-      Alert.alert('No client linked', 'Add a client to this project before creating selections.');
+      Alert.alert(t('ownerSelections.alertNoClientTitle'), t('ownerSelections.alertNoClientBody'));
       return;
     }
     if (!title.trim()) {
-      Alert.alert('Title required', 'Give this selection a title — e.g. "Kitchen backsplash tile".');
+      Alert.alert(t('ownerSelections.alertTitleRequiredTitle'), t('ownerSelections.alertTitleRequiredBody'));
       return;
     }
     const cleanOptions = options
@@ -99,7 +101,7 @@ export default function OwnerSelectionsScreen({ route, navigation }) {
       })
       .filter(Boolean);
     if (cleanOptions.length < 2) {
-      Alert.alert('Add options', 'Add at least two named options for the client to choose from.');
+      Alert.alert(t('ownerSelections.alertAddOptionsTitle'), t('ownerSelections.alertAddOptionsBody'));
       return;
     }
     try {
@@ -115,10 +117,13 @@ export default function OwnerSelectionsScreen({ route, navigation }) {
         }),
       });
       resetForm();
-      Alert.alert('Sent to client', `${client.name || 'Your client'} can now pick an option in their portal.`);
+      Alert.alert(
+        t('ownerSelections.alertSentTitle'),
+        t('ownerSelections.alertSentBody', { clientName: client.name || t('ownerSelections.yourClient') }),
+      );
       load();
     } catch (e) {
-      Alert.alert('Couldn’t create', e?.message || 'Please try again.');
+      Alert.alert(t('ownerSelections.alertCreateErrorTitle'), e?.message || t('ownerSelections.alertCreateErrorBody'));
     } finally {
       setSubmitting(false);
     }
@@ -133,13 +138,13 @@ export default function OwnerSelectionsScreen({ route, navigation }) {
         <View style={styles.cardHead}>
           <Text testID={`ownerSelections.rowTitle.${sel.id}`} style={styles.cardTitle} numberOfLines={1}>{sel.title}</Text>
           <View style={[styles.pill, { backgroundColor: st.bg }]}>
-            <Text testID={`ownerSelections.rowStatus.${sel.id}`} style={[styles.pillText, { color: st.text }]}>{st.label}</Text>
+            <Text testID={`ownerSelections.rowStatus.${sel.id}`} style={[styles.pillText, { color: st.text }]}>{t(`ownerSelections.status.${sel.status}`)}</Text>
           </View>
         </View>
         {sel.description ? <Text style={styles.cardDesc}>{sel.description}</Text> : null}
         <Text style={styles.cardMeta}>
-          {opts.length} option{opts.length === 1 ? '' : 's'}
-          {picked ? ` · client picked: ${picked.name || picked.title || `#${sel.selected_option_index + 1}`}` : ''}
+          {opts.length === 1 ? t('ownerSelections.cardMetaOneOption') : t('ownerSelections.cardMetaOptions', { count: opts.length })}
+          {picked ? t('ownerSelections.cardMetaClientPicked', { name: picked.name || picked.title || `#${sel.selected_option_index + 1}` }) : ''}
         </Text>
       </View>
     );
@@ -153,7 +158,7 @@ export default function OwnerSelectionsScreen({ route, navigation }) {
             <Ionicons name="chevron-back" size={26} color={C.text} />
           </TouchableOpacity>
           <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text testID="ownerSelections.headerTitle" style={styles.headerTitle}>Selections</Text>
+            <Text testID="ownerSelections.headerTitle" style={styles.headerTitle}>{t('ownerSelections.headerTitle')}</Text>
             {projectName ? <Text testID="ownerSelections.headerSubtitle" style={styles.headerSub} numberOfLines={1}>{projectName}</Text> : null}
           </View>
           <TouchableOpacity testID="ownerSelections.toggleFormButton" accessibilityLabel={showForm ? 'Close new selection form' : 'New selection'} onPress={() => setShowForm((s) => !s)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
@@ -170,39 +175,39 @@ export default function OwnerSelectionsScreen({ route, navigation }) {
         >
           {showForm && (
             <View style={styles.formCard}>
-              <Text style={styles.formTitle}>New selection</Text>
+              <Text style={styles.formTitle}>{t('ownerSelections.formTitle')}</Text>
               {!client?.id && (
-                <Text style={styles.warnText}>No client is linked to this project yet — add one to send selections.</Text>
+                <Text style={styles.warnText}>{t('ownerSelections.warnNoClient')}</Text>
               )}
-              <Text style={styles.label}>Title</Text>
+              <Text style={styles.label}>{t('ownerSelections.labelTitle')}</Text>
               <TextInput
                 testID="ownerSelections.titleInput"
                 accessibilityLabel="Selection title"
                 style={styles.input}
-                placeholder='e.g. Kitchen backsplash tile'
+                placeholder={t('ownerSelections.placeholderTitle')}
                 placeholderTextColor={C.textMuted}
                 value={title}
                 onChangeText={setTitle}
               />
-              <Text style={styles.label}>Description (optional)</Text>
+              <Text style={styles.label}>{t('ownerSelections.labelDescription')}</Text>
               <TextInput
                 testID="ownerSelections.descriptionInput"
                 accessibilityLabel="Selection description"
                 style={[styles.input, styles.inputMulti]}
-                placeholder='Any notes for the client'
+                placeholder={t('ownerSelections.placeholderDescription')}
                 placeholderTextColor={C.textMuted}
                 value={description}
                 onChangeText={setDescription}
                 multiline
               />
-              <Text style={styles.label}>Options</Text>
+              <Text style={styles.label}>{t('ownerSelections.labelOptions')}</Text>
               {options.map((o, i) => (
                 <View key={i} testID={`ownerSelections.optionRow.${i}`} style={styles.optionRow}>
                   <TextInput
                     testID={`ownerSelections.optionNameInput.${i}`}
                     accessibilityLabel={`Option ${i + 1} name`}
                     style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                    placeholder={`Option ${i + 1} name`}
+                    placeholder={t('ownerSelections.optionNamePlaceholder', { number: i + 1 })}
                     placeholderTextColor={C.textMuted}
                     value={o.name}
                     onChangeText={(v) => updateOption(i, 'name', v)}
@@ -224,7 +229,7 @@ export default function OwnerSelectionsScreen({ route, navigation }) {
               ))}
               <TouchableOpacity testID="ownerSelections.addOptionButton" accessibilityLabel="Add option" onPress={addOption} style={styles.addOptionBtn}>
                 <Ionicons name="add" size={18} color={C.amber} />
-                <Text style={styles.addOptionText}>Add option</Text>
+                <Text style={styles.addOptionText}>{t('ownerSelections.addOption')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -235,7 +240,7 @@ export default function OwnerSelectionsScreen({ route, navigation }) {
                 disabled={submitting || !client?.id}
                 activeOpacity={0.85}
               >
-                {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.createBtnText}>Send to client</Text>}
+                {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.createBtnText}>{t('ownerSelections.sendToClient')}</Text>}
               </TouchableOpacity>
             </View>
           )}
@@ -245,8 +250,8 @@ export default function OwnerSelectionsScreen({ route, navigation }) {
           ) : selections.length === 0 && !showForm ? (
             <View style={styles.empty}>
               <Ionicons name="color-palette-outline" size={40} color={C.textMuted} />
-              <Text style={styles.emptyTitle}>No selections yet</Text>
-              <Text style={styles.emptySub}>Tap + to ask your client to choose finishes, fixtures, or materials.</Text>
+              <Text style={styles.emptyTitle}>{t('ownerSelections.emptyTitle')}</Text>
+              <Text style={styles.emptySub}>{t('ownerSelections.emptySub')}</Text>
             </View>
           ) : (
             selections.map(renderSelection)

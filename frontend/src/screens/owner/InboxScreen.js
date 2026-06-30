@@ -264,7 +264,7 @@ export default function InboxScreen({ navigation }) {
               style={styles.emptyRefresh}
             >
               <Ionicons name="refresh" size={14} color={Colors.primaryBlue} />
-              <Text style={styles.emptyRefreshText}>Refresh</Text>
+              <Text style={styles.emptyRefreshText}>{t('inbox.refresh')}</Text>
             </TouchableOpacity>
           </View>
         ) : (

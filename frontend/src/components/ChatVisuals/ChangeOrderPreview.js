@@ -14,6 +14,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Switch, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 
 const C = {
@@ -37,6 +38,7 @@ function computeTotals(items, taxRate) {
 }
 
 export default function ChangeOrderPreview({ data, onAction }) {
+  const { t } = useTranslation('chat');
   const initialItems = (data?.lineItems || data?.line_items || []).map((li) => ({
     description: li.description || '',
     quantity: li.quantity != null ? String(li.quantity) : '1',
@@ -144,28 +146,28 @@ export default function ChangeOrderPreview({ data, onAction }) {
 
   const validate = () => {
     if (!projectId) {
-      Alert.alert('Missing project', 'This change order is not linked to a project.');
+      Alert.alert(t('changeOrderPreview.alertMissingProjectTitle'), t('changeOrderPreview.alertMissingProjectBody'));
       return false;
     }
     if (!title.trim()) {
-      Alert.alert('Missing title', 'Add a short title describing the change.');
+      Alert.alert(t('changeOrderPreview.alertMissingTitleTitle'), t('changeOrderPreview.alertMissingTitleBody'));
       return false;
     }
     if (items.length === 0 || !items.some((li) => li.description.trim() && Number(li.unit_price) > 0)) {
-      Alert.alert('Add line items', 'A change order needs at least one priced line item.');
+      Alert.alert(t('changeOrderPreview.alertAddLineItemsTitle'), t('changeOrderPreview.alertAddLineItemsBody'));
       return false;
     }
     // Phase placement is required when there's real work to schedule
     const needsPlacement = projectPhases.length > 0 && (Number(scheduleImpactDays || 0) !== 0 || items.length > 0);
     if (needsPlacement && !phasePlacement) {
       Alert.alert(
-        'Where does this fit?',
-        'Pick where this change goes on the timeline — inside an existing phase, or as a new phase before/after one.'
+        t('changeOrderPreview.alertPlacementTitle'),
+        t('changeOrderPreview.alertPlacementBody')
       );
       return false;
     }
     if (phasePlacement && !targetPhaseId && projectPhases.length > 0) {
-      Alert.alert('Pick a phase', 'Choose which phase this attaches to.');
+      Alert.alert(t('changeOrderPreview.alertPickPhaseTitle'), t('changeOrderPreview.alertPickPhaseBody'));
       return false;
     }
     return true;
@@ -182,7 +184,7 @@ export default function ChangeOrderPreview({ data, onAction }) {
         setStatus(result.status || 'draft');
       }
     } catch (e) {
-      Alert.alert('Save failed', e.message || 'Could not save the change order.');
+      Alert.alert(t('changeOrderPreview.alertSaveFailedTitle'), e.message || t('changeOrderPreview.alertSaveFailedBody'));
     } finally {
       setSaving(false);
     }
@@ -196,7 +198,7 @@ export default function ChangeOrderPreview({ data, onAction }) {
       // schedule impact, tax, signature, placement, strategy) onto the row before
       // the status flip, so the client never receives stale values.
       const saved = await onAction?.({ type: 'save-change-order', data: buildPayload() });
-      if (!saved?.id) throw new Error('Save failed before send');
+      if (!saved?.id) throw new Error(t('changeOrderPreview.errorSaveBeforeSend'));
       const id = saved.id;
       setSavedId(id);
       // Pass the latest placement/strategy so any user edits after the initial save
@@ -213,12 +215,17 @@ export default function ChangeOrderPreview({ data, onAction }) {
       });
       if (result?.sent || result?.status === 'pending_client') {
         setStatus('pending_client');
-        Alert.alert('Sent', `Change order emailed${result?.email ? ` to ${result.email}` : ''}.`);
+        Alert.alert(
+          t('changeOrderPreview.alertSentTitle'),
+          result?.email
+            ? t('changeOrderPreview.alertSentBodyWithEmail', { email: result.email })
+            : t('changeOrderPreview.alertSentBody')
+        );
       } else if (result?.error) {
-        Alert.alert('Send issue', result.error);
+        Alert.alert(t('changeOrderPreview.alertSendIssueTitle'), result.error);
       }
     } catch (e) {
-      Alert.alert('Send failed', e.message || 'Could not send the change order.');
+      Alert.alert(t('changeOrderPreview.alertSendFailedTitle'), e.message || t('changeOrderPreview.alertSendFailedBody'));
     } finally {
       setSending(false);
     }
@@ -231,23 +238,23 @@ export default function ChangeOrderPreview({ data, onAction }) {
       {/* Header */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.kicker}>CHANGE ORDER</Text>
+          <Text style={styles.kicker}>{t('changeOrderPreview.kicker')}</Text>
           {isEditing ? (
             <TextInput
               style={styles.titleInput}
               value={title}
               onChangeText={setTitle}
-              placeholder="Short title (e.g. Master bath tile addition)"
+              placeholder={t('changeOrderPreview.titlePlaceholder')}
               placeholderTextColor={C.textMuted}
             />
           ) : (
-            <Text style={styles.title} numberOfLines={2}>{title || 'Untitled change order'}</Text>
+            <Text style={styles.title} numberOfLines={2}>{title || t('changeOrderPreview.untitled')}</Text>
           )}
           {projectName ? <Text style={styles.subtitle}>{projectName}</Text> : null}
         </View>
         <View style={[styles.statusPill, status === 'draft' ? styles.statusDraft : styles.statusSent]}>
           <Text style={[styles.statusText, status === 'draft' ? styles.statusTextDraft : styles.statusTextSent]}>
-            {status === 'draft' ? 'DRAFT' : status.toUpperCase().replace('_', ' ')}
+            {status === 'draft' ? t('changeOrderPreview.statusDraft') : status.toUpperCase().replace('_', ' ')}
           </Text>
         </View>
       </View>
@@ -258,7 +265,7 @@ export default function ChangeOrderPreview({ data, onAction }) {
           style={styles.descriptionInput}
           value={description}
           onChangeText={setDescription}
-          placeholder="Why is this changing? (optional)"
+          placeholder={t('changeOrderPreview.descriptionPlaceholder')}
           placeholderTextColor={C.textMuted}
           multiline
         />
@@ -269,11 +276,11 @@ export default function ChangeOrderPreview({ data, onAction }) {
       {/* Line items */}
       <View style={styles.section}>
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionLabel}>LINE ITEMS</Text>
+          <Text style={styles.sectionLabel}>{t('changeOrderPreview.lineItems')}</Text>
           {isEditing && (
             <TouchableOpacity onPress={addItem} style={styles.addLinkBtn}>
               <Ionicons name="add" size={14} color={C.primary} />
-              <Text style={styles.addLinkText}>Add</Text>
+              <Text style={styles.addLinkText}>{t('common:buttons.add')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -286,7 +293,7 @@ export default function ChangeOrderPreview({ data, onAction }) {
                     style={[styles.itemInput, { flex: 1 }]}
                     value={li.description}
                     onChangeText={(v) => updateItem(idx, 'description', v)}
-                    placeholder="Description"
+                    placeholder={t('changeOrderPreview.itemDescriptionPlaceholder')}
                     placeholderTextColor={C.textMuted}
                   />
                   <TouchableOpacity onPress={() => removeItem(idx)} hitSlop={8}>
@@ -299,14 +306,14 @@ export default function ChangeOrderPreview({ data, onAction }) {
                     value={li.quantity}
                     onChangeText={(v) => updateItem(idx, 'quantity', v.replace(/[^\d.]/g, ''))}
                     keyboardType="decimal-pad"
-                    placeholder="Qty"
+                    placeholder={t('changeOrderPreview.qtyPlaceholder')}
                     placeholderTextColor={C.textMuted}
                   />
                   <TextInput
                     style={[styles.itemInputSmall, { width: 70 }]}
                     value={li.unit}
                     onChangeText={(v) => updateItem(idx, 'unit', v)}
-                    placeholder="unit"
+                    placeholder={t('changeOrderPreview.unitPlaceholder')}
                     placeholderTextColor={C.textMuted}
                   />
                   <Text style={styles.times}>×</Text>
@@ -339,13 +346,13 @@ export default function ChangeOrderPreview({ data, onAction }) {
           </View>
         ))}
         {items.length === 0 && (
-          <Text style={styles.emptyHint}>No line items. Tap Edit to add some.</Text>
+          <Text style={styles.emptyHint}>{t('changeOrderPreview.noLineItems')}</Text>
         )}
       </View>
 
       {/* Schedule impact */}
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>SCHEDULE IMPACT</Text>
+        <Text style={styles.sectionLabel}>{t('changeOrderPreview.scheduleImpact')}</Text>
         <View style={styles.stepperRow}>
           {isEditing ? (
             <>
@@ -353,7 +360,10 @@ export default function ChangeOrderPreview({ data, onAction }) {
                 <Ionicons name="remove" size={18} color={C.text} />
               </TouchableOpacity>
               <Text style={styles.stepperValue}>
-                {scheduleImpactDays > 0 ? '+' : ''}{scheduleImpactDays} day{Math.abs(scheduleImpactDays) === 1 ? '' : 's'}
+                {t('changeOrderPreview.daysImpact', {
+                  signed: `${scheduleImpactDays > 0 ? '+' : ''}${scheduleImpactDays}`,
+                  count: Math.abs(scheduleImpactDays),
+                })}
               </Text>
               <TouchableOpacity style={styles.stepBtn} onPress={() => setScheduleImpactDays(scheduleImpactDays + 1)}>
                 <Ionicons name="add" size={18} color={C.text} />
@@ -361,7 +371,12 @@ export default function ChangeOrderPreview({ data, onAction }) {
             </>
           ) : (
             <Text style={styles.stepperValue}>
-              {scheduleImpactDays === 0 ? 'No schedule change' : `${scheduleImpactDays > 0 ? '+' : ''}${scheduleImpactDays} day${Math.abs(scheduleImpactDays) === 1 ? '' : 's'}`}
+              {scheduleImpactDays === 0
+                ? t('changeOrderPreview.noScheduleChange')
+                : t('changeOrderPreview.daysImpact', {
+                    signed: `${scheduleImpactDays > 0 ? '+' : ''}${scheduleImpactDays}`,
+                    count: Math.abs(scheduleImpactDays),
+                  })}
             </Text>
           )}
         </View>
@@ -370,7 +385,7 @@ export default function ChangeOrderPreview({ data, onAction }) {
       {/* Tax rate (compact) */}
       {(isEditing || taxRate > 0) && (
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>TAX RATE</Text>
+          <Text style={styles.sectionLabel}>{t('changeOrderPreview.taxRate')}</Text>
           {isEditing ? (
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <TextInput
@@ -390,17 +405,17 @@ export default function ChangeOrderPreview({ data, onAction }) {
       {/* Totals */}
       <View style={styles.totalsBlock}>
         <View style={styles.totalsRow}>
-          <Text style={styles.totalsLabel}>Subtotal</Text>
+          <Text style={styles.totalsLabel}>{t('changeOrderPreview.subtotal')}</Text>
           <Text style={styles.totalsValue}>{fmt$(subtotal)}</Text>
         </View>
         {tax > 0 && (
           <View style={styles.totalsRow}>
-            <Text style={styles.totalsLabel}>Tax</Text>
+            <Text style={styles.totalsLabel}>{t('changeOrderPreview.tax')}</Text>
             <Text style={styles.totalsValue}>{fmt$(tax)}</Text>
           </View>
         )}
         <View style={[styles.totalsRow, styles.totalsRowBig]}>
-          <Text style={styles.totalsBigLabel}>Total</Text>
+          <Text style={styles.totalsBigLabel}>{t('changeOrderPreview.total')}</Text>
           <Text style={styles.totalsBigValue}>{fmt$(total)}</Text>
         </View>
       </View>
@@ -408,15 +423,15 @@ export default function ChangeOrderPreview({ data, onAction }) {
       {/* Contract/end-date callout */}
       {currentContract > 0 && (
         <View style={styles.callout}>
-          <Text style={styles.calloutTitle}>After approval</Text>
+          <Text style={styles.calloutTitle}>{t('changeOrderPreview.afterApproval')}</Text>
           <Text style={styles.calloutLine}>
-            New contract: <Text style={styles.calloutBold}>{fmt$(newContract)}</Text>
-            {currentContract > 0 ? `  (was ${fmt$(currentContract)})` : ''}
+            {t('changeOrderPreview.newContractLabel')} <Text style={styles.calloutBold}>{fmt$(newContract)}</Text>
+            {currentContract > 0 ? t('changeOrderPreview.was', { value: fmt$(currentContract) }) : ''}
           </Text>
           {newEnd && currentEnd && (
             <Text style={styles.calloutLine}>
-              New end date: <Text style={styles.calloutBold}>{fmtDate(newEnd)}</Text>
-              {`  (was ${fmtDate(currentEnd)})`}
+              {t('changeOrderPreview.newEndDateLabel')} <Text style={styles.calloutBold}>{fmtDate(newEnd)}</Text>
+              {t('changeOrderPreview.was', { value: fmtDate(currentEnd) })}
             </Text>
           )}
         </View>
@@ -426,9 +441,9 @@ export default function ChangeOrderPreview({ data, onAction }) {
       {!isSent && (
         <View style={styles.toggleRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.toggleLabel}>Require signature</Text>
+            <Text style={styles.toggleLabel}>{t('changeOrderPreview.requireSignature')}</Text>
             <Text style={styles.toggleHint}>
-              Client must sign instead of just typing their name.
+              {t('changeOrderPreview.requireSignatureHint')}
             </Text>
           </View>
           <Switch
@@ -443,14 +458,14 @@ export default function ChangeOrderPreview({ data, onAction }) {
       {/* Phase placement picker — required when project has phases */}
       {!isSent && projectPhases.length > 0 && (
         <View style={styles.strategyBlock}>
-          <Text style={styles.strategyLabel}>Where does this fit on the timeline?</Text>
+          <Text style={styles.strategyLabel}>{t('changeOrderPreview.placementTitle')}</Text>
           {[
-            { key: 'inside_phase', label: 'Inside an existing phase',
-              hint: 'Adds tasks + days to one of the phases below' },
-            { key: 'after_phase',  label: 'As a new phase AFTER',
-              hint: 'Inserts a new phase right after the one you pick' },
-            { key: 'before_phase', label: 'As a new phase BEFORE',
-              hint: 'Inserts a new phase right before the one you pick' },
+            { key: 'inside_phase', label: t('changeOrderPreview.placementInsideLabel'),
+              hint: t('changeOrderPreview.placementInsideHint') },
+            { key: 'after_phase',  label: t('changeOrderPreview.placementAfterLabel'),
+              hint: t('changeOrderPreview.placementAfterHint') },
+            { key: 'before_phase', label: t('changeOrderPreview.placementBeforeLabel'),
+              hint: t('changeOrderPreview.placementBeforeHint') },
           ].map((opt) => {
             const selected = phasePlacement === opt.key;
             return (
@@ -473,9 +488,9 @@ export default function ChangeOrderPreview({ data, onAction }) {
           {phasePlacement && (
             <View style={{ marginTop: 8 }}>
               <Text style={styles.strategyOptHint}>
-                {phasePlacement === 'inside_phase' ? 'Merge into:' :
-                 phasePlacement === 'after_phase'  ? 'After which phase:' :
-                                                    'Before which phase:'}
+                {phasePlacement === 'inside_phase' ? t('changeOrderPreview.mergeInto') :
+                 phasePlacement === 'after_phase'  ? t('changeOrderPreview.afterWhichPhase') :
+                                                    t('changeOrderPreview.beforeWhichPhase')}
               </Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 6, gap: 6 }}>
                 {projectPhases.map((p) => {
@@ -502,7 +517,7 @@ export default function ChangeOrderPreview({ data, onAction }) {
               </View>
               {(phasePlacement === 'before_phase' || phasePlacement === 'after_phase') && (
                 <View style={{ marginTop: 10 }}>
-                  <Text style={styles.strategyOptHint}>New phase name (optional)</Text>
+                  <Text style={styles.strategyOptHint}>{t('changeOrderPreview.newPhaseNameLabel')}</Text>
                   <TextInput
                     style={{
                       borderWidth: 1, borderColor: C.border, borderRadius: 8,
@@ -511,7 +526,7 @@ export default function ChangeOrderPreview({ data, onAction }) {
                     }}
                     value={newPhaseName}
                     onChangeText={setNewPhaseName}
-                    placeholder={title || 'New phase name'}
+                    placeholder={title || t('changeOrderPreview.newPhaseNamePlaceholder')}
                     placeholderTextColor={C.textMuted}
                   />
                 </View>
@@ -524,14 +539,14 @@ export default function ChangeOrderPreview({ data, onAction }) {
       {/* Billing strategy picker — only on draft, only when project has draws */}
       {!isSent && (
         <View style={styles.strategyBlock}>
-          <Text style={styles.strategyLabel}>How should this be billed?</Text>
+          <Text style={styles.strategyLabel}>{t('changeOrderPreview.billingTitle')}</Text>
           {[
-            { key: 'invoice_now', label: 'Bill it now',
-              hint: 'Adds a ready draw on approval — invoice in one tap' },
-            { key: 'next_draw',  label: 'Add to next draw',
-              hint: 'Bundles into your next regular draw invoice' },
-            { key: 'project_end',label: 'Wait for final invoice',
-              hint: 'Settles at project completion' },
+            { key: 'invoice_now', label: t('changeOrderPreview.billingNowLabel'),
+              hint: t('changeOrderPreview.billingNowHint') },
+            { key: 'next_draw',  label: t('changeOrderPreview.billingNextDrawLabel'),
+              hint: t('changeOrderPreview.billingNextDrawHint') },
+            { key: 'project_end',label: t('changeOrderPreview.billingProjectEndLabel'),
+              hint: t('changeOrderPreview.billingProjectEndHint') },
           ].map((opt) => {
             const selected = billingStrategy === opt.key;
             return (
@@ -562,26 +577,26 @@ export default function ChangeOrderPreview({ data, onAction }) {
           <>
             <TouchableOpacity style={styles.btnGhost} onPress={() => setIsEditing(true)}>
               <Ionicons name="create-outline" size={16} color={C.text} />
-              <Text style={styles.btnGhostText}>Edit</Text>
+              <Text style={styles.btnGhostText}>{t('common:buttons.edit')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.btnGhost}
               onPress={() => onAction?.({ type: 'configure-change-order-details', data: { ...data, id: data?.id || data?.coId } })}
             >
               <Ionicons name="options-outline" size={16} color={C.text} />
-              <Text style={styles.btnGhostText}>Configure</Text>
+              <Text style={styles.btnGhostText}>{t('changeOrderPreview.configure')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.btnSecondary} onPress={handleSaveDraft} disabled={saving}>
               {saving
                 ? <ActivityIndicator size="small" color={C.text} />
-                : <Text style={styles.btnSecondaryText}>{savedId ? 'Update Draft' : 'Save Draft'}</Text>}
+                : <Text style={styles.btnSecondaryText}>{savedId ? t('changeOrderPreview.updateDraft') : t('changeOrderPreview.saveDraft')}</Text>}
             </TouchableOpacity>
             <TouchableOpacity style={styles.btnPrimary} onPress={handleSend} disabled={sending}>
               {sending
                 ? <ActivityIndicator size="small" color="#fff" />
                 : <>
                     <Ionicons name="send" size={14} color="#fff" />
-                    <Text style={styles.btnPrimaryText}>Send</Text>
+                    <Text style={styles.btnPrimaryText}>{t('changeOrderPreview.send')}</Text>
                   </>}
             </TouchableOpacity>
           </>
@@ -589,21 +604,21 @@ export default function ChangeOrderPreview({ data, onAction }) {
         {!isSent && isEditing && (
           <>
             <TouchableOpacity style={styles.btnGhost} onPress={() => setIsEditing(false)}>
-              <Text style={styles.btnGhostText}>Cancel</Text>
+              <Text style={styles.btnGhostText}>{t('common:buttons.cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.btnPrimary} onPress={handleSaveDraft} disabled={saving}>
               {saving
                 ? <ActivityIndicator size="small" color="#fff" />
-                : <Text style={styles.btnPrimaryText}>Done</Text>}
+                : <Text style={styles.btnPrimaryText}>{t('common:buttons.done')}</Text>}
             </TouchableOpacity>
           </>
         )}
         {isSent && (
           <Text style={styles.sentNote}>
-            {status === 'approved' ? '✓ Approved — contract updated.' :
-             status === 'rejected' ? 'Declined by client.' :
-             status === 'void' ? 'Voided.' :
-             'Awaiting client response.'}
+            {status === 'approved' ? t('changeOrderPreview.sentApproved') :
+             status === 'rejected' ? t('changeOrderPreview.sentRejected') :
+             status === 'void' ? t('changeOrderPreview.sentVoid') :
+             t('changeOrderPreview.sentAwaiting')}
           </Text>
         )}
       </View>

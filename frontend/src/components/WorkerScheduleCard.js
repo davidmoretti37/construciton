@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Linking, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
 export default function WorkerScheduleCard({ worker, onPress }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const [elapsedTime, setElapsedTime] = useState('');
@@ -105,7 +107,7 @@ export default function WorkerScheduleCard({ worker, onPress }) {
           {/* Clock-in Time */}
           {worker.clockInTime && (
             <View style={styles.timeColumn}>
-              <Text style={[styles.timeLabel, { color: Colors.secondaryText }]}>Clocked In</Text>
+              <Text style={[styles.timeLabel, { color: Colors.secondaryText }]}>{t('workerScheduleCard.clockedIn')}</Text>
               <Text style={[styles.timeValue, { color: Colors.primaryText }]}>
                 {formatTime(worker.clockInTime)}
               </Text>
@@ -127,7 +129,7 @@ export default function WorkerScheduleCard({ worker, onPress }) {
           {worker.isActive && (
             <View style={[styles.statBadge, { backgroundColor: '#10B981' + '15' }]}>
               <View style={[styles.statusDot, { backgroundColor: '#10B981' }]} />
-              <Text style={[styles.statText, { color: '#10B981' }]}>Active</Text>
+              <Text style={[styles.statText, { color: '#10B981' }]}>{t('workerScheduleCard.active')}</Text>
             </View>
           )}
 
@@ -151,7 +153,7 @@ export default function WorkerScheduleCard({ worker, onPress }) {
           >
             <Ionicons name="location" size={14} color="#8B5CF6" />
             <Text style={[styles.locationText, { color: '#8B5CF6' }]}>
-              View clock-in location
+              {t('workerScheduleCard.viewClockInLocation')}
             </Text>
             <Ionicons name="open-outline" size={12} color="#8B5CF6" />
           </TouchableOpacity>

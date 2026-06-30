@@ -105,5 +105,112 @@
     "invoiceDetails": "Invoice Details",
     "estimateDetails": "Estimate Details",
     "unpaid": "Unpaid"
+  },
+  "invoiceList": {
+    "title": "Invoices",
+    "stats": {
+      "unpaid": "Unpaid",
+      "paid": "Paid",
+      "totalDue": "Total Due"
+    },
+    "empty": "No invoices yet",
+    "status": {
+      "unpaid": "Unpaid",
+      "partial": "Partial",
+      "paid": "Paid",
+      "overdue": "Overdue",
+      "cancelled": "Cancelled"
+    },
+    "na": "N/A",
+    "dueDate": "Due: {{date}}",
+    "itemCount": "{{count}} item",
+    "total": "Total:",
+    "amountDue": "Amount Due:"
+  },
+  "invoicePreview": {
+    "notAvailable": "N/A",
+    "previewError": "Failed to preview invoice. Please try again.",
+    "unit": "unit",
+    "sendToClient": "Send to Client",
+    "previewModalTitle": "Invoice Preview"
+  },
+  "overdueInvoicesWidget": {
+    "title": "Invoices",
+    "outstanding": "OUTSTANDING",
+    "allPaid": "ALL PAID",
+    "amountOutstanding": "{{amount}} outstanding"
+  },
+  "clientInvoices": {
+    "title": "Invoices",
+    "errorTitle": "Couldn't load invoices",
+    "retry": "Retry",
+    "emptyTitle": "No invoices yet",
+    "paymentAlertTitle": "Payment",
+    "paymentAlertBody": "Unable to start payment right now.",
+    "paymentErrorTitle": "Payment Error",
+    "paymentErrorBody": "Failed to start payment",
+    "status": {
+      "paid": "PAID",
+      "partial": "PARTIAL",
+      "overdue": "OVERDUE",
+      "unpaid": "DUE"
+    },
+    "payAmount": "Pay ${{amount}}"
+  },
+  "invoiceTemplate": {
+    "title": "Invoice & Estimate Template",
+    "infoText": "Customize how your invoices and estimates look. This applies to every PDF you generate.",
+    "templateStyleTitle": "Template Style",
+    "templateStyleSubtitle": "Pick the visual style for your invoices and estimates. Tap Preview to see it with your business info.",
+    "preview": "Preview",
+    "businessLogoTitle": "Business Logo",
+    "tapToUploadLogo": "Tap to upload logo",
+    "removeLogo": "Remove Logo",
+    "businessInfoTitle": "Business Information",
+    "businessNameLabel": "Business Name",
+    "businessNamePlaceholder": "Enter business name",
+    "addressLabel": "Address",
+    "addressPlaceholder": "123 Main St, City, State 12345",
+    "phoneLabel": "Phone",
+    "phonePlaceholder": "(555) 123-4567",
+    "emailLabel": "Email",
+    "emailPlaceholder": "contact@business.com",
+    "paymentTermsTitle": "Payment Terms",
+    "footerTextTitle": "Footer Text",
+    "footerTextSubtitle": "Thank you message or payment instructions",
+    "footerTextPlaceholder": "Thank you for your business! Payment can be made via...",
+    "livePreviewTitle": "Live preview",
+    "livePreviewSubtitle": "This is what your invoice will actually look like with your info.",
+    "saveTemplate": "Save Template",
+    "stylePreviewTitle": "{{style}} preview",
+    "invoiceToggle": "Invoice",
+    "estimateToggle": "Estimate",
+    "useThisTemplate": "Use this template",
+    "sampleBusinessName": "Your Business Name",
+    "sampleBusinessNameShort": "Your Business",
+    "permissionTitle": "Permission needed",
+    "logoPermissionMessage": "Please grant photo library access to upload a logo",
+    "logoPickFailed": "Failed to pick logo image",
+    "logoUploadFailed": "Failed to upload logo. Template will be saved without logo.",
+    "saveSuccess": "Invoice template saved successfully",
+    "saveFailed": "Failed to save template",
+    "ok": "OK"
+  },
+  "invoicesDetail": {
+    "fromSubcontractors": "FROM SUBCONTRACTORS",
+    "subcontractorFallback": "Subcontractor",
+    "sentDate": "Sent {{date}}",
+    "dueDate": "Due {{date}}",
+    "paidDate": "Paid {{date}}",
+    "markPaid": "Mark paid",
+    "markAsPaidTitle": "Mark as paid?",
+    "markAsPaidMessage": "Mark this ${{amount}} invoice paid? The sub will be notified.",
+    "errorMarkPaid": "Could not mark paid",
+    "tryAgain": "Try again",
+    "invoiceFileName": "Invoice {{number}}",
+    "invoiceFileNameId": "Invoice #{{id}}",
+    "errorCouldNotOpen": "Could not open",
+    "invoiceNumberLabel": "Invoice #{{number}}",
+    "invoiceLabel": "Invoice"
   }
 }

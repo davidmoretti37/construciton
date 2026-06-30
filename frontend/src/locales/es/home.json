@@ -44,12 +44,56 @@
     "minuteAgo": "hace 1 min",
     "minutesAgo": "hace {{count}} mins",
     "hourAgo": "hace 1 hora",
-    "hoursAgo": "hace {{count}} horas"
+    "hoursAgo": "hace {{count}} horas",
+    "today": "Hoy",
+    "yesterday": "Ayer"
   },
   "fallbacks": {
     "worker": "Trabajador",
     "project": "Proyecto",
     "noDescription": "Sin descripción",
     "updated": "Actualizado"
+  },
+  "clockIn": {
+    "successMessage": "¡Registro de entrada exitoso!",
+    "failedCheckDb": "No se pudo registrar la entrada. Verifique si la tabla supervisor_time_tracking existe en su base de datos.",
+    "failedWithError": "No se pudo registrar la entrada: {{message}}",
+    "noProjectsTitle": "Sin Proyectos",
+    "noProjectsMessage": "Necesita tener al menos un proyecto para registrar la entrada.",
+    "selectProjectTitle": "Seleccionar Proyecto",
+    "noProjectsAvailable": "No hay proyectos disponibles"
+  },
+  "clockOut": {
+    "title": "Salida Registrada",
+    "workedHours": "Trabajó {{hours}}",
+    "failed": "No se pudo registrar la salida",
+    "failedWithError": "No se pudo registrar la salida: {{message}}"
+  },
+  "errors": {
+    "unknown": "Error desconocido"
+  },
+  "margin": {
+    "healthy": "Saludable",
+    "moderate": "Moderado",
+    "atRisk": "En riesgo"
+  },
+  "workers": {
+    "unknownWorker": "Empleado"
+  },
+  "retryBanner": {
+    "message": "Error al cargar datos. Toque para reintentar."
+  },
+  "forgottenClockOut": {
+    "title": "Salidas Pendientes",
+    "alertTitle": "Registrar Salida del Empleado",
+    "alertMessage": "¿Registrar salida de {{name}}?",
+    "clockOutButton": "Registrar Salida",
+    "successMessage": "{{name}} registró su salida."
+  },
+  "editDashboard": {
+    "reset": "Restablecer",
+    "title": "Editando Panel",
+    "addWidget": "Agregar widget",
+    "emptyMessage": "Toque para agregar widgets a su panel"
   }
 }

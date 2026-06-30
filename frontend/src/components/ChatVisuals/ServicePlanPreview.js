@@ -17,6 +17,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 
@@ -55,6 +56,14 @@ const normalizeDays = (days) => {
 };
 
 export default function ServicePlanPreview({ data, onAction }) {
+  const { t } = useTranslation('chat');
+  const FREQUENCY_LABELS = {
+    weekly: t('servicePlanPreview.freqWeekly'),
+    biweekly: t('servicePlanPreview.freqBiweekly'),
+    monthly: t('servicePlanPreview.freqMonthly'),
+    custom: t('servicePlanPreview.freqCustom'),
+  };
+  const freqLabel = (f) => (f ? (FREQUENCY_LABELS[f] || (f.charAt(0).toUpperCase() + f.slice(1))) : '');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const [isSaving, setIsSaving] = useState(false);
@@ -114,7 +123,7 @@ export default function ServicePlanPreview({ data, onAction }) {
     const labels = BILLING_OPTIONS.map(o => BILLING_LABELS[o] || o);
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
-        { options: [...labels, 'Cancel'], cancelButtonIndex: labels.length },
+        { options: [...labels, t('common:buttons.cancel')], cancelButtonIndex: labels.length },
         (index) => {
           if (index < BILLING_OPTIONS.length) {
             updateField('billing_cycle', BILLING_OPTIONS[index]);
@@ -123,22 +132,22 @@ export default function ServicePlanPreview({ data, onAction }) {
         }
       );
     } else {
-      Alert.alert('Billing Cycle', 'Select billing cycle', [
+      Alert.alert(t('servicePlanPreview.billingCycle'), t('servicePlanPreview.billingCyclePrompt'), [
         ...BILLING_OPTIONS.map(o => ({
           text: BILLING_LABELS[o] || o,
           onPress: () => { updateField('billing_cycle', o); updateField('billingCycle', o); },
         })),
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
       ]);
     }
   };
 
   // Schedule frequency picker
   const showFrequencyPicker = () => {
-    const labels = FREQUENCY_OPTIONS.map(o => o.charAt(0).toUpperCase() + o.slice(1));
+    const labels = FREQUENCY_OPTIONS.map(o => freqLabel(o));
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
-        { options: [...labels, 'Cancel'], cancelButtonIndex: labels.length },
+        { options: [...labels, t('common:buttons.cancel')], cancelButtonIndex: labels.length },
         (index) => {
           if (index < FREQUENCY_OPTIONS.length) {
             updateField('schedule_frequency', FREQUENCY_OPTIONS[index]);
@@ -146,12 +155,12 @@ export default function ServicePlanPreview({ data, onAction }) {
         }
       );
     } else {
-      Alert.alert('Frequency', 'Select schedule frequency', [
+      Alert.alert(t('servicePlanPreview.frequencyLabel'), t('servicePlanPreview.frequencyPrompt'), [
         ...FREQUENCY_OPTIONS.map(o => ({
-          text: o.charAt(0).toUpperCase() + o.slice(1),
+          text: freqLabel(o),
           onPress: () => updateField('schedule_frequency', o),
         })),
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
       ]);
     }
   };
@@ -219,13 +228,13 @@ export default function ServicePlanPreview({ data, onAction }) {
     // Validate before saving
     const planName = current?.name || '';
     if (!planName.trim() || planName === 'Untitled Plan') {
-      Alert.alert('Required', 'Please enter a name for this service plan.');
+      Alert.alert(t('servicePlanPreview.requiredTitle'), t('servicePlanPreview.nameRequiredBody'));
       return;
     }
     const addr = current?.address || current?.location_address || current?.location ||
       current?.locations?.[0]?.address || '';
     if (!addr.trim()) {
-      Alert.alert('Required', 'Please enter at least one service location address.');
+      Alert.alert(t('servicePlanPreview.requiredTitle'), t('servicePlanPreview.addressRequiredBody'));
       return;
     }
 
@@ -309,12 +318,12 @@ export default function ServicePlanPreview({ data, onAction }) {
               style={[styles.planNameInput, { color: Colors.primaryText, borderColor: Colors.border }]}
               value={editedData?.name || ''}
               onChangeText={(v) => updateField('name', v)}
-              placeholder="Plan name"
+              placeholder={t('servicePlanPreview.planNamePlaceholder')}
               placeholderTextColor={Colors.secondaryText + '80'}
             />
           ) : (
             <Text style={[styles.planName, { color: Colors.primaryText }]}>
-              {editedData?.name || 'New Service Plan'}
+              {editedData?.name || t('servicePlanPreview.newServicePlan')}
             </Text>
           )}
           <View style={[styles.typeBadge, { backgroundColor: typeConfig.color + '18' }]}>
@@ -349,20 +358,20 @@ export default function ServicePlanPreview({ data, onAction }) {
 
       {/* Client Info Section */}
       <View style={[styles.section, { borderBottomColor: Colors.border }]}>
-        <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Client</Text>
-        {renderField('person-outline', 'Name', clientName, 'client_name')}
-        {renderField('call-outline', 'Phone', clientPhone, 'client_phone', { keyboardType: 'phone-pad' })}
-        {renderField('mail-outline', 'Email', clientEmail, 'client_email', { keyboardType: 'email-address' })}
-        {renderField('location-outline', 'Address', address, 'address')}
+        <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('servicePlanPreview.clientSection')}</Text>
+        {renderField('person-outline', t('servicePlanPreview.name'), clientName, 'client_name')}
+        {renderField('call-outline', t('servicePlanPreview.phone'), clientPhone, 'client_phone', { keyboardType: 'phone-pad' })}
+        {renderField('mail-outline', t('servicePlanPreview.email'), clientEmail, 'client_email', { keyboardType: 'email-address' })}
+        {renderField('location-outline', t('servicePlanPreview.address'), address, 'address')}
       </View>
 
       {/* Billing Section */}
       <View style={[styles.section, { borderBottomColor: Colors.border }]}>
-        <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Billing</Text>
+        <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('servicePlanPreview.billingSection')}</Text>
         <View style={styles.fieldRow}>
           <Ionicons name="card-outline" size={16} color={Colors.secondaryText} style={{ marginTop: 2 }} />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.fieldLabel, { color: Colors.secondaryText }]}>Billing Cycle</Text>
+            <Text style={[styles.fieldLabel, { color: Colors.secondaryText }]}>{t('servicePlanPreview.billingCycle')}</Text>
             {isEditing ? (
               <TouchableOpacity
                 style={[styles.cyclePicker, { borderColor: Colors.border, backgroundColor: Colors.inputBackground || Colors.lightGray }]}
@@ -384,7 +393,7 @@ export default function ServicePlanPreview({ data, onAction }) {
           <Ionicons name="cash-outline" size={16} color={Colors.secondaryText} style={{ marginTop: 2 }} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.fieldLabel, { color: Colors.secondaryText }]}>
-              {billingCycle === 'per_visit' ? 'Price Per Visit' : 'Monthly Rate'}
+              {billingCycle === 'per_visit' ? t('servicePlanPreview.pricePerVisit') : t('servicePlanPreview.monthlyRate')}
             </Text>
             {isEditing ? (
               <TextInput
@@ -416,34 +425,34 @@ export default function ServicePlanPreview({ data, onAction }) {
       {/* Location Section */}
       {(locationName || locationNotes || isEditing) && (
         <View style={[styles.section, { borderBottomColor: Colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Location</Text>
-          {renderField('business-outline', 'Location Name', locationName, 'location_name')}
-          {renderField('location-outline', 'Address', address, 'location_address')}
-          {renderField('key-outline', 'Access Notes', locationNotes, 'location_notes')}
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('servicePlanPreview.locationSection')}</Text>
+          {renderField('business-outline', t('servicePlanPreview.locationName'), locationName, 'location_name')}
+          {renderField('location-outline', t('servicePlanPreview.address'), address, 'location_address')}
+          {renderField('key-outline', t('servicePlanPreview.accessNotes'), locationNotes, 'location_notes')}
         </View>
       )}
 
       {/* Schedule Section */}
       {(scheduleFrequency || scheduledDays.length > 0 || isEditing) && (
         <View style={[styles.section, { borderBottomColor: Colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Schedule</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('servicePlanPreview.scheduleSection')}</Text>
           <View style={styles.fieldRow}>
             <Ionicons name="repeat-outline" size={16} color={Colors.secondaryText} style={{ marginTop: 2 }} />
             <View style={{ flex: 1 }}>
-              <Text style={[styles.fieldLabel, { color: Colors.secondaryText }]}>Frequency</Text>
+              <Text style={[styles.fieldLabel, { color: Colors.secondaryText }]}>{t('servicePlanPreview.frequencyLabel')}</Text>
               {isEditing ? (
                 <TouchableOpacity
                   style={[styles.cyclePicker, { borderColor: Colors.border, backgroundColor: Colors.inputBackground || Colors.lightGray }]}
                   onPress={showFrequencyPicker}
                 >
                   <Text style={[styles.fieldValue, { color: Colors.primaryText }]}>
-                    {scheduleFrequency ? scheduleFrequency.charAt(0).toUpperCase() + scheduleFrequency.slice(1) : 'Select...'}
+                    {scheduleFrequency ? freqLabel(scheduleFrequency) : t('servicePlanPreview.selectPlaceholder')}
                   </Text>
                   <Ionicons name="chevron-down" size={14} color={Colors.secondaryText} />
                 </TouchableOpacity>
               ) : scheduleFrequency ? (
                 <Text style={[styles.fieldValue, { color: Colors.primaryText }]}>
-                  {scheduleFrequency.charAt(0).toUpperCase() + scheduleFrequency.slice(1)}
+                  {freqLabel(scheduleFrequency)}
                 </Text>
               ) : null}
             </View>
@@ -478,20 +487,20 @@ export default function ServicePlanPreview({ data, onAction }) {
             })}
           </View>
 
-          {renderField('time-outline', 'Preferred Time', preferredTime, 'preferred_time')}
+          {renderField('time-outline', t('servicePlanPreview.preferredTime'), preferredTime, 'preferred_time')}
         </View>
       )}
 
       {/* Description */}
       {(description || isEditing) && (
         <View style={[styles.section, { borderBottomColor: Colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Description</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('servicePlanPreview.descriptionSection')}</Text>
           {isEditing ? (
             <TextInput
               style={[styles.descriptionInput, { color: Colors.primaryText, borderColor: Colors.border }]}
               value={description}
               onChangeText={(v) => updateField('description', v)}
-              placeholder="Service description..."
+              placeholder={t('servicePlanPreview.descriptionPlaceholder')}
               placeholderTextColor={Colors.secondaryText + '80'}
               multiline
               numberOfLines={3}
@@ -507,13 +516,13 @@ export default function ServicePlanPreview({ data, onAction }) {
       {/* Notes */}
       {(notes || isEditing) && (
         <View style={[styles.section, { borderBottomColor: Colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Notes</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('servicePlanPreview.notesSection')}</Text>
           {isEditing ? (
             <TextInput
               style={[styles.descriptionInput, { color: Colors.primaryText, borderColor: Colors.border }]}
               value={notes}
               onChangeText={(v) => updateField('notes', v)}
-              placeholder="Internal notes..."
+              placeholder={t('servicePlanPreview.notesPlaceholder')}
               placeholderTextColor={Colors.secondaryText + '80'}
               multiline
               numberOfLines={2}
@@ -531,14 +540,14 @@ export default function ServicePlanPreview({ data, onAction }) {
         <View style={[styles.section, { borderBottomColor: Colors.border }]}>
           <View style={styles.sectionHeader}>
             <Ionicons name="checkbox-outline" size={18} color="#8B5CF6" />
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText, flex: 1 }]}>Daily Checklist</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText, flex: 1 }]}>{t('servicePlanPreview.dailyChecklist')}</Text>
             {isEditing && (
               <TouchableOpacity
                 onPress={handleAddChecklistItem}
                 style={[styles.addButton, { backgroundColor: '#8B5CF615', borderColor: '#8B5CF6' }]}
               >
                 <Ionicons name="add" size={14} color="#8B5CF6" />
-                <Text style={{ color: '#8B5CF6', fontSize: 12, fontWeight: '600' }}>Add</Text>
+                <Text style={{ color: '#8B5CF6', fontSize: 12, fontWeight: '600' }}>{t('common:buttons.add')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -565,7 +574,7 @@ export default function ServicePlanPreview({ data, onAction }) {
                       style={[styles.checklistInput, { color: Colors.primaryText, borderColor: Colors.border, flex: 1 }]}
                       value={itemTitle}
                       onChangeText={(v) => handleUpdateChecklistItem(index, 'title', v)}
-                      placeholder="Item name"
+                      placeholder={t('servicePlanPreview.itemNamePlaceholder')}
                       placeholderTextColor={Colors.secondaryText + '80'}
                     />
                     {/* Unit (for quantity items) */}
@@ -574,7 +583,7 @@ export default function ServicePlanPreview({ data, onAction }) {
                         style={[styles.checklistInput, styles.unitInput, { color: Colors.primaryText, borderColor: Colors.border }]}
                         value={quantityUnit}
                         onChangeText={(v) => handleUpdateChecklistItem(index, 'quantity_unit', v)}
-                        placeholder="unit"
+                        placeholder={t('servicePlanPreview.unitPlaceholder')}
                         placeholderTextColor={Colors.secondaryText + '80'}
                       />
                     )}
@@ -619,7 +628,7 @@ export default function ServicePlanPreview({ data, onAction }) {
           })}
           {checklistItems.length === 0 && isEditing && (
             <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-              No checklist items yet — tap Add to create one
+              {t('servicePlanPreview.noChecklistItems')}
             </Text>
           )}
         </View>
@@ -630,14 +639,14 @@ export default function ServicePlanPreview({ data, onAction }) {
         <View style={[styles.section, { borderBottomColor: Colors.border }]}>
           <View style={styles.sectionHeader}>
             <Ionicons name="people-outline" size={18} color="#10B981" />
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText, flex: 1 }]}>Crew Roles</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText, flex: 1 }]}>{t('servicePlanPreview.crewRoles')}</Text>
             {isEditing && (
               <TouchableOpacity
                 onPress={handleAddLaborRole}
                 style={[styles.addButton, { backgroundColor: '#10B98115', borderColor: '#10B981' }]}
               >
                 <Ionicons name="add" size={14} color="#10B981" />
-                <Text style={{ color: '#10B981', fontSize: 12, fontWeight: '600' }}>Add</Text>
+                <Text style={{ color: '#10B981', fontSize: 12, fontWeight: '600' }}>{t('common:buttons.add')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -654,7 +663,7 @@ export default function ServicePlanPreview({ data, onAction }) {
                       style={[styles.checklistInput, { color: Colors.primaryText, borderColor: Colors.border, flex: 1 }]}
                       value={roleName}
                       onChangeText={(v) => handleUpdateLaborRole(index, 'role_name', v)}
-                      placeholder="Role name"
+                      placeholder={t('servicePlanPreview.roleNamePlaceholder')}
                       placeholderTextColor={Colors.secondaryText + '80'}
                     />
                     <Text style={[styles.fieldLabel, { color: Colors.secondaryText, marginRight: 4 }]}>x</Text>
@@ -683,7 +692,7 @@ export default function ServicePlanPreview({ data, onAction }) {
           })}
           {laborRoles.length === 0 && isEditing && (
             <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-              No crew roles yet — tap Add to define one
+              {t('servicePlanPreview.noCrewRoles')}
             </Text>
           )}
         </View>
@@ -701,7 +710,7 @@ export default function ServicePlanPreview({ data, onAction }) {
             }}
           >
             <Ionicons name="checkmark-circle" size={20} color="#10B981" />
-            <Text style={styles.savedText}>Plan saved</Text>
+            <Text style={styles.savedText}>{t('servicePlanPreview.planSaved')}</Text>
             <Ionicons name="open-outline" size={16} color="#10B981" style={{ marginLeft: 4 }} />
           </TouchableOpacity>
         ) : isEditing ? (
@@ -712,7 +721,7 @@ export default function ServicePlanPreview({ data, onAction }) {
               activeOpacity={0.7}
             >
               <Ionicons name="close-outline" size={18} color="#fff" />
-              <Text style={styles.actionButtonText}>Cancel</Text>
+              <Text style={styles.actionButtonText}>{t('common:buttons.cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: Colors.primaryBlue, flex: 1 }]}
@@ -720,7 +729,7 @@ export default function ServicePlanPreview({ data, onAction }) {
               activeOpacity={0.7}
             >
               <Ionicons name="checkmark-outline" size={18} color="#fff" />
-              <Text style={styles.actionButtonText}>Done</Text>
+              <Text style={styles.actionButtonText}>{t('common:buttons.done')}</Text>
             </TouchableOpacity>
           </>
         ) : (
@@ -734,7 +743,7 @@ export default function ServicePlanPreview({ data, onAction }) {
             ) : (
               <Ionicons name="save-outline" size={18} color="#fff" />
             )}
-            <Text style={styles.actionButtonText}>{isSaving ? 'Saving...' : 'Save Plan'}</Text>
+            <Text style={styles.actionButtonText}>{isSaving ? t('common:status.saving') : t('servicePlanPreview.savePlan')}</Text>
           </TouchableOpacity>
         )}
       </View>

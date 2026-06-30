@@ -17,6 +17,7 @@ import {
   Platform,
   Alert,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -29,6 +30,7 @@ import DailyChecklistSection from '../../components/DailyChecklistSection';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function WorkerDailyRouteScreen() {
+  const { t } = useTranslation('workers');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const navigation = useNavigation();
@@ -77,16 +79,16 @@ export default function WorkerDailyRouteScreen() {
       let taskStops = [];
       if (ownerId && typeof ownerId === 'string' && ownerId.length > 30) {
         const tasks = await fetchTasksForWorker(ownerId, today, projectIds);
-        taskStops = (tasks || []).map(t => ({
-          id: `task-${t.id}`,
-          rawId: t.id,
+        taskStops = (tasks || []).map(task => ({
+          id: `task-${task.id}`,
+          rawId: task.id,
           type: 'task',
-          title: t.title || 'Task',
-          subtitle: t.projects?.name || 'Project',
+          title: task.title || t('workerDailyRoute.typeTask'),
+          subtitle: task.projects?.name || t('workerDailyRoute.fallbackProject'),
           address: null,
           time: null,
-          status: t.status === 'completed' ? 'completed' : 'pending',
-          data: t,
+          status: task.status === 'completed' ? 'completed' : 'pending',
+          data: task,
         }));
       }
 
@@ -109,8 +111,8 @@ export default function WorkerDailyRouteScreen() {
           id: `visit-${v.id}`,
           rawId: v.id,
           type: 'visit',
-          title: v.service_locations?.name || 'Visit',
-          subtitle: v.service_plans?.name || 'Service',
+          title: v.service_locations?.name || t('workerDailyRoute.typeVisit'),
+          subtitle: v.service_plans?.name || t('workerDailyRoute.fallbackService'),
           address: v.service_locations?.address || null,
           accessNotes: v.service_locations?.access_notes || null,
           time: v.scheduled_time ? v.scheduled_time.slice(0, 5) : null,
@@ -150,7 +152,7 @@ export default function WorkerDailyRouteScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
@@ -179,12 +181,12 @@ export default function WorkerDailyRouteScreen() {
       // Toggle task completion
       const isCompleted = stop.status === 'completed';
       Alert.alert(
-        isCompleted ? 'Undo Completion?' : 'Mark Complete?',
+        isCompleted ? t('workerDailyRoute.undoCompletion') : t('workerDailyRoute.markComplete'),
         stop.title,
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: t('common:buttons.cancel'), style: 'cancel' },
           {
-            text: isCompleted ? 'Undo' : 'Complete',
+            text: isCompleted ? t('workerDailyRoute.undo') : t('workerDailyRoute.complete'),
             onPress: async () => {
               try {
                 if (isCompleted) {
@@ -194,7 +196,7 @@ export default function WorkerDailyRouteScreen() {
                 }
                 await loadData();
               } catch (e) {
-                Alert.alert('Error', 'Failed to update task.');
+                Alert.alert(t('common:alerts.error'), t('workerDailyRoute.updateTaskError'));
               }
             },
           },
@@ -222,10 +224,10 @@ export default function WorkerDailyRouteScreen() {
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Today's Route</Text>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('workerDailyRoute.title')}</Text>
           {totalCount > 0 && (
             <Text style={[styles.headerSubtitle, { color: Colors.secondaryText }]}>
-              {completedCount}/{totalCount} stops completed
+              {t('workerDailyRoute.stopsCompleted', { completed: completedCount, total: totalCount })}
             </Text>
           )}
         </View>
@@ -253,9 +255,9 @@ export default function WorkerDailyRouteScreen() {
           {totalCount === 0 && (
             <View style={styles.emptyState}>
               <Ionicons name="sunny-outline" size={56} color={Colors.secondaryText} />
-              <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>Nothing scheduled</Text>
+              <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>{t('workerDailyRoute.emptyTitle')}</Text>
               <Text style={[styles.emptySubtitle, { color: Colors.secondaryText }]}>
-                You don't have any tasks or visits for today.
+                {t('workerDailyRoute.emptySubtitle')}
               </Text>
             </View>
           )}
@@ -282,7 +284,7 @@ export default function WorkerDailyRouteScreen() {
                     <View style={[styles.typePill, { backgroundColor: isVisit ? '#05966915' : '#F59E0B15' }]}>
                       <Ionicons name={isVisit ? 'location' : 'construct'} size={11} color={isVisit ? '#059669' : '#F59E0B'} />
                       <Text style={{ fontSize: 11, fontWeight: '600', color: isVisit ? '#059669' : '#F59E0B' }}>
-                        {isVisit ? 'Visit' : 'Task'}
+                        {isVisit ? t('workerDailyRoute.typeVisit') : t('workerDailyRoute.typeTask')}
                       </Text>
                     </View>
                     {stop.time && (

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import CircularProgress from './svg/CircularProgress';
 
 export default function TransactionsWidget({
@@ -11,6 +12,7 @@ export default function TransactionsWidget({
   editMode,
   onPress,
 }) {
+  const { t } = useTranslation('common');
   const total = matched + unmatched;
   const progress = total > 0 ? matched / total : 0;
 
@@ -30,8 +32,8 @@ export default function TransactionsWidget({
         >
           <Text style={styles.valueMedium}>{transactionCount}</Text>
           <View style={styles.mediumContent}>
-            <Text style={styles.labelMedium}>TRANSACTIONS</Text>
-            <Text style={styles.breakdown}>{matched} matched · {unmatched} unmatched</Text>
+            <Text style={styles.labelMedium}>{t('transactionsWidget.title').toUpperCase()}</Text>
+            <Text style={styles.breakdown}>{t('transactionsWidget.matchedUnmatched', { matched, unmatched })}</Text>
           </View>
           <CircularProgress
             progress={progress}
@@ -58,9 +60,9 @@ export default function TransactionsWidget({
         end={{ x: 1, y: 1 }}
         style={styles.gradientSmall}
       >
-        <Text style={styles.titleSmall}>Transactions</Text>
+        <Text style={styles.titleSmall}>{t('transactionsWidget.title')}</Text>
         <Text style={styles.valueSmall}>{transactionCount}</Text>
-        <Text style={styles.label}>{matched} matched · {unmatched} unmatched</Text>
+        <Text style={styles.label}>{t('transactionsWidget.matchedUnmatched', { matched, unmatched })}</Text>
         <View style={styles.miniDonut}>
           <CircularProgress
             progress={progress}

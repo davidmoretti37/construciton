@@ -105,5 +105,112 @@
     "invoiceDetails": "Detalles de Factura",
     "estimateDetails": "Detalles de Presupuesto",
     "unpaid": "Sin Pagar"
+  },
+  "invoiceList": {
+    "title": "Facturas",
+    "stats": {
+      "unpaid": "No Pagadas",
+      "paid": "Pagadas",
+      "totalDue": "Total a Pagar"
+    },
+    "empty": "Sin facturas aún",
+    "status": {
+      "unpaid": "No Pagada",
+      "partial": "Parcial",
+      "paid": "Pagada",
+      "overdue": "Vencida",
+      "cancelled": "Cancelada"
+    },
+    "na": "N/D",
+    "dueDate": "Vence: {{date}}",
+    "itemCount": "{{count}} artículo",
+    "total": "Total:",
+    "amountDue": "Monto Adeudado:"
+  },
+  "invoicePreview": {
+    "notAvailable": "N/D",
+    "previewError": "Error al previsualizar la factura. Intente de nuevo.",
+    "unit": "unidad",
+    "sendToClient": "Enviar al Cliente",
+    "previewModalTitle": "Vista Previa de Factura"
+  },
+  "overdueInvoicesWidget": {
+    "title": "Facturas",
+    "outstanding": "PENDIENTE",
+    "allPaid": "TODO PAGADO",
+    "amountOutstanding": "{{amount}} pendiente"
+  },
+  "clientInvoices": {
+    "title": "Facturas",
+    "errorTitle": "No se pudieron cargar las facturas",
+    "retry": "Reintentar",
+    "emptyTitle": "Sin facturas aún",
+    "paymentAlertTitle": "Pago",
+    "paymentAlertBody": "No se puede iniciar el pago en este momento.",
+    "paymentErrorTitle": "Error de Pago",
+    "paymentErrorBody": "Error al iniciar el pago",
+    "status": {
+      "paid": "PAGADO",
+      "partial": "PARCIAL",
+      "overdue": "VENCIDO",
+      "unpaid": "POR PAGAR"
+    },
+    "payAmount": "Pagar ${{amount}}"
+  },
+  "invoiceTemplate": {
+    "title": "Plantilla de Factura y Presupuesto",
+    "infoText": "Personaliza cómo se ven tus facturas y presupuestos. Esto se aplica a cada PDF que generes.",
+    "templateStyleTitle": "Estilo de Plantilla",
+    "templateStyleSubtitle": "Elige el estilo visual de tus facturas y presupuestos. Toca Vista previa para verlo con la información de tu empresa.",
+    "preview": "Vista previa",
+    "businessLogoTitle": "Logotipo de la Empresa",
+    "tapToUploadLogo": "Toca para subir el logotipo",
+    "removeLogo": "Eliminar Logotipo",
+    "businessInfoTitle": "Información de la Empresa",
+    "businessNameLabel": "Nombre de la Empresa",
+    "businessNamePlaceholder": "Ingresa el nombre de la empresa",
+    "addressLabel": "Dirección",
+    "addressPlaceholder": "Calle Principal 123, Ciudad, Estado, 12345",
+    "phoneLabel": "Teléfono",
+    "phonePlaceholder": "(55) 1234-5678",
+    "emailLabel": "Correo electrónico",
+    "emailPlaceholder": "contacto@empresa.com",
+    "paymentTermsTitle": "Términos de Pago",
+    "footerTextTitle": "Texto del Pie de Página",
+    "footerTextSubtitle": "Mensaje de agradecimiento o instrucciones de pago",
+    "footerTextPlaceholder": "¡Gracias por su preferencia! El pago puede realizarse mediante...",
+    "livePreviewTitle": "Vista previa en vivo",
+    "livePreviewSubtitle": "Así es como se verá realmente tu factura con tu información.",
+    "saveTemplate": "Guardar Plantilla",
+    "stylePreviewTitle": "Vista previa de {{style}}",
+    "invoiceToggle": "Factura",
+    "estimateToggle": "Presupuesto",
+    "useThisTemplate": "Usar esta plantilla",
+    "sampleBusinessName": "Nombre de tu Empresa",
+    "sampleBusinessNameShort": "Tu Empresa",
+    "permissionTitle": "Permiso necesario",
+    "logoPermissionMessage": "Concede acceso a la galería de fotos para subir un logotipo",
+    "logoPickFailed": "No se pudo seleccionar la imagen del logotipo",
+    "logoUploadFailed": "No se pudo subir el logotipo. La plantilla se guardará sin logotipo.",
+    "saveSuccess": "Plantilla de factura guardada con éxito",
+    "saveFailed": "No se pudo guardar la plantilla",
+    "ok": "OK"
+  },
+  "invoicesDetail": {
+    "fromSubcontractors": "DE SUBCONTRATISTAS",
+    "subcontractorFallback": "Subcontratista",
+    "sentDate": "Enviado {{date}}",
+    "dueDate": "Vence {{date}}",
+    "paidDate": "Pagado {{date}}",
+    "markPaid": "Marcar como pagado",
+    "markAsPaidTitle": "¿Marcar como pagado?",
+    "markAsPaidMessage": "¿Marcar esta factura de ${{amount}} como pagada? El subcontratista será notificado.",
+    "errorMarkPaid": "No se pudo marcar como pagado",
+    "tryAgain": "Intente de nuevo",
+    "invoiceFileName": "Factura {{number}}",
+    "invoiceFileNameId": "Factura #{{id}}",
+    "errorCouldNotOpen": "No se pudo abrir",
+    "invoiceNumberLabel": "Factura #{{number}}",
+    "invoiceLabel": "Factura"
   }
 }

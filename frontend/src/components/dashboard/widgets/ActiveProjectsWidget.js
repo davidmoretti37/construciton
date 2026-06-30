@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import CircularProgress from './svg/CircularProgress';
 
 // Map raw project.status → status dot color so the project rows show health
@@ -32,6 +33,7 @@ export default function ActiveProjectsWidget({
   topProjects = [],
   onProjectPress,
 }) {
+  const { t } = useTranslation('projects');
   const progress = totalProjects > 0 ? activeProjects / totalProjects : 0;
   const showRows = (size === 'medium' || size === 'large') && topProjects.length > 0;
   const rowLimit = size === 'large' ? 4 : 2;
@@ -62,8 +64,8 @@ export default function ActiveProjectsWidget({
               <Text style={styles.ringValueSm}>{activeProjects}</Text>
             </CircularProgress>
             <View style={{ flex: 1 }}>
-              <Text style={styles.labelMedium}>ACTIVE PROJECTS</Text>
-              <Text style={styles.breakdown}>{activeProjects} active · {totalProjects} total</Text>
+              <Text style={styles.labelMedium}>{t('activeProjectsWidget.label')}</Text>
+              <Text style={styles.breakdown}>{t('activeProjectsWidget.breakdown', { active: activeProjects, total: totalProjects })}</Text>
             </View>
           </View>
 
@@ -80,7 +82,7 @@ export default function ActiveProjectsWidget({
                     onPress={() => onProjectPress && onProjectPress(p.id)}
                   >
                     <View style={[styles.dot, { backgroundColor: statusDotColor(p.status) }]} />
-                    <Text style={styles.rowName} numberOfLines={1}>{p.name || 'Untitled'}</Text>
+                    <Text style={styles.rowName} numberOfLines={1}>{p.name || t('activeProjectsWidget.untitled')}</Text>
                     <View style={styles.progressTrack}>
                       <View style={[styles.progressFill, { width: `${pct}%` }]} />
                     </View>
@@ -118,8 +120,8 @@ export default function ActiveProjectsWidget({
         >
           <Text style={styles.ringValueSmall}>{activeProjects}</Text>
         </CircularProgress>
-        <Text style={styles.subtext}>{activeProjects} of {totalProjects}</Text>
-        <Text style={styles.label}>PROJECTS</Text>
+        <Text style={styles.subtext}>{t('activeProjectsWidget.subtext', { active: activeProjects, total: totalProjects })}</Text>
+        <Text style={styles.label}>{t('activeProjectsWidget.labelSmall')}</Text>
       </LinearGradient>
     </TouchableOpacity>
   );

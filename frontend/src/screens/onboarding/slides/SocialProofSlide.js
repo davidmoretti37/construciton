@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, Dimensions, ScrollView, TouchableOpacity } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import Animated from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -69,6 +70,8 @@ const StatCard = ({ stat }) => {
 };
 
 export default function SocialProofSlide({ isActive = true, onGetStarted }) {
+  const { t } = useTranslation('onboarding');
+
   // Staggered entrance animations
   const starsAnim = useScaleAnimation(isActive, 0);
   const titleAnim = useBounceAnimation(isActive, 150);
@@ -91,8 +94,8 @@ export default function SocialProofSlide({ isActive = true, onGetStarted }) {
       </Animated.View>
 
       <Animated.View style={titleAnim}>
-        <Text style={styles.title}>Trusted by Contractors</Text>
-        <Text style={styles.subtitle}>See what others are saying</Text>
+        <Text style={styles.title}>{t('socialProofSlide.title')}</Text>
+        <Text style={styles.subtitle}>{t('socialProofSlide.subtitle')}</Text>
       </Animated.View>
 
       {/* Testimonials - vertical stack */}
@@ -119,12 +122,12 @@ export default function SocialProofSlide({ isActive = true, onGetStarted }) {
       <Animated.View style={[styles.trustBadges, badgesAnim]}>
         <View style={styles.badge}>
           <Ionicons name="shield-checkmark" size={14} color="#34D399" />
-          <Text style={styles.badgeText}>Verified Reviews</Text>
+          <Text style={styles.badgeText}>{t('socialProofSlide.verifiedReviews')}</Text>
         </View>
         <View style={styles.badgeDivider} />
         <View style={styles.badge}>
           <Ionicons name="lock-closed" size={14} color="#60A5FA" />
-          <Text style={styles.badgeText}>Bank-Level Security</Text>
+          <Text style={styles.badgeText}>{t('socialProofSlide.bankLevelSecurity')}</Text>
         </View>
       </Animated.View>
 
@@ -142,7 +145,7 @@ export default function SocialProofSlide({ isActive = true, onGetStarted }) {
               end={{ x: 1, y: 0 }}
               style={styles.buttonGradient}
             >
-              <Text style={styles.buttonText}>Get Started</Text>
+              <Text style={styles.buttonText}>{t('socialProofSlide.getStarted')}</Text>
               <Ionicons name="arrow-forward" size={20} color="#FFF" />
             </LinearGradient>
           </TouchableOpacity>

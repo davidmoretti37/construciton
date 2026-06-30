@@ -38,7 +38,7 @@ const PAYMENT_TERMS = [
 ];
 
 export default function InvoiceTemplateScreen({ navigation }) {
-  const { t } = useTranslation('common');
+  const { t } = useTranslation('invoices');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const insets = useSafeAreaInsets();
@@ -125,7 +125,7 @@ export default function InvoiceTemplateScreen({ navigation }) {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(t('alerts.permissionRequired', 'Permission needed'), t('permissions.photoLibraryRequired', 'Please grant photo library access to upload a logo'));
+        Alert.alert(t('invoiceTemplate.permissionTitle'), t('invoiceTemplate.logoPermissionMessage'));
         return;
       }
 
@@ -141,7 +141,7 @@ export default function InvoiceTemplateScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error picking logo:', error);
-      Alert.alert(t('alerts.error', 'Error'), t('messages.failedToLoad', 'Failed to pick logo image'));
+      Alert.alert(t('common:alerts.error'), t('invoiceTemplate.logoPickFailed'));
     }
   };
 
@@ -170,7 +170,7 @@ export default function InvoiceTemplateScreen({ navigation }) {
           logoUrl = await uploadLogoToStorage(logoUri);
         } catch (uploadError) {
           console.error('Error uploading logo:', uploadError);
-          Alert.alert(t('alerts.warning', 'Warning'), t('invoiceTemplate.logoUploadFailed', 'Failed to upload logo. Template will be saved without logo.'));
+          Alert.alert(t('common:alerts.warning'), t('invoiceTemplate.logoUploadFailed'));
           logoUrl = null;
         }
       }
@@ -192,12 +192,12 @@ export default function InvoiceTemplateScreen({ navigation }) {
 
       if (error) throw error;
 
-      Alert.alert(t('alerts.success', 'Success'), t('messages.savedSuccessfully', 'Invoice template saved successfully'), [
-        { text: t('common.ok', 'OK'), onPress: () => navigation.goBack() }
+      Alert.alert(t('common:alerts.success'), t('invoiceTemplate.saveSuccess'), [
+        { text: t('invoiceTemplate.ok'), onPress: () => navigation.goBack() }
       ]);
     } catch (error) {
       console.error('Error saving template:', error);
-      Alert.alert(t('alerts.error', 'Error'), t('messages.failedToSave', 'Failed to save template'));
+      Alert.alert(t('common:alerts.error'), t('invoiceTemplate.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -225,7 +225,7 @@ export default function InvoiceTemplateScreen({ navigation }) {
         >
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text testID="invoiceTemplate.headerTitle" style={[styles.headerTitle, { color: Colors.primaryText }]}>Invoice & Estimate Template</Text>
+        <Text testID="invoiceTemplate.headerTitle" style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('invoiceTemplate.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -234,15 +234,15 @@ export default function InvoiceTemplateScreen({ navigation }) {
         <View style={[styles.infoBox, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue + '30' }]}>
           <Ionicons name="information-circle-outline" size={20} color={Colors.primaryBlue} />
           <Text style={[styles.infoText, { color: Colors.primaryBlue }]}>
-            Customize how your invoices and estimates look. This applies to every PDF you generate.
+            {t('invoiceTemplate.infoText')}
           </Text>
         </View>
 
         {/* Template Style Picker */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Template Style</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('invoiceTemplate.templateStyleTitle')}</Text>
           <Text style={[styles.label, { color: Colors.secondaryText, marginBottom: 14 }]}>
-            Pick the visual style for your invoices and estimates. Tap Preview to see it with your business info.
+            {t('invoiceTemplate.templateStyleSubtitle')}
           </Text>
 
           <View style={styles.styleCardsRow}>
@@ -281,7 +281,7 @@ export default function InvoiceTemplateScreen({ navigation }) {
                     onPress={() => { setPreviewStyle(style.id); setPreviewIsEstimate(false); }}
                   >
                     <Ionicons name="eye-outline" size={14} color={Colors.primaryText} />
-                    <Text style={[styles.styleCardPreviewText, { color: Colors.primaryText }]}>Preview</Text>
+                    <Text style={[styles.styleCardPreviewText, { color: Colors.primaryText }]}>{t('invoiceTemplate.preview')}</Text>
                   </TouchableOpacity>
                 </TouchableOpacity>
               );
@@ -291,7 +291,7 @@ export default function InvoiceTemplateScreen({ navigation }) {
 
         {/* Logo Section */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Business Logo</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('invoiceTemplate.businessLogoTitle')}</Text>
 
           <TouchableOpacity
             testID="invoiceTemplate.logoPicker"
@@ -305,7 +305,7 @@ export default function InvoiceTemplateScreen({ navigation }) {
               <View style={styles.logoPlaceholder}>
                 <Ionicons name="image-outline" size={48} color={Colors.secondaryText} />
                 <Text style={[styles.logoPlaceholderText, { color: Colors.secondaryText }]}>
-                  Tap to upload logo
+                  {t('invoiceTemplate.tapToUploadLogo')}
                 </Text>
               </View>
             )}
@@ -318,59 +318,59 @@ export default function InvoiceTemplateScreen({ navigation }) {
               style={[styles.removeButton, { backgroundColor: '#EF4444' + '10' }]}
               onPress={() => setLogoUri(null)}
             >
-              <Text style={[styles.removeButtonText, { color: '#EF4444' }]}>Remove Logo</Text>
+              <Text style={[styles.removeButtonText, { color: '#EF4444' }]}>{t('invoiceTemplate.removeLogo')}</Text>
             </TouchableOpacity>
           )}
         </View>
 
         {/* Business Information */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Business Information</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('invoiceTemplate.businessInfoTitle')}</Text>
 
-          <Text style={[styles.label, { color: Colors.secondaryText }]}>Business Name</Text>
+          <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('invoiceTemplate.businessNameLabel')}</Text>
           <TextInput
             testID="invoiceTemplate.businessNameInput"
             accessibilityLabel="Business name"
             style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
             value={businessName}
             onChangeText={setBusinessName}
-            placeholder="Enter business name"
+            placeholder={t('invoiceTemplate.businessNamePlaceholder')}
             placeholderTextColor={Colors.secondaryText}
           />
 
-          <Text style={[styles.label, { color: Colors.secondaryText }]}>Address</Text>
+          <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('invoiceTemplate.addressLabel')}</Text>
           <TextInput
             testID="invoiceTemplate.businessAddressInput"
             accessibilityLabel="Business address"
             style={[styles.input, styles.multilineInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
             value={businessAddress}
             onChangeText={setBusinessAddress}
-            placeholder="123 Main St, City, State 12345"
+            placeholder={t('invoiceTemplate.addressPlaceholder')}
             placeholderTextColor={Colors.secondaryText}
             multiline
             numberOfLines={2}
           />
 
-          <Text style={[styles.label, { color: Colors.secondaryText }]}>Phone</Text>
+          <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('invoiceTemplate.phoneLabel')}</Text>
           <TextInput
             testID="invoiceTemplate.businessPhoneInput"
             accessibilityLabel="Business phone"
             style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
             value={businessPhone}
             onChangeText={setBusinessPhone}
-            placeholder="(555) 123-4567"
+            placeholder={t('invoiceTemplate.phonePlaceholder')}
             placeholderTextColor={Colors.secondaryText}
             keyboardType="phone-pad"
           />
 
-          <Text style={[styles.label, { color: Colors.secondaryText }]}>Email</Text>
+          <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('invoiceTemplate.emailLabel')}</Text>
           <TextInput
             testID="invoiceTemplate.businessEmailInput"
             accessibilityLabel="Business email"
             style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
             value={businessEmail}
             onChangeText={setBusinessEmail}
-            placeholder="contact@business.com"
+            placeholder={t('invoiceTemplate.emailPlaceholder')}
             placeholderTextColor={Colors.secondaryText}
             keyboardType="email-address"
             autoCapitalize="none"
@@ -379,7 +379,7 @@ export default function InvoiceTemplateScreen({ navigation }) {
 
         {/* Payment Terms */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Payment Terms</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('invoiceTemplate.paymentTermsTitle')}</Text>
 
           <View style={styles.termsGrid}>
             {PAYMENT_TERMS.map((term) => (
@@ -409,9 +409,9 @@ export default function InvoiceTemplateScreen({ navigation }) {
 
         {/* Footer Text */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Footer Text</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('invoiceTemplate.footerTextTitle')}</Text>
           <Text style={[styles.label, { color: Colors.secondaryText }]}>
-            Thank you message or payment instructions
+            {t('invoiceTemplate.footerTextSubtitle')}
           </Text>
           <TextInput
             testID="invoiceTemplate.footerTextInput"
@@ -419,7 +419,7 @@ export default function InvoiceTemplateScreen({ navigation }) {
             style={[styles.input, styles.multilineInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
             value={footerText}
             onChangeText={setFooterText}
-            placeholder="Thank you for your business! Payment can be made via..."
+            placeholder={t('invoiceTemplate.footerTextPlaceholder')}
             placeholderTextColor={Colors.secondaryText}
             multiline
             numberOfLines={3}
@@ -429,9 +429,9 @@ export default function InvoiceTemplateScreen({ navigation }) {
         {/* Live Preview — actual rendered template using the user's
             current inputs. Updates in real time as they type. */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Live preview</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('invoiceTemplate.livePreviewTitle')}</Text>
           <Text style={[styles.label, { color: Colors.secondaryText, marginBottom: 12 }]}>
-            This is what your invoice will actually look like with your info.
+            {t('invoiceTemplate.livePreviewSubtitle')}
           </Text>
 
           <View style={[styles.livePreviewWrap, { borderColor: Colors.border, backgroundColor: '#f5f5f5' }]}>
@@ -442,7 +442,7 @@ export default function InvoiceTemplateScreen({ navigation }) {
                 html: (() => {
                   const sample = buildSampleData({
                     business: {
-                      name: businessName || 'Your Business Name',
+                      name: businessName || t('invoiceTemplate.sampleBusinessName'),
                       address: businessAddress,
                       phone: businessPhone,
                       email: businessEmail,
@@ -497,7 +497,7 @@ export default function InvoiceTemplateScreen({ navigation }) {
           ) : (
             <>
               <Ionicons name="checkmark-circle" size={20} color="#fff" />
-              <Text style={styles.saveButtonText}>Save Template</Text>
+              <Text style={styles.saveButtonText}>{t('invoiceTemplate.saveTemplate')}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -519,7 +519,7 @@ export default function InvoiceTemplateScreen({ navigation }) {
               <Ionicons name="close" size={26} color={Colors.primaryText} />
             </TouchableOpacity>
             <Text testID="invoiceTemplate.previewModalTitle" style={[styles.previewModalTitle, { color: Colors.primaryText }]}>
-              {previewStyle ? (TEMPLATE_STYLES.find((s) => s.id === previewStyle)?.name || '') : ''} preview
+              {t('invoiceTemplate.stylePreviewTitle', { style: previewStyle ? (TEMPLATE_STYLES.find((s) => s.id === previewStyle)?.name || '') : '' })}
             </Text>
             <View style={{ width: 36 }} />
           </View>
@@ -532,7 +532,7 @@ export default function InvoiceTemplateScreen({ navigation }) {
               onPress={() => setPreviewIsEstimate(false)}
             >
               <Text style={[styles.previewToggleText, !previewIsEstimate && { color: '#fff' }, previewIsEstimate && { color: Colors.primaryText }]}>
-                Invoice
+                {t('invoiceTemplate.invoiceToggle')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -542,7 +542,7 @@ export default function InvoiceTemplateScreen({ navigation }) {
               onPress={() => setPreviewIsEstimate(true)}
             >
               <Text style={[styles.previewToggleText, previewIsEstimate && { color: '#fff' }, !previewIsEstimate && { color: Colors.primaryText }]}>
-                Estimate
+                {t('invoiceTemplate.estimateToggle')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -554,7 +554,7 @@ export default function InvoiceTemplateScreen({ navigation }) {
                 html: (() => {
                   const sample = buildSampleData({
                     business: {
-                      name: businessName || 'Your Business',
+                      name: businessName || t('invoiceTemplate.sampleBusinessNameShort'),
                       address: businessAddress,
                       phone: businessPhone,
                       email: businessEmail,
@@ -590,7 +590,7 @@ export default function InvoiceTemplateScreen({ navigation }) {
               }}
             >
               <Ionicons name="checkmark-circle" size={20} color="#fff" />
-              <Text style={styles.previewUseButtonText}>Use this template</Text>
+              <Text style={styles.previewUseButtonText}>{t('invoiceTemplate.useThisTemplate')}</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>

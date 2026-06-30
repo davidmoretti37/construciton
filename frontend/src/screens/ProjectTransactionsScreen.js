@@ -33,7 +33,7 @@ const CATEGORY_ICONS = {
 };
 
 export default function ProjectTransactionsScreen({ route, navigation }) {
-  const { t } = useTranslation(['owner', 'common']);
+  const { t } = useTranslation(['projects', 'owner', 'common']);
   const { projectId, projectName, transactionType, servicePlanId, servicePlanName, filterType, subcategoryFilter } = route.params || {};
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
@@ -300,7 +300,7 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
           activeOpacity={0.85}
         >
           <Ionicons name="add" size={20} color="#FFFFFF" />
-          <Text style={styles.addButtonText}>Add</Text>
+          <Text style={styles.addButtonText}>{t('projectTransactions.add')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -421,7 +421,7 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
                 styles.categoryPillText,
                 { color: Colors.secondaryText },
                 tradeFilter === 'all' && styles.filterPillTextActive,
-              ]}>All Trades</Text>
+              ]}>{t('projectTransactions.allTrades')}</Text>
             </TouchableOpacity>
             {availableTrades.map(trade => {
               const isActive = tradeFilter.toLowerCase() === trade.name.toLowerCase();

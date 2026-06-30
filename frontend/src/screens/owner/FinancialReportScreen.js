@@ -345,17 +345,17 @@ export default function FinancialReportScreen() {
         {/* Quick Summary */}
         <View style={[styles.summaryStrip, { backgroundColor: Colors.cardBackground }]}>
           <View style={styles.summaryStat}>
-            <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>Revenue</Text>
+            <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{t('financialReport.revenue')}</Text>
             <Text style={[styles.summaryValue, { color: OWNER_COLORS.success }]} testID="financialReport.summaryRevenue">{formatCurrency(pnl.totalRevenue)}</Text>
           </View>
           <View style={[styles.summaryDivider, { backgroundColor: Colors.border }]} />
           <View style={styles.summaryStat}>
-            <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>Expenses</Text>
+            <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{t('financialReport.expenses')}</Text>
             <Text style={[styles.summaryValue, { color: OWNER_COLORS.error }]} testID="financialReport.summaryExpenses">{formatCurrency(pnl.totalCosts)}</Text>
           </View>
           <View style={[styles.summaryDivider, { backgroundColor: Colors.border }]} />
           <View style={styles.summaryStat}>
-            <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{monthlyOverhead > 0 ? 'Net Profit' : 'Profit'}</Text>
+            <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{monthlyOverhead > 0 ? t('financialReport.netProfit') : t('financialReport.profit')}</Text>
             <Text style={[styles.summaryValue, { color: monthlyOverhead > 0 ? netProfitColor : profitColor }]} testID="financialReport.summaryProfit">
               {formatCurrency(monthlyOverhead > 0 ? netProfit : pnl.grossProfit)}
             </Text>
@@ -366,17 +366,17 @@ export default function FinancialReportScreen() {
         {view === 'company' ? (
           <>
             <View style={[styles.isCard, { backgroundColor: Colors.cardBackground }]}>
-              <Text style={[styles.isTitle, { color: Colors.primaryText }]}>Detailed Breakdown</Text>
+              <Text style={[styles.isTitle, { color: Colors.primaryText }]}>{t('financialReport.detailedBreakdown')}</Text>
 
               {/* Revenue */}
               <View style={styles.isRow}>
-                <Text style={[styles.isLabel, { color: Colors.primaryText }]}>Revenue</Text>
+                <Text style={[styles.isLabel, { color: Colors.primaryText }]}>{t('financialReport.revenue')}</Text>
                 <Text style={[styles.isValue, { color: OWNER_COLORS.success }]} testID="financialReport.revenue">{formatCurrency(pnl.totalRevenue)}</Text>
               </View>
 
               {/* Project Costs */}
               <View style={styles.isRow}>
-                <Text style={[styles.isLabel, { color: Colors.primaryText }]}>Project Costs</Text>
+                <Text style={[styles.isLabel, { color: Colors.primaryText }]}>{t('financialReport.projectCosts')}</Text>
                 <Text style={[styles.isValue, { color: OWNER_COLORS.error }]} testID="financialReport.projectCosts">({formatCurrency(pnl.totalCosts)})</Text>
               </View>
               {/* Cost breakdown */}
@@ -394,11 +394,11 @@ export default function FinancialReportScreen() {
               {/* Gross Profit */}
               <View style={[styles.isDivider, { backgroundColor: Colors.border }]} />
               <View style={styles.isRow}>
-                <Text style={[styles.isBoldLabel, { color: Colors.primaryText }]}>Gross Profit</Text>
+                <Text style={[styles.isBoldLabel, { color: Colors.primaryText }]}>{t('financialReport.grossProfit')}</Text>
                 <Text style={[styles.isBoldValue, { color: profitColor }]} testID="financialReport.grossProfit">{formatCurrency(pnl.grossProfit)}</Text>
               </View>
               <View style={styles.isSubRow}>
-                <Text style={[styles.isSubLabel, { color: Colors.secondaryText }]}>Gross Margin</Text>
+                <Text style={[styles.isSubLabel, { color: Colors.secondaryText }]}>{t('financialReport.grossMargin')}</Text>
                 <Text style={[styles.isSubValue, { color: profitColor }]} testID="financialReport.grossMargin">{pnl.grossMargin.toFixed(1)}%</Text>
               </View>
 
@@ -407,7 +407,7 @@ export default function FinancialReportScreen() {
                 <>
                   <View style={{ height: 8 }} />
                   <View style={styles.isRow}>
-                    <Text style={[styles.isLabel, { color: Colors.primaryText }]}>Company Overhead</Text>
+                    <Text style={[styles.isLabel, { color: Colors.primaryText }]}>{t('financialReport.companyOverhead')}</Text>
                     <Text style={[styles.isValue, { color: OWNER_COLORS.error }]} testID="financialReport.companyOverhead">({formatCurrency(periodOverhead)})</Text>
                   </View>
                   {overheadItems.filter(i => i.is_active).map(item => {
@@ -428,11 +428,11 @@ export default function FinancialReportScreen() {
                   {/* Net Profit */}
                   <View style={[styles.isDivider, { backgroundColor: Colors.border }]} />
                   <View style={styles.isRow}>
-                    <Text style={[styles.isBoldLabel, { color: Colors.primaryText }]}>Net Profit</Text>
+                    <Text style={[styles.isBoldLabel, { color: Colors.primaryText }]}>{t('financialReport.netProfit')}</Text>
                     <Text style={[styles.isBoldValue, { color: netProfitColor }]} testID="financialReport.netProfit">{formatCurrency(netProfit)}</Text>
                   </View>
                   <View style={styles.isSubRow}>
-                    <Text style={[styles.isSubLabel, { color: Colors.secondaryText }]}>Net Margin</Text>
+                    <Text style={[styles.isSubLabel, { color: Colors.secondaryText }]}>{t('financialReport.netMargin')}</Text>
                     <Text style={[styles.isSubValue, { color: netProfitColor }]} testID="financialReport.netMargin">{netMargin.toFixed(1)}%</Text>
                   </View>
                 </>
@@ -494,7 +494,7 @@ export default function FinancialReportScreen() {
             { icon: 'receipt-outline', label: t('financial.arAging'), desc: t('financial.arAgingDesc'), route: 'ARAging', color: '#F59E0B' },
             { icon: 'document-text-outline', label: t('financial.taxSummary'), desc: t('financial.taxSummaryDesc'), route: 'TaxSummary', color: '#8B5CF6' },
             { icon: 'people-outline', label: t('financial.payrollSummary'), desc: t('financial.payrollDesc'), route: 'PayrollSummary', color: '#3B82F6' },
-            { icon: 'business-outline', label: 'Company Overhead', desc: 'Manage fixed monthly costs', route: 'CompanyOverhead', color: '#10B981' },
+            { icon: 'business-outline', label: t('financialReport.companyOverhead'), desc: t('financialReport.companyOverheadDesc'), route: 'CompanyOverhead', color: '#10B981' },
           ].map((item) => (
             <TouchableOpacity
               key={item.route}

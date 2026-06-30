@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { fetchDashboard, fetchProjectSummaries } from '../../services/clientPortalApi';
 import { useClientProject } from '../../contexts/ClientProjectContext';
 
@@ -33,6 +34,7 @@ const HIGHLIGHT_STYLES = {
 };
 
 export default function ClientAISummariesScreen({ navigation }) {
+  const { t } = useTranslation('common');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [summaries, setSummaries] = useState([]);
@@ -69,10 +71,10 @@ export default function ClientAISummariesScreen({ navigation }) {
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
   const formatWeekLabel = (start, end) => {
-    if (!start || !end) return 'Recent update';
+    if (!start || !end) return t('clientAISummaries.recentUpdate');
     const s = new Date(start + 'T12:00:00');
     const e = new Date(end + 'T12:00:00');
-    if (isNaN(s.getTime()) || isNaN(e.getTime())) return 'Recent update';
+    if (isNaN(s.getTime()) || isNaN(e.getTime())) return t('clientAISummaries.recentUpdate');
     const sMonth = s.toLocaleDateString('en-US', { month: 'short' });
     const eMonth = e.toLocaleDateString('en-US', { month: 'short' });
     const sDay = s.getDate();
@@ -86,9 +88,9 @@ export default function ClientAISummariesScreen({ navigation }) {
     const endDate = new Date(end + 'T12:00:00');
     if (isNaN(endDate.getTime())) return '';
     const diff = Math.floor((new Date() - endDate) / (1000 * 60 * 60 * 24));
-    if (diff < 7) return 'This week';
-    if (diff < 14) return 'Last week';
-    return `${Math.floor(diff / 7)} weeks ago`;
+    if (diff < 7) return t('clientAISummaries.thisWeek');
+    if (diff < 14) return t('clientAISummaries.lastWeek');
+    return t('clientAISummaries.weeksAgo', { count: Math.floor(diff / 7) });
   };
 
   if (loading) {
@@ -106,7 +108,7 @@ export default function ClientAISummariesScreen({ navigation }) {
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="chevron-back" size={26} color={C.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Weekly Updates</Text>
+          <Text style={styles.headerTitle}>{t('clientAISummaries.title')}</Text>
           <View style={{ width: 26 }} />
         </View>
       </SafeAreaView>
@@ -119,7 +121,7 @@ export default function ClientAISummariesScreen({ navigation }) {
         {/* AI Badge */}
         <View style={styles.aiBadge}>
           <Ionicons name="sparkles" size={16} color={C.amber} />
-          <Text style={styles.aiBadgeText}>AI-generated summaries from your project activity</Text>
+          <Text style={styles.aiBadgeText}>{t('clientAISummaries.aiBadge')}</Text>
         </View>
 
         {error ? (
@@ -127,11 +129,11 @@ export default function ClientAISummariesScreen({ navigation }) {
             <View style={styles.errorIcon}>
               <Ionicons name="cloud-offline-outline" size={40} color={C.red} />
             </View>
-            <Text style={styles.emptyTitle}>Couldn't load updates</Text>
-            <Text style={styles.emptySub}>Something went wrong while loading your weekly updates. Check your connection and try again.</Text>
+            <Text style={styles.emptyTitle}>{t('clientAISummaries.errorTitle')}</Text>
+            <Text style={styles.emptySub}>{t('clientAISummaries.errorSub')}</Text>
             <TouchableOpacity style={styles.retryButton} onPress={() => { setLoading(true); loadData(); }} activeOpacity={0.7}>
               <Ionicons name="refresh" size={18} color="#fff" />
-              <Text style={styles.retryButtonText}>Retry</Text>
+              <Text style={styles.retryButtonText}>{t('common:buttons.retry')}</Text>
             </TouchableOpacity>
           </View>
         ) : summaries.length === 0 ? (
@@ -139,8 +141,8 @@ export default function ClientAISummariesScreen({ navigation }) {
             <View style={styles.emptyIcon}>
               <Ionicons name="sparkles-outline" size={40} color={C.textMuted} />
             </View>
-            <Text style={styles.emptyTitle}>No updates yet</Text>
-            <Text style={styles.emptySub}>Your contractor will share weekly progress updates here. Each summary is automatically generated from project activity.</Text>
+            <Text style={styles.emptyTitle}>{t('clientAISummaries.emptyTitle')}</Text>
+            <Text style={styles.emptySub}>{t('clientAISummaries.emptySub')}</Text>
           </View>
         ) : (
           summaries.map((summary, idx) => {
@@ -185,7 +187,7 @@ export default function ClientAISummariesScreen({ navigation }) {
                       );
                     })}
                     {!isExpanded && highlights.length > 3 && (
-                      <Text style={styles.moreHighlights}>+{highlights.length - 3} more</Text>
+                      <Text style={styles.moreHighlights}>{t('clientAISummaries.moreHighlights', { count: highlights.length - 3 })}</Text>
                     )}
                   </View>
                 )}

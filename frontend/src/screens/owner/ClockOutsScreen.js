@@ -12,11 +12,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { checkForgottenClockOuts, remoteClockOutWorker, remoteClockOutSupervisor } from '../../utils/storage/timeTracking';
 
 export default function ClockOutsScreen({ navigation }) {
+  const { t } = useTranslation('owner');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -69,22 +71,22 @@ export default function ClockOutsScreen({ navigation }) {
 
   const handleRemoteClockOut = (session) => {
     Alert.alert(
-      'Clock Out',
-      `Clock out ${session.name} from ${session.project}?`,
+      t('clockOuts.clockOutAlertTitle'),
+      t('clockOuts.clockOutAlertMessage', { name: session.name, project: session.project }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
         {
-          text: 'Clock Out',
+          text: t('clockOuts.clockOutButton'),
           style: 'destructive',
           onPress: async () => {
             const result = session.type === 'worker'
               ? await remoteClockOutWorker(session.workerId)
               : await remoteClockOutSupervisor(session.supervisorId);
             if (result.success) {
-              Alert.alert('Success', `${session.name} has been clocked out.`);
+              Alert.alert(t('common:alerts.success'), t('clockOuts.successMessage', { name: session.name }));
               loadData();
             } else {
-              Alert.alert('Error', result.error || 'Failed to clock out.');
+              Alert.alert(t('common:alerts.error'), result.error || t('clockOuts.errorFallback'));
             }
           },
         },
@@ -102,10 +104,10 @@ export default function ClockOutsScreen({ navigation }) {
     if (!isoString) return '';
     const date = new Date(isoString);
     const today = new Date();
-    if (date.toDateString() === today.toDateString()) return 'Today';
+    if (date.toDateString() === today.toDateString()) return t('clockOuts.today');
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    if (date.toDateString() === yesterday.toDateString()) return t('clockOuts.yesterday');
     return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   };
 
@@ -132,7 +134,7 @@ export default function ClockOutsScreen({ navigation }) {
             {item.project}
           </Text>
           <Text style={[styles.time, { color: Colors.secondaryText }]}>
-            Clocked in {formatDate(item.clockIn)} at {formatTime(item.clockIn)}
+            {t('clockOuts.clockedInAt', { date: formatDate(item.clockIn), time: formatTime(item.clockIn) })}
           </Text>
         </View>
       </View>
@@ -145,7 +147,7 @@ export default function ClockOutsScreen({ navigation }) {
           accessibilityLabel="Clock out worker"
         >
           <Ionicons name="time-outline" size={16} color="#EF4444" />
-          <Text style={styles.clockOutText}>Clock Out</Text>
+          <Text style={styles.clockOutText}>{t('clockOuts.clockOutButton')}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -167,7 +169,7 @@ export default function ClockOutsScreen({ navigation }) {
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()} testID="clockOuts.backButton" accessibilityLabel="Go back">
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="clockOuts.headerTitle">Active Clock-Ins</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="clockOuts.headerTitle">{t('clockOuts.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -180,9 +182,9 @@ export default function ClockOutsScreen({ navigation }) {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Ionicons name="checkmark-circle-outline" size={64} color={Colors.border} />
-            <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>All Clear</Text>
+            <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>{t('clockOuts.emptyTitle')}</Text>
             <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-              No one is currently clocked in.
+              {t('clockOuts.emptyText')}
             </Text>
           </View>
         }

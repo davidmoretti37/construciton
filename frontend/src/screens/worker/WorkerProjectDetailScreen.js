@@ -19,6 +19,7 @@ import { fetchProjectDocuments, fetchProjectPhases, fetchDailyReports, calculate
 import { supabase } from '../../lib/supabase';
 import TodaysChecklistSection from '../../components/TodaysChecklistSection';
 import DailyChecklistSection from '../../components/DailyChecklistSection';
+import { useTranslation } from 'react-i18next';
 
 // In-memory cache of a worker's project detail fetches, keyed by project.id.
 // Lives at module scope so navigating away and back hydrates instantly from
@@ -27,6 +28,7 @@ import DailyChecklistSection from '../../components/DailyChecklistSection';
 const workerProjectDetailCache = new Map();
 
 export default function WorkerProjectDetailScreen({ route, navigation }) {
+  const { t } = useTranslation('workers');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { project } = route.params || {};
@@ -207,7 +209,7 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
 
     if (!fileUrl) {
       console.warn('[handleViewDocument] worker doc has no file_url', doc?.id);
-      Alert.alert('Error', 'This document has no file path stored.');
+      Alert.alert(t('common:alerts.error'), t('workerProjectDetail.errorDocumentNoPath'));
       return;
     }
 
@@ -224,8 +226,8 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
     if (!fileUrl) {
       console.warn('[handleViewDocument] worker could not resolve signed URL for', originalUrl);
       Alert.alert(
-        'Error',
-        `Could not load document.\n\nPath: ${originalUrl}\n\nStorage bucket may not be accessible with worker RLS.`
+        t('common:alerts.error'),
+        t('workerProjectDetail.errorDocumentLoad', { path: originalUrl })
       );
       return;
     }
@@ -239,7 +241,7 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'Not set';
+    if (!dateString) return t('workerProjectDetail.dateNotSet');
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
@@ -262,14 +264,14 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
             <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: Colors.primaryText }]} numberOfLines={1}>
-            Project
+            {t('workerProjectDetail.title')}
           </Text>
           <View style={styles.backButton} />
         </View>
         <View style={styles.emptyDocuments}>
           <Ionicons name="alert-circle-outline" size={36} color={Colors.secondaryText} />
           <Text style={[styles.emptyDocumentsText, { color: Colors.secondaryText }]}>
-            Project not found
+            {t('workerProjectDetail.notFound')}
           </Text>
         </View>
       </SafeAreaView>
@@ -296,7 +298,7 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
       >
         {/* Project Info Card */}
         <View style={[styles.card, { backgroundColor: Colors.white }]}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Project Information</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('workerProjectDetail.projectInformation')}</Text>
 
           {project.location && (
             <TouchableOpacity
@@ -316,7 +318,7 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
             >
               <Ionicons name="location" size={18} color={Colors.primaryBlue} />
               <View style={styles.infoTextContainer}>
-                <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Location</Text>
+                <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>{t('workerProjectDetail.location')}</Text>
                 <Text style={[styles.infoValue, { color: Colors.primaryBlue }]}>{project.location}</Text>
               </View>
               <Ionicons name="navigate-outline" size={18} color={Colors.primaryBlue} />
@@ -327,7 +329,7 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
             <View style={styles.infoRow}>
               <Ionicons name="calendar" size={18} color={Colors.secondaryText} />
               <View style={styles.infoTextContainer}>
-                <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Start Date</Text>
+                <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>{t('workerProjectDetail.startDate')}</Text>
                 <Text style={[styles.infoValue, { color: Colors.primaryText }]}>{formatDate(project.start_date)}</Text>
               </View>
             </View>
@@ -337,7 +339,7 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
             <View style={styles.infoRow}>
               <Ionicons name="calendar-outline" size={18} color={Colors.secondaryText} />
               <View style={styles.infoTextContainer}>
-                <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>End Date</Text>
+                <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>{t('workerProjectDetail.endDate')}</Text>
                 <Text style={[styles.infoValue, { color: Colors.primaryText }]}>{formatDate(project.end_date)}</Text>
               </View>
             </View>
@@ -349,7 +351,7 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
                 backgroundColor: project.status === 'active' ? successColor : inactiveColor
               }]} />
               <View style={styles.infoTextContainer}>
-                <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Status</Text>
+                <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>{t('workerProjectDetail.status')}</Text>
                 <Text style={[styles.infoValue, { color: Colors.primaryText }]}>{project.status}</Text>
               </View>
             </View>
@@ -357,7 +359,7 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
 
           {project.description && (
             <View style={styles.descriptionContainer}>
-              <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Description</Text>
+              <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>{t('workerProjectDetail.description')}</Text>
               <Text style={[styles.descriptionText, { color: Colors.secondaryText }]}>{project.description}</Text>
             </View>
           )}
@@ -366,7 +368,7 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
         {/* Phases */}
         {(phases.length > 0 || loadingPhases) && (
           <View style={[styles.card, { backgroundColor: Colors.white }]}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Phases</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('workerProjectDetail.phases')}</Text>
             {loadingPhases ? (
               <ActivityIndicator size="small" color={Colors.primaryBlue} />
             ) : (
@@ -374,7 +376,7 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
                 {/* Overall Progress */}
                 <View style={styles.overallProgressContainer}>
                   <View style={styles.overallProgressHeader}>
-                    <Text style={[styles.overallProgressLabel, { color: Colors.secondaryText }]}>Overall Progress</Text>
+                    <Text style={[styles.overallProgressLabel, { color: Colors.secondaryText }]}>{t('workerProjectDetail.overallProgress')}</Text>
                     <Text style={[styles.overallProgressPercent, { color: Colors.primaryText }]}>{overallProgress}%</Text>
                   </View>
                   <View style={[styles.overallProgressBar, { backgroundColor: Colors.border }]}>
@@ -412,25 +414,25 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
                       <View style={{ marginTop: 12 }}>
                         {phase.planned_days && (
                           <Text style={{ fontSize: 13, color: Colors.secondaryText, marginBottom: 8 }}>
-                            {phase.planned_days} days planned
+                            {t('workerProjectDetail.daysPlanned', { count: phase.planned_days })}
                           </Text>
                         )}
                         {phase.start_date && (
                           <View style={[styles.phaseDetailRow, { marginBottom: 4 }]}>
-                            <Text style={[styles.phaseDetailLabel, { color: Colors.secondaryText }]}>Start</Text>
+                            <Text style={[styles.phaseDetailLabel, { color: Colors.secondaryText }]}>{t('workerProjectDetail.phaseStart')}</Text>
                             <Text style={[styles.phaseDetailValue, { color: Colors.primaryText }]}>{formatDate(phase.start_date)}</Text>
                           </View>
                         )}
                         {phase.end_date && (
                           <View style={[styles.phaseDetailRow, { marginBottom: 8 }]}>
-                            <Text style={[styles.phaseDetailLabel, { color: Colors.secondaryText }]}>End</Text>
+                            <Text style={[styles.phaseDetailLabel, { color: Colors.secondaryText }]}>{t('workerProjectDetail.phaseEnd')}</Text>
                             <Text style={[styles.phaseDetailValue, { color: Colors.primaryText }]}>{formatDate(phase.end_date)}</Text>
                           </View>
                         )}
 
                         {taskItems.length > 0 ? (
                           <View style={[styles.servicesContainer, { borderTopColor: Colors.border }]}>
-                            <Text style={[styles.servicesTitle, { color: Colors.secondaryText }]}>Tasks ({completedCount}/{taskItems.length})</Text>
+                            <Text style={[styles.servicesTitle, { color: Colors.secondaryText }]}>{t('workerProjectDetail.tasks', { completed: completedCount, total: taskItems.length })}</Text>
                             {taskItems.map((item, itemIndex) => (
                               <TouchableOpacity
                                 key={itemIndex}
@@ -449,14 +451,14 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
                                   { color: Colors.secondaryText },
                                   item.completed && { textDecorationLine: 'line-through' }
                                 ]}>
-                                  {item.description || item.name || 'Task'}
+                                  {item.description || item.name || t('workerProjectDetail.taskFallback')}
                                 </Text>
                               </TouchableOpacity>
                             ))}
                           </View>
                         ) : (
                           <View style={[styles.servicesContainer, { borderTopColor: Colors.border }]}>
-                            <Text style={[styles.noServicesText, { color: Colors.secondaryText }]}>No tasks assigned yet</Text>
+                            <Text style={[styles.noServicesText, { color: Colors.secondaryText }]}>{t('workerProjectDetail.noTasksAssigned')}</Text>
                           </View>
                         )}
                       </View>
@@ -500,7 +502,7 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
               <Ionicons name="clipboard-outline" size={20} color={Colors.primaryBlue} />
               <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, marginBottom: 0 }]}>
-                Daily Reports ({reports.length})
+                {t('workerProjectDetail.dailyReports', { count: reports.length })}
               </Text>
             </View>
             {loadingReports ? (
@@ -508,11 +510,11 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
             ) : (
               <ScrollView style={reports.length > 2 ? { maxHeight: 180 } : undefined} nestedScrollEnabled showsVerticalScrollIndicator={reports.length > 2} persistentScrollbar={true}>
                 {reports.map((report, index) => {
-                  const reportDate = report.report_date ? new Date(report.report_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A';
+                  const reportDate = report.report_date ? new Date(report.report_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : t('workerProjectDetail.dateNotAvailable');
                   const getReporterName = () => {
-                    if (report.reporter_type === 'owner') return 'Owner';
-                    if (report.reporter_type === 'supervisor') return report.profiles?.business_name || 'Supervisor';
-                    return report.workers?.full_name || 'Worker';
+                    if (report.reporter_type === 'owner') return t('workerProjectDetail.reporterOwner');
+                    if (report.reporter_type === 'supervisor') return report.profiles?.business_name || t('workerProjectDetail.reporterSupervisor');
+                    return report.workers?.full_name || t('workerProjectDetail.reporterWorker');
                   };
                   const getReporterColor = () => {
                     if (report.reporter_type === 'owner') return '#10B981';
@@ -533,7 +535,7 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
                         <View style={{ flexDirection: 'row', gap: 6 }}>
                           <View style={{ backgroundColor: getReporterColor() + '20', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
                             <Text style={{ fontSize: 11, fontWeight: '600', color: getReporterColor() }}>
-                              {report.reporter_type === 'owner' ? 'Owner' : report.reporter_type === 'supervisor' ? 'Supervisor' : 'Worker'}
+                              {report.reporter_type === 'owner' ? t('workerProjectDetail.reporterOwner') : report.reporter_type === 'supervisor' ? t('workerProjectDetail.reporterSupervisor') : t('workerProjectDetail.reporterWorker')}
                             </Text>
                           </View>
                           {photoCount > 0 && (
@@ -559,7 +561,7 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
               <Ionicons name="receipt-outline" size={20} color={Colors.primaryBlue} />
               <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, marginBottom: 0 }]}>
-                My Expenses ({expenses.length})
+                {t('workerProjectDetail.myExpenses', { count: expenses.length })}
               </Text>
             </View>
             {loadingExpenses ? (
@@ -579,7 +581,7 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
                     >
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.primaryText, flex: 1 }} numberOfLines={1}>
-                          {exp.description || exp.category || 'Expense'}
+                          {exp.description || exp.category || t('workerProjectDetail.expenseFallback')}
                         </Text>
                         <Text style={{ fontSize: 14, fontWeight: '700', color: '#EF4444' }}>
                           ${parseFloat(exp.amount || 0).toFixed(2)}
@@ -608,20 +610,20 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
           <View style={styles.documentsHeader}>
             <Ionicons name="folder-outline" size={20} color={Colors.primaryBlue} />
             <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, marginBottom: 0 }]}>
-              Documents ({documents.length})
+              {t('workerProjectDetail.documents', { count: documents.length })}
             </Text>
           </View>
 
           {loadingDocuments ? (
             <View style={styles.documentsLoading}>
               <ActivityIndicator size="small" color={Colors.primaryBlue} />
-              <Text style={[styles.documentsLoadingText, { color: Colors.secondaryText }]}>Loading documents...</Text>
+              <Text style={[styles.documentsLoadingText, { color: Colors.secondaryText }]}>{t('workerProjectDetail.loadingDocuments')}</Text>
             </View>
           ) : documents.length === 0 ? (
             <View style={styles.emptyDocuments}>
               <Ionicons name="document-outline" size={36} color={Colors.secondaryText} />
               <Text style={[styles.emptyDocumentsText, { color: Colors.secondaryText }]}>
-                No documents available
+                {t('workerProjectDetail.noDocuments')}
               </Text>
             </View>
           ) : (

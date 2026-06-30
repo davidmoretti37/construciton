@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -18,6 +19,7 @@ function fmtK(amount) {
 }
 
 export default function OverdueInvoicesWidget({ count, amount, size, editMode, onPress }) {
+  const { t } = useTranslation('invoices');
   const pulse = useSharedValue(0.3);
 
   useEffect(() => {
@@ -57,9 +59,9 @@ export default function OverdueInvoicesWidget({ count, amount, size, editMode, o
           >
             <Text style={styles.valueMedium}>{count}</Text>
             <View style={styles.mediumContent}>
-              <Text style={styles.titleMedium}>Invoices</Text>
-              <Text style={styles.labelMedium}>{count > 0 ? 'OUTSTANDING' : 'ALL PAID'}</Text>
-              <Text style={styles.amountText}>{fmtK(amount)} outstanding</Text>
+              <Text style={styles.titleMedium}>{t('overdueInvoicesWidget.title')}</Text>
+              <Text style={styles.labelMedium}>{count > 0 ? t('overdueInvoicesWidget.outstanding') : t('overdueInvoicesWidget.allPaid')}</Text>
+              <Text style={styles.amountText}>{t('overdueInvoicesWidget.amountOutstanding', { amount: fmtK(amount) })}</Text>
             </View>
             <Ionicons name="alert-circle" size={20} color="rgba(255,255,255,0.3)" />
           </LinearGradient>
@@ -82,7 +84,7 @@ export default function OverdueInvoicesWidget({ count, amount, size, editMode, o
           end={{ x: 1, y: 1 }}
           style={styles.gradientSmall}
         >
-          <Text style={styles.titleSmall}>Invoices</Text>
+          <Text style={styles.titleSmall}>{t('overdueInvoicesWidget.title')}</Text>
           <Ionicons name="alert-circle" size={16} color="rgba(255,255,255,0.3)" style={styles.bgIcon} />
           <Text style={styles.valueSmall}>{count}</Text>
           {amount > 0 && (
@@ -90,7 +92,7 @@ export default function OverdueInvoicesWidget({ count, amount, size, editMode, o
               <Text style={styles.amountPillText}>{fmtK(amount)}</Text>
             </View>
           )}
-          <Text style={styles.label}>{count > 0 ? 'OUTSTANDING' : 'ALL PAID'}</Text>
+          <Text style={styles.label}>{count > 0 ? t('overdueInvoicesWidget.outstanding') : t('overdueInvoicesWidget.allPaid')}</Text>
         </LinearGradient>
       </Animated.View>
     </TouchableOpacity>

@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { fetchDashboard, fetchProject, fetchProjectPhotos, fetchProjectSummaries } from '../../services/clientPortalApi';
 import { useClientProject } from '../../contexts/ClientProjectContext';
+import { useTranslation } from 'react-i18next';
 
 const { width: SW } = Dimensions.get('window');
 
@@ -33,6 +34,7 @@ const shadowMd = { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, s
 export default function ClientDashboardScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { selectedProjectId, setProjects } = useClientProject();
+  const { t } = useTranslation('common');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState(null);
@@ -97,11 +99,11 @@ export default function ClientDashboardScreen({ navigation }) {
     return (
       <View style={styles.errorContainer}>
         <View style={styles.emptyIcon}><Ionicons name="cloud-offline-outline" size={48} color={C.textMuted} /></View>
-        <Text style={styles.emptyTitle}>Couldn't load your projects</Text>
-        <Text style={styles.emptySubtext}>Something went wrong. Please check your connection and try again.</Text>
+        <Text style={styles.emptyTitle}>{t('clientDashboard.errorTitle')}</Text>
+        <Text style={styles.emptySubtext}>{t('clientDashboard.errorSubtext')}</Text>
         <TouchableOpacity style={styles.retryBtn} onPress={() => { setLoading(true); loadData(); }} activeOpacity={0.8}>
           <Ionicons name="refresh" size={18} color="#fff" />
-          <Text style={styles.retryText}>Retry</Text>
+          <Text style={styles.retryText}>{t('common:buttons.retry')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -133,9 +135,9 @@ export default function ClientDashboardScreen({ navigation }) {
           <SafeAreaView edges={['top']} style={styles.headerInner}>
             <View style={styles.headerContent}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.headerName}>{branding.business_name || 'My Projects'}</Text>
+                <Text style={styles.headerName}>{branding.business_name || t('clientDashboard.myProjects')}</Text>
                 <Text style={styles.headerSubtitle}>
-                  {isSingleProject ? projectDetail.name : `${projects.length} active project${projects.length !== 1 ? 's' : ''}`}
+                  {isSingleProject ? projectDetail.name : t('clientDashboard.activeProjects', { count: projects.length })}
                 </Text>
               </View>
               <View style={styles.headerActions}>
@@ -161,12 +163,12 @@ export default function ClientDashboardScreen({ navigation }) {
               <View style={{ flex: 1 }}>
                 <View style={styles.bannerRow}>
                   <Ionicons name="alert-circle" size={18} color={C.amberDark} />
-                  <Text style={styles.bannerTitle}>Payment Due</Text>
+                  <Text style={styles.bannerTitle}>{t('clientDashboard.bannerTitle')}</Text>
                 </View>
-                <Text style={styles.bannerAmount}>${totalOutstanding.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} — {outstandingInvoices.length} invoice{outstandingInvoices.length !== 1 ? 's' : ''}</Text>
+                <Text style={styles.bannerAmount}>{t('clientDashboard.bannerAmountText', { amount: totalOutstanding.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), count: outstandingInvoices.length })}</Text>
               </View>
               <View style={styles.bannerPayBtn}>
-                <Text style={styles.bannerPayText}>Pay Now</Text>
+                <Text style={styles.bannerPayText}>{t('clientDashboard.payNow')}</Text>
               </View>
             </TouchableOpacity>
           )}
@@ -194,18 +196,18 @@ export default function ClientDashboardScreen({ navigation }) {
               <View style={styles.actions}>
                 <TouchableOpacity style={styles.actionPrimary} onPress={() => navigation.getParent()?.navigate('ClientInvoices', { projectId: activeProject.id })} activeOpacity={0.8}>
                   <Ionicons name="receipt-outline" size={18} color="#fff" />
-                  <Text style={styles.actionPrimaryText}>Invoices</Text>
+                  <Text style={styles.actionPrimaryText}>{t('clientDashboard.invoicesButton')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.actionSecondary} onPress={() => navigation.getParent()?.navigate('ClientMessages', { projectId: activeProject.id, projectName: projectDetail.name })} activeOpacity={0.8}>
                   <Ionicons name="chatbubbles-outline" size={18} color={C.text} />
-                  <Text style={styles.actionSecondaryText}>Messages</Text>
+                  <Text style={styles.actionSecondaryText}>{t('clientDashboard.messagesButton')}</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Phase Stepper */}
               {phases.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionLabel}>PHASES</Text>
+                  <Text style={styles.sectionLabel}>{t('clientDashboard.sectionPhases')}</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stepper}>
                     {phases.map((phase, i) => {
                       const isCompleted = phase.status === 'completed';
@@ -227,7 +229,7 @@ export default function ClientDashboardScreen({ navigation }) {
               {/* Photos */}
               {photoUrls.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionLabel}>PHOTOS</Text>
+                  <Text style={styles.sectionLabel}>{t('clientDashboard.sectionPhotos')}</Text>
                   <View style={styles.photoGrid}>
                     {photoUrls.map((url, i) => (
                       <TouchableOpacity key={i} onPress={() => { setViewerIndex(i); setShowViewer(true); }} activeOpacity={0.8}>
@@ -240,7 +242,7 @@ export default function ClientDashboardScreen({ navigation }) {
 
               {/* Weekly Update — latest only */}
               <View style={styles.section}>
-                <Text style={styles.sectionLabel}>WEEKLY UPDATE</Text>
+                <Text style={styles.sectionLabel}>{t('clientDashboard.sectionWeeklyUpdate')}</Text>
                 {summaries.length > 0 ? (
                   <>
                     <View style={styles.summaryCard}>
@@ -252,7 +254,7 @@ export default function ClientDashboardScreen({ navigation }) {
                           <Text style={styles.summaryDate}>
                             {summaries[0].week_start && summaries[0].week_end
                               ? `${new Date(summaries[0].week_start + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(summaries[0].week_end + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-                              : 'This week'}
+                              : t('clientDashboard.thisWeek')}
                           </Text>
                         </View>
                       </View>
@@ -273,7 +275,7 @@ export default function ClientDashboardScreen({ navigation }) {
                     {summaries.length > 1 && (
                       <TouchableOpacity style={styles.viewPrevious} onPress={() => navigation.getParent()?.navigate('ClientAISummaries')} activeOpacity={0.7}>
                         <Ionicons name="time-outline" size={16} color={C.amber} />
-                        <Text style={styles.viewPreviousText}>View Previous Weeks</Text>
+                        <Text style={styles.viewPreviousText}>{t('clientDashboard.viewPreviousWeeks')}</Text>
                         <Ionicons name="chevron-forward" size={16} color={C.amber} />
                       </TouchableOpacity>
                     )}
@@ -284,15 +286,15 @@ export default function ClientDashboardScreen({ navigation }) {
                       <View style={styles.sparkleCircle}>
                         <Ionicons name="sparkles" size={14} color="#fff" />
                       </View>
-                      <Text style={styles.summaryDate}>This week</Text>
+                      <Text style={styles.summaryDate}>{t('clientDashboard.thisWeek')}</Text>
                     </View>
                     <Text style={styles.summaryText}>{projectDetail.weekly_summary}</Text>
                   </View>
                 ) : (
                   <View style={styles.summaryEmpty}>
                     <Ionicons name="sparkles-outline" size={28} color={C.textMuted} />
-                    <Text style={styles.summaryEmptyText}>No updates yet</Text>
-                    <Text style={styles.summaryEmptySubtext}>Your contractor will share weekly progress updates here</Text>
+                    <Text style={styles.summaryEmptyText}>{t('clientDashboard.noUpdatesYet')}</Text>
+                    <Text style={styles.summaryEmptySubtext}>{t('clientDashboard.noUpdatesSubtext')}</Text>
                   </View>
                 )}
               </View>
@@ -302,7 +304,7 @@ export default function ClientDashboardScreen({ navigation }) {
               {/* ═══ MULTIPLE PROJECTS: CARD LIST ═══ */}
               {projects.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionLabel}>PROJECTS</Text>
+                  <Text style={styles.sectionLabel}>{t('clientDashboard.sectionProjects')}</Text>
                   {projects.map((project) => (
                     <TouchableOpacity key={project.id} style={styles.projectCard} onPress={() => navigation.getParent()?.navigate('ClientProjectDetail', { projectId: project.id })} activeOpacity={0.7}>
                       <View style={styles.cardAccent} />
@@ -332,7 +334,7 @@ export default function ClientDashboardScreen({ navigation }) {
               {/* Service Plans */}
               {servicePlans.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionLabel}>SERVICE PLANS</Text>
+                  <Text style={styles.sectionLabel}>{t('clientDashboard.sectionServicePlans')}</Text>
                   {servicePlans.map((plan) => (
                     <View key={plan.id} style={styles.projectCard}>
                       <View style={[styles.cardAccent, { backgroundColor: '#059669' }]} />
@@ -352,8 +354,8 @@ export default function ClientDashboardScreen({ navigation }) {
               {projects.length === 0 && servicePlans.length === 0 && (
                 <View style={styles.emptyState}>
                   <View style={styles.emptyIcon}><Ionicons name="folder-open-outline" size={48} color={C.textMuted} /></View>
-                  <Text style={styles.emptyTitle}>No projects yet</Text>
-                  <Text style={styles.emptySubtext}>Your contractor will share projects with you here</Text>
+                  <Text style={styles.emptyTitle}>{t('clientDashboard.noProjectsYet')}</Text>
+                  <Text style={styles.emptySubtext}>{t('clientDashboard.noProjectsSubtext')}</Text>
                 </View>
               )}
             </>

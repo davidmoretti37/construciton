@@ -8,6 +8,7 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity,
   ActivityIndicator,
@@ -30,6 +31,7 @@ export default function SubHomeTab({ navigation, onNavigateTab }) {
   const { isDark = false } = useTheme() || {};
   const Colors = isDark ? DarkColors : LightColors;
   const styles = makeStyles(Colors);
+  const { t } = useTranslation('common');
 
   const [profile, setProfile] = useState(null);
   const [subOrg, setSubOrg] = useState(null);
@@ -79,8 +81,8 @@ export default function SubHomeTab({ navigation, onNavigateTab }) {
       pending.push({
         key: `req-${r.id}`,
         kind: 'doc_request',
-        title: r.sender_name ? `${r.sender_name} requested your ${docName}` : `Document requested: ${docName}`,
-        body: 'Tap to upload — snap a photo or pick a PDF.',
+        title: r.sender_name ? t('subHomeTab.docRequestedBy', { senderName: r.sender_name, docName }) : t('subHomeTab.docRequestedAnon', { docName }),
+        body: t('subHomeTab.tapToUploadDoc'),
         icon: 'document-attach-outline',
         color: SUB_VIOLET,
         onPress: () => navigation?.navigate?.('SubUpload', {
@@ -92,8 +94,8 @@ export default function SubHomeTab({ navigation, onNavigateTab }) {
       pending.push({
         key: `req-${r.id}`,
         kind: 'sign_contract',
-        title: r.sender_name ? `${r.sender_name} sent a contract to sign` : 'Contract awaiting your signature',
-        body: 'Tap to review and sign.',
+        title: r.sender_name ? t('subHomeTab.contractSentBy', { senderName: r.sender_name }) : t('subHomeTab.contractAwaiting'),
+        body: t('subHomeTab.tapToSign'),
         icon: 'create-outline',
         color: '#3B82F6',
         onPress: r.engagement_id
@@ -104,8 +106,8 @@ export default function SubHomeTab({ navigation, onNavigateTab }) {
       pending.push({
         key: `req-${r.id}`,
         kind: 'submit_bid',
-        title: r.sender_name ? `${r.sender_name} invited you to bid` : 'New bid invitation',
-        body: 'Tap to view scope and submit.',
+        title: r.sender_name ? t('subHomeTab.bidInvitedBy', { senderName: r.sender_name }) : t('subHomeTab.newBidInvitation'),
+        body: t('subHomeTab.tapToViewScope'),
         icon: 'mail-outline',
         color: '#0EA5E9',
         onPress: r.bid_request_id
@@ -123,8 +125,8 @@ export default function SubHomeTab({ navigation, onNavigateTab }) {
       pending.push({
         key: `doc-${d.id}`,
         kind: days < 0 ? 'expired' : 'expiring',
-        title: `${(DOC_LABEL[d.doc_type] || d.doc_type.toUpperCase())} ${days < 0 ? 'expired' : `expires in ${days}d`}`,
-        body: 'Tap to upload renewed copy.',
+        title: days < 0 ? t('subHomeTab.docExpired', { docType: DOC_LABEL[d.doc_type] || d.doc_type.toUpperCase() }) : t('subHomeTab.docExpiresIn', { docType: DOC_LABEL[d.doc_type] || d.doc_type.toUpperCase(), days }),
+        body: t('subHomeTab.tapToUploadRenewed'),
         icon: days < 0 ? 'close-circle-outline' : 'alert-circle-outline',
         color: days < 0 ? '#DC2626' : '#F59E0B',
         onPress: () => onNavigateTab?.('documents'),
@@ -137,8 +139,8 @@ export default function SubHomeTab({ navigation, onNavigateTab }) {
     pending.push({
       key: `bid-${inv.id}`,
       kind: 'bid_invite',
-      title: `Bid invitation: ${inv.trade}`,
-      body: inv.scope_summary?.slice(0, 80) || 'Tap to view scope and submit.',
+      title: t('subHomeTab.bidInvitationTrade', { trade: inv.trade }),
+      body: inv.scope_summary?.slice(0, 80) || t('subHomeTab.tapToViewScope'),
       icon: 'mail-outline',
       color: '#0EA5E9',
       onPress: () => navigation?.navigate?.('SubBidSubmit', { bidRequestId: inv.id }),
@@ -154,9 +156,9 @@ export default function SubHomeTab({ navigation, onNavigateTab }) {
     >
       {/* Greeting */}
       <Text style={styles.greeting}>
-        Hi, {(subOrg?.legal_name || 'there').split(' ')[0]}
+        {t('subHomeTab.greeting', { name: (subOrg?.legal_name || t('subHomeTab.greetingFallbackName')).split(' ')[0] })}
       </Text>
-      <Text style={styles.subGreeting}>Here's what needs your attention.</Text>
+      <Text style={styles.subGreeting}>{t('subHomeTab.subGreeting')}</Text>
 
       {/* Profile summary card — neutral, subtle */}
       <TouchableOpacity
@@ -171,25 +173,25 @@ export default function SubHomeTab({ navigation, onNavigateTab }) {
         </View>
         <View style={{ flex: 1, marginLeft: 14 }}>
           <Text style={styles.profileName} numberOfLines={1}>
-            {subOrg?.legal_name || 'My business'}
+            {subOrg?.legal_name || t('subHomeTab.myBusiness')}
           </Text>
           <Text style={styles.profileMeta} numberOfLines={1}>
-            {(subOrg?.trades || []).join(', ') || 'Tap to set trades'}
+            {(subOrg?.trades || []).join(', ') || t('subHomeTab.tapToSetTrades')}
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
       </TouchableOpacity>
 
       {/* Action items */}
-      <Text style={styles.sectionTitle}>Action items</Text>
+      <Text style={styles.sectionTitle}>{t('subHomeTab.actionItems')}</Text>
       {pending.length === 0 ? (
         <View style={styles.emptyCard}>
           <View style={styles.emptyIcon}>
             <Ionicons name="checkmark" size={20} color="#10B981" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.emptyTitle}>All caught up</Text>
-            <Text style={styles.emptyBody}>No pending requests, expiring docs, or open bids.</Text>
+            <Text style={styles.emptyTitle}>{t('subHomeTab.allCaughtUp')}</Text>
+            <Text style={styles.emptyBody}>{t('subHomeTab.noActionItems')}</Text>
           </View>
         </View>
       ) : (
@@ -218,12 +220,12 @@ export default function SubHomeTab({ navigation, onNavigateTab }) {
       {/* Recent activity */}
       {(bids.my_bids || []).length > 0 && (
         <>
-          <Text style={styles.sectionTitle}>Recent bids</Text>
+          <Text style={styles.sectionTitle}>{t('subHomeTab.recentBids')}</Text>
           {(bids.my_bids || []).slice(0, 5).map((b) => (
             <View key={b.id} style={styles.activityCard}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.activityTitle}>
-                  ${Number(b.amount).toLocaleString()} · {b.bid_request?.trade || 'Bid'}
+                  ${Number(b.amount).toLocaleString()} · {b.bid_request?.trade || t('subHomeTab.bid')}
                 </Text>
                 {b.bid_request?.scope_summary && (
                   <Text style={styles.activityMeta} numberOfLines={1}>

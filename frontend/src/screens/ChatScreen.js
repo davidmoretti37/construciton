@@ -261,7 +261,7 @@ export default function ChatScreen({ navigation, route }) {
       setConversationHistory(allMessages);
     } catch (error) {
       console.error('Error loading session:', error);
-      Alert.alert('Error', 'Failed to load chat session');
+      Alert.alert(t('common:alerts.error'), t('chat.failedToLoadSession'));
     }
   }, [checkAndMergeBackgroundJob]);
 
@@ -597,7 +597,7 @@ export default function ChatScreen({ navigation, route }) {
           pollingIntervalRef.current = null;
           if (messageId) {
             upsertAIMessage(messageId, {
-              text: result.error || 'An error occurred.',
+              text: result.error || t('chat.errorOccurred'),
             });
           }
           setIsAIThinking(false);
@@ -713,13 +713,13 @@ export default function ChatScreen({ navigation, route }) {
                 upsertAIMessage(savedMessageId, { text: '', isThinking: true });
               }
             }
-            setStatusMessage('Still processing your request...');
+            setStatusMessage(t('chat.stillProcessing'));
             startJobPolling(savedJobId, savedMessageId);
 
           } else if (result.status === 'error') {
             if (savedMessageId) {
               upsertAIMessage(savedMessageId, {
-                text: result.error || 'An error occurred while processing your request.',
+                text: result.error || t('chat.errorProcessing'),
               });
             }
             setIsAIThinking(false);
@@ -768,7 +768,7 @@ export default function ChatScreen({ navigation, route }) {
             // Create a message showing the appointment card
             const appointmentMessage = {
               id: `appointment-${Date.now()}`,
-              text: `Here's your appointment:`,
+              text: t('chat.heresYourAppointment'),
               isUser: false,
               timestamp: new Date(),
               visualElements: [{
@@ -779,11 +779,11 @@ export default function ChatScreen({ navigation, route }) {
             };
             setMessages(prev => [...prev, appointmentMessage]);
           } else {
-            addAIMessage(`I couldn't find that appointment. It may have been deleted or rescheduled.`);
+            addAIMessage(t('chat.appointmentNotFound'));
           }
         } catch (error) {
           console.error('Error fetching appointment:', error);
-          addAIMessage(`Sorry, I couldn't load the appointment details.`);
+          addAIMessage(t('chat.appointmentLoadError'));
         }
 
         // Clear the params so it doesn't trigger again
@@ -1026,7 +1026,7 @@ export default function ChatScreen({ navigation, route }) {
           isUser: false,
           timestamp: new Date(),
           visualElements: [],
-          actions: [{ type: 'retry', label: 'Retry', data: { originalMessage: text } }],
+          actions: [{ type: 'retry', label: t('common:buttons.retry'), data: { originalMessage: text } }],
         }]);
         messageCreated = true;
       }
@@ -1118,7 +1118,7 @@ export default function ChatScreen({ navigation, route }) {
           if (severity !== 'major') return;
           const targetId = streamingMessageIdRef.current || aiMessageId;
           setMessages(prev => prev.map(msg => msg.id === targetId
-            ? { ...msg, planDivergence: reason || 'Action did not match plan.' }
+            ? { ...msg, planDivergence: reason || t('chat.actionDidNotMatchPlan') }
             : msg));
         },
         // onTool — P3 streaming reasoning. Backend now ships enriched
@@ -1194,7 +1194,7 @@ export default function ChatScreen({ navigation, route }) {
                 pendingApproval: {
                   tool,
                   args: args || {},
-                  action_summary: action_summary || `Run ${tool}`,
+                  action_summary: action_summary || t('chat.runTool', { tool }),
                   risk_level: risk_level || 'write_destructive',
                   reason: reason || '',
                 },
@@ -1205,10 +1205,10 @@ export default function ChatScreen({ navigation, route }) {
         // "retrying…" feedback so the user knows what happened and the
         // text reset is intentional.
         onRetrying: ({ attempt, reason }) => {
-          setStatusMessage(`Reviewing my response and trying again…`);
+          setStatusMessage(t('chat.reviewingResponse'));
           const targetId = streamingMessageIdRef.current || aiMessageId;
           setMessages(prev => prev.map(msg => msg.id === targetId
-            ? { ...msg, text: '', retryNote: reason || 'Re-checking my work.' }
+            ? { ...msg, text: '', retryNote: reason || t('chat.recheckingWork') }
             : msg));
         },
         // PEV (Plan-Execute-Verify) pipeline events. Builds a step-by-step
@@ -1222,15 +1222,15 @@ export default function ChatScreen({ navigation, route }) {
             // Update inline status text based on event type
             let label = null;
             switch (pevEvent?.type) {
-              case 'pev_classify_start': label = 'Classifying…'; break;
+              case 'pev_classify_start': label = t('chat.pevClassifying'); break;
               case 'pev_classify_done':
-                if (pevEvent.classification === 'complex') label = 'Planning…';
+                if (pevEvent.classification === 'complex') label = t('chat.pevPlanning');
                 break;
               case 'pev_plan_done':
-                label = `Plan: ${pevEvent.stepCount} step${pevEvent.stepCount === 1 ? '' : 's'}`;
+                label = t('chat.pevPlanSteps', { count: pevEvent.stepCount });
                 break;
               case 'plan_start':
-                label = `Goal: ${pevEvent.goal}`;
+                label = t('chat.pevGoal', { goal: pevEvent.goal });
                 break;
               case 'step_start':
                 label = `▸ ${pevEvent.stepIndex}. ${pevEvent.tool}${pevEvent.why ? ` — ${pevEvent.why}` : ''}`;
@@ -1242,13 +1242,13 @@ export default function ChatScreen({ navigation, route }) {
                 label = `✗ ${pevEvent.error}`;
                 break;
               case 'pev_verify_start':
-                label = 'Verifying…';
+                label = t('chat.pevVerifying');
                 break;
               case 'pev_verify_done':
-                label = pevEvent.satisfied ? '✓ Verified' : `Gap: ${pevEvent.gap || 'incomplete'}`;
+                label = pevEvent.satisfied ? t('chat.pevVerified') : t('chat.pevGap', { gap: pevEvent.gap || t('chat.pevIncomplete') });
                 break;
               case 'pev_respond_start':
-                label = 'Composing reply…';
+                label = t('chat.pevComposing');
                 break;
               default:
                 break;
@@ -1385,7 +1385,7 @@ export default function ChatScreen({ navigation, route }) {
           // Show loading state if creating estimate (Part 1 of estimate fix)
           const hasEstimatePreview = parsedResponse.visualElements?.some(v => v.type === 'estimate-preview');
           if (hasEstimatePreview) {
-            setStatusMessage('Creating estimate...');
+            setStatusMessage(t('chat.creatingEstimate'));
             // Clear status after card appears
             setTimeout(() => setStatusMessage(''), 800);
           }
@@ -1742,7 +1742,7 @@ export default function ChatScreen({ navigation, route }) {
 
               const errorMessage = {
                 id: aiMessageId,
-                text: `Sorry, I encountered an error: ${error.message}. Please try again.`,
+                text: t('chat.encounteredError', { error: error.message }),
                 isUser: false,
                 timestamp: new Date(),
                 visualElements: [],
@@ -1823,7 +1823,7 @@ export default function ChatScreen({ navigation, route }) {
 
           const errorMessage = {
             id: aiMessageId,
-            text: `Sorry, I encountered an error: ${error.message}. Please try again.`,
+            text: t('chat.encounteredError', { error: error.message }),
             isUser: false,
             timestamp: new Date(),
             visualElements: [],
@@ -2060,7 +2060,7 @@ export default function ChatScreen({ navigation, route }) {
         handleSend('yes, create the estimate', false);
         break;
       case 'reschedule-appointment':
-        addAIMessage(`Let's reschedule "${action.data?.title || 'this appointment'}". When would you like to move it to?`);
+        addAIMessage(t('chat.reschedulePrompt', { title: action.data?.title || t('chat.thisAppointment') }));
         break;
       case 'cancel-appointment':
         Alert.alert(
@@ -2213,22 +2213,22 @@ export default function ChatScreen({ navigation, route }) {
 
           // Validate required fields
           if (!planData.name || planData.name.trim() === '' || planData.name === 'Untitled Plan') {
-            Alert.alert('Required', 'Service plan name is required.');
+            Alert.alert(t('chat.required'), t('chat.servicePlanNameRequired'));
             break;
           }
           const hasAddress = planData.address || planData.location_address ||
             (planData.locations && planData.locations.length > 0 && planData.locations.some(l => l.address || l.location_address));
           if (!hasAddress) {
-            Alert.alert('Required', 'At least one service location address is required.');
+            Alert.alert(t('chat.required'), t('chat.serviceLocationRequired'));
             break;
           }
           const bc = planData.billing_cycle || 'monthly';
           if (bc === 'per_visit' && (!planData.price_per_visit || parseFloat(planData.price_per_visit) <= 0)) {
-            Alert.alert('Required', 'Price per visit must be greater than 0 for per-visit billing.');
+            Alert.alert(t('chat.required'), t('chat.pricePerVisitRequired'));
             break;
           }
           if ((bc === 'monthly' || bc === 'quarterly') && (!planData.monthly_rate || parseFloat(planData.monthly_rate) <= 0)) {
-            Alert.alert('Required', 'Monthly rate must be greater than 0 for monthly/quarterly billing.');
+            Alert.alert(t('chat.required'), t('chat.monthlyRateRequired'));
             break;
           }
 
@@ -2328,7 +2328,7 @@ export default function ChatScreen({ navigation, route }) {
                 });
                 if (schedError) {
                   logger.error('[Chat] Schedule insert error:', schedError.message);
-                  Alert.alert('Warning', 'Schedule could not be created for this location. Visits may not generate correctly.');
+                  Alert.alert(t('common:alerts.warning'), t('chat.scheduleCreateFailed'));
                 }
               }
             }
@@ -2399,22 +2399,22 @@ export default function ChatScreen({ navigation, route }) {
               const genResult = await genResponse.json();
               logger.info(`[Chat] Generated ${genResult.generated || 0} visits for plan ${plan.id}`);
               if ((genResult.generated || 0) === 0) {
-                Alert.alert('Note', 'Service plan saved, but no visits were generated. Check that the schedule and frequency are set correctly.');
+                Alert.alert(t('chat.note'), t('chat.noVisitsGenerated'));
               }
             } else {
               logger.error('[Chat] Visit generation failed:', genResponse.status);
-              Alert.alert('Warning', 'Service plan saved, but visit generation failed. Visits can be generated later from the plan detail screen.');
+              Alert.alert(t('common:alerts.warning'), t('chat.visitGenerationFailed'));
             }
           } catch (e) {
             logger.error('[Chat] Visit generation error:', e.message);
-            Alert.alert('Warning', 'Service plan saved, but visit generation could not be triggered. Check your internet connection.');
+            Alert.alert(t('common:alerts.warning'), t('chat.visitGenerationNotTriggered'));
           }
 
           logger.info(`[Chat] Saved service plan: ${plan.name} (${plan.id})`);
           return { servicePlanId: plan.id };
         } catch (e) {
           logger.error('[Chat] Failed to save service plan:', e.message);
-          Alert.alert('Error', 'Failed to save service plan');
+          Alert.alert(t('common:alerts.error'), t('chat.failedToSaveServicePlan'));
         }
         break;
       }
@@ -2485,12 +2485,12 @@ export default function ChatScreen({ navigation, route }) {
         // Inline handler — small + isolated, no need for a new actions hook
         try {
           if (!action.data?.id) {
-            Alert.alert('Save First', 'Please save the contract before sending to client.');
+            Alert.alert(t('chat.saveFirst'), t('chat.saveContractFirst'));
             break;
           }
           const { data: { session } } = await supabase.auth.getSession();
           if (!session?.access_token) {
-            Alert.alert('Error', 'Not authenticated');
+            Alert.alert(t('common:alerts.error'), t('chat.notAuthenticated'));
             break;
           }
           const { API_URL } = require('../config/api');
@@ -2503,12 +2503,12 @@ export default function ChatScreen({ navigation, route }) {
           });
           const result = await res.json();
           if (result.sent) {
-            Alert.alert('Sent!', `Contract sent to ${result.email} and available in client portal.`);
+            Alert.alert(t('chat.sent'), t('chat.contractSentTo', { email: result.email }));
           } else {
-            Alert.alert('Send Failed', result.error || 'Could not send contract.');
+            Alert.alert(t('chat.sendFailedTitle'), result.error || t('chat.couldNotSendContract'));
           }
         } catch (e) {
-          Alert.alert('Error', e.message || 'Failed to send contract.');
+          Alert.alert(t('common:alerts.error'), e.message || t('chat.failedToSendContract'));
         }
         break;
       }
@@ -2527,7 +2527,7 @@ export default function ChatScreen({ navigation, route }) {
       case 'set-up-draws-from-estimate': {
         const estId = action.data?.id || action.data?.estimateId;
         if (!estId) {
-          Alert.alert('Missing estimate', "Save the estimate first before setting up draws.");
+          Alert.alert(t('chat.missingEstimate'), t('chat.saveEstimateFirstDraws'));
           break;
         }
         navigation.navigate('ProjectBuilder', { fromEstimateId: estId });
@@ -2569,7 +2569,7 @@ export default function ChatScreen({ navigation, route }) {
           }
           return await saveChangeOrder(payload);
         } catch (e) {
-          Alert.alert('Save failed', e.message || 'Could not save the change order.');
+          Alert.alert(t('chat.saveFailed'), e.message || t('chat.couldNotSaveChangeOrder'));
           return null;
         }
       }
@@ -2579,7 +2579,7 @@ export default function ChatScreen({ navigation, route }) {
           if (!action.data?.id) throw new Error('Missing change order id');
           return await updateChangeOrder(action.data.id, action.data);
         } catch (e) {
-          Alert.alert('Update failed', e.message || 'Could not update the change order.');
+          Alert.alert(t('chat.updateFailed'), e.message || t('chat.couldNotUpdateChangeOrder'));
           return null;
         }
       }
@@ -2590,7 +2590,7 @@ export default function ChatScreen({ navigation, route }) {
           const { id, ...overrides } = action.data;
           return await sendChangeOrder(id, overrides);
         } catch (e) {
-          Alert.alert('Send failed', e.message || 'Could not send the change order.');
+          Alert.alert(t('chat.sendFailed'), e.message || t('chat.couldNotSendChangeOrder'));
           return null;
         }
       }
@@ -2605,7 +2605,7 @@ export default function ChatScreen({ navigation, route }) {
           if (!project_id) throw new Error('Missing project id');
           return await upsertDrawSchedule(project_id, payload);
         } catch (e) {
-          Alert.alert('Save failed', e.message || 'Could not save the draw schedule.');
+          Alert.alert(t('chat.saveFailed'), e.message || t('chat.couldNotSaveDrawSchedule'));
           return { ok: false, error: e.message };
         }
       }
@@ -2735,7 +2735,7 @@ export default function ChatScreen({ navigation, route }) {
             message.visualElements[projectCardIndex].data = updatedProject;
 
             // Update the message text to show timeline confirmation
-            message.text = `✅ Timeline set! Project will run from ${timelineData.startDate} to ${timelineData.endDate} (${timelineData.daysRemaining} days).\n\nHere's your updated project:`;
+            message.text = t('chat.timelineSet', { startDate: timelineData.startDate, endDate: timelineData.endDate, days: timelineData.daysRemaining });
 
             // Update actions: remove "Set Timeline" button since it's configured, keep others
             const existingActions = message.actions || [];
@@ -2783,7 +2783,7 @@ export default function ChatScreen({ navigation, route }) {
             message.visualElements[projectCardIndex].data = updatedProject;
 
             // Update the message text
-            message.text = `✅ Budget set to $${budgetData.budget.toLocaleString()}!\n\nHere's your updated project:`;
+            message.text = t('chat.budgetSet', { amount: budgetData.budget.toLocaleString() });
 
             // Update actions: remove "Set Budget" button since it's configured, keep others
             const existingActions = message.actions || [];
@@ -2831,7 +2831,7 @@ export default function ChatScreen({ navigation, route }) {
             message.visualElements[projectCardIndex].data = updatedProject;
 
             // Update the message text
-            message.text = `✅ Job name set to "${jobNameData.name}"!\n\nHere's your updated project:`;
+            message.text = t('chat.jobNameSet', { name: jobNameData.name });
 
             // Update actions: remove "Set Job Name" button since it's configured, keep others
             const existingActions = message.actions || [];
@@ -3135,7 +3135,7 @@ export default function ChatScreen({ navigation, route }) {
                 // Send a confirmation message to the chat
                 const confirmationMessage = {
                   id: Date.now().toString(),
-                  text: `✅ Project "${projectName}" has been successfully deleted.`,
+                  text: t('chat.projectDeleted', { name: projectName }),
                   isUser: false,
                   timestamp: new Date(),
                   visualElements: [],
@@ -3186,7 +3186,7 @@ export default function ChatScreen({ navigation, route }) {
                 // Send confirmation message
                 const confirmationMessage = {
                   id: Date.now().toString(),
-                  text: `✅ "${estimateName}" has been merged into "${projectName}". Tasks and budgets have been combined into existing phases.`,
+                  text: t('chat.estimateMerged', { estimate: estimateName, project: projectName }),
                   isUser: false,
                   timestamp: new Date(),
                   visualElements: [],
@@ -3211,7 +3211,7 @@ export default function ChatScreen({ navigation, route }) {
                 // Send confirmation message
                 const confirmationMessage = {
                   id: Date.now().toString(),
-                  text: `✅ "${estimateName}" has been added to "${projectName}" as a separate scope. You can track it independently.`,
+                  text: t('chat.estimateAddedSeparate', { estimate: estimateName, project: projectName }),
                   isUser: false,
                   timestamp: new Date(),
                   visualElements: [],
@@ -3439,7 +3439,7 @@ export default function ChatScreen({ navigation, route }) {
                 // Add a message to chat showing the invoice
                 const aiMessage = {
                   id: `ai-${Date.now()}`,
-                  text: `✅ Invoice ${invoice.invoice_number} created successfully!`,
+                  text: t('chat.invoiceCreated', { number: invoice.invoice_number }),
                   isUser: false,
                   visualElements: [
                     {
@@ -3498,7 +3498,7 @@ export default function ChatScreen({ navigation, route }) {
               // Update the message with the new PDF URL
               const aiMessage = {
                 id: `ai-${Date.now()}`,
-                text: `✅ PDF generated successfully for ${invNumber}!`,
+                text: t('chat.pdfGenerated', { number: invNumber }),
                 isUser: false,
                 visualElements: [
                   {
@@ -3627,7 +3627,7 @@ export default function ChatScreen({ navigation, route }) {
       if (Platform.OS === 'ios') {
         ActionSheetIOS.showActionSheetWithOptions(
           {
-            options: ['Cancel', 'Take Photo', 'Choose from Photos', 'Choose Document'],
+            options: [t('common:buttons.cancel'), t('chat.takePhoto'), t('chat.chooseFromPhotos'), t('chat.chooseDocument')],
             cancelButtonIndex: 0,
           },
           async (buttonIndex) => {
@@ -3768,7 +3768,7 @@ export default function ChatScreen({ navigation, route }) {
             onPress: async () => {
               try {
                 await Share.share({
-                  message: `Contract: ${contractName}`,
+                  message: t('chat.contractShareMessage', { name: contractName }),
                   url: fileUrl,
                 });
                 addAIMessage(t('common:messages.savedSuccessfully', { item: `Contract "${contractName}"` }));
@@ -3797,7 +3797,7 @@ export default function ChatScreen({ navigation, route }) {
         // Share the selected document
         await Share.share({
           message: recipientName
-            ? `${docName} for ${recipientName}`
+            ? t('chat.documentForRecipient', { doc: docName, recipient: recipientName })
             : docName,
           url: docUrl,
         });
@@ -4093,7 +4093,7 @@ export default function ChatScreen({ navigation, route }) {
                       }}
                     >
                       <Text style={{ fontSize: 11, fontWeight: '700', color: Colors.secondaryText, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
-                        {message.pendingApproval.risk_level === 'external_write' ? 'Confirm send' : 'Confirm action'}
+                        {message.pendingApproval.risk_level === 'external_write' ? t('chat.confirmSend') : t('chat.confirmAction')}
                       </Text>
                       <Text style={{ fontSize: 14, color: Colors.primaryText, marginBottom: 10, lineHeight: 19 }} numberOfLines={4}>
                         {message.pendingApproval.action_summary}
@@ -4113,7 +4113,7 @@ export default function ChatScreen({ navigation, route }) {
                             borderColor: Colors.border,
                           }}
                         >
-                          <Text style={{ color: Colors.primaryText, fontSize: 13, fontWeight: '600' }}>Cancel</Text>
+                          <Text style={{ color: Colors.primaryText, fontSize: 13, fontWeight: '600' }}>{t('common:buttons.cancel')}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           onPress={() => {
@@ -4128,7 +4128,7 @@ export default function ChatScreen({ navigation, route }) {
                           }}
                         >
                           <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>
-                            {message.pendingApproval.risk_level === 'external_write' ? 'Send it' : 'Confirm'}
+                            {message.pendingApproval.risk_level === 'external_write' ? t('chat.sendIt') : t('common:buttons.confirm')}
                           </Text>
                         </TouchableOpacity>
                       </View>
@@ -4136,7 +4136,7 @@ export default function ChatScreen({ navigation, route }) {
                   ) : null}
                   {!message.isUser && message.pendingApproval && message.approvalResolved ? (
                     <Text style={{ color: Colors.secondaryText, fontSize: 11, marginBottom: 6, marginLeft: 4, fontStyle: 'italic' }}>
-                      {message.approvalResolved === 'approve' ? '✓ Confirmed' : '✗ Cancelled'}
+                      {message.approvalResolved === 'approve' ? t('chat.confirmed') : t('chat.cancelled')}
                     </Text>
                   ) : null}
                   {/* PEV reasoning trail — inline log of what the agent is doing.
@@ -4221,7 +4221,7 @@ export default function ChatScreen({ navigation, route }) {
                         }}
                       >
                         <Ionicons name="copy-outline" size={14} color={Colors.primaryText} />
-                        <Text style={[styles.copyButtonText, { color: Colors.primaryText }]}>Copy all</Text>
+                        <Text style={[styles.copyButtonText, { color: Colors.primaryText }]}>{t('chat.copyAll')}</Text>
                       </TouchableOpacity>
                     </Animated.View>
                   )}
@@ -4236,7 +4236,7 @@ export default function ChatScreen({ navigation, route }) {
                     >
                       <View style={styles.copyButton}>
                         <Ionicons name="checkmark-circle" size={14} color="#34C759" />
-                        <Text style={[styles.copyButtonText, { color: '#34C759' }]}>Copied!</Text>
+                        <Text style={[styles.copyButtonText, { color: '#34C759' }]}>{t('chat.copied')}</Text>
                       </View>
                     </Animated.View>
                   )}

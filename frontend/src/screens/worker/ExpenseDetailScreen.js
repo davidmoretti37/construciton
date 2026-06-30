@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 
@@ -21,14 +22,15 @@ const CATEGORY_CONFIG = {
 };
 
 export default function ExpenseDetailScreen({ navigation, route }) {
+  const { t } = useTranslation('workers');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { expense } = route.params || {};
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'Unknown date';
+    if (!dateString) return t('expenseDetail.unknownDate');
     const date = new Date(dateString);
-    if (isNaN(date.getTime())) return 'Unknown date';
+    if (isNaN(date.getTime())) return t('expenseDetail.unknownDate');
     return date.toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
@@ -44,24 +46,25 @@ export default function ExpenseDetailScreen({ navigation, route }) {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Expense Details</Text>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('expenseDetail.title')}</Text>
           <View style={{ width: 40 }} />
         </View>
         <View style={styles.emptyState}>
           <Ionicons name="receipt-outline" size={48} color={Colors.secondaryText} />
-          <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>Expense not found</Text>
+          <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>{t('expenseDetail.notFound')}</Text>
           <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-            This expense is no longer available.
+            {t('expenseDetail.notFoundMessage')}
           </Text>
           <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.emptyButton, { backgroundColor: Colors.primaryBlue }]}>
-            <Text style={styles.emptyButtonText}>Go Back</Text>
+            <Text style={styles.emptyButtonText}>{t('common:buttons.back')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
 
-  const categoryConfig = CATEGORY_CONFIG[expense.category] || CATEGORY_CONFIG.misc;
+  const categoryKey = (expense.category && CATEGORY_CONFIG[expense.category]) ? expense.category : 'misc';
+  const categoryConfig = CATEGORY_CONFIG[categoryKey];
 
   const formatCurrency = (amount) => {
     return `$${parseFloat(amount || 0).toFixed(2)}`;
@@ -76,7 +79,7 @@ export default function ExpenseDetailScreen({ navigation, route }) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Expense Details</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('expenseDetail.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -86,7 +89,7 @@ export default function ExpenseDetailScreen({ navigation, route }) {
       >
         {/* Amount Card */}
         <View style={[styles.amountCard, { backgroundColor: '#DC2626' }]}>
-          <Text style={styles.amountLabel}>Total Amount</Text>
+          <Text style={styles.amountLabel}>{t('expenseDetail.totalAmount')}</Text>
           <Text style={styles.amountValue}>{formatCurrency(expense.amount)}</Text>
           <Text style={styles.amountDate}>{formatDate(expense.date)}</Text>
         </View>
@@ -95,7 +98,7 @@ export default function ExpenseDetailScreen({ navigation, route }) {
         {expense.receipt_url && (
           <View style={[styles.section, { backgroundColor: Colors.white }]}>
             <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-              Receipt
+              {t('expenseDetail.receipt')}
             </Text>
             <Image
               source={{ uri: expense.receipt_url }}
@@ -108,38 +111,38 @@ export default function ExpenseDetailScreen({ navigation, route }) {
         {/* Description */}
         <View style={[styles.section, { backgroundColor: Colors.white }]}>
           <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-            Description
+            {t('expenseDetail.description')}
           </Text>
           <Text style={[styles.descriptionText, { color: Colors.primaryText }]}>
-            {expense.description || 'No description'}
+            {expense.description || t('expenseDetail.noDescription')}
           </Text>
         </View>
 
         {/* Category & Project */}
         <View style={[styles.section, { backgroundColor: Colors.white }]}>
           <View style={styles.detailRow}>
-            <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>Category</Text>
+            <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>{t('expenseDetail.category')}</Text>
             <View style={[styles.categoryBadge, { backgroundColor: categoryConfig.color + '20' }]}>
               <Ionicons name={categoryConfig.icon} size={16} color={categoryConfig.color} />
               <Text style={[styles.categoryText, { color: categoryConfig.color }]}>
-                {categoryConfig.label}
+                {t(`expenseDetail.categories.${categoryKey}`)}
               </Text>
             </View>
           </View>
 
           <View style={[styles.detailRow, { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.md }]}>
-            <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>Project</Text>
+            <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>{t('expenseDetail.project')}</Text>
             <View style={styles.projectBadge}>
               <Ionicons name="briefcase" size={16} color={Colors.primaryBlue} />
               <Text style={[styles.projectText, { color: Colors.primaryText }]}>
-                {expense.projects?.name || expense.service_plans?.name || 'Unknown Project'}
+                {expense.projects?.name || expense.service_plans?.name || t('expenseDetail.unknownProject')}
               </Text>
             </View>
           </View>
 
           {expense.payment_method && (
             <View style={[styles.detailRow, { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.md }]}>
-              <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>Payment Method</Text>
+              <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>{t('expenseDetail.paymentMethod')}</Text>
               <Text style={[styles.detailValue, { color: Colors.primaryText }]}>
                 {expense.payment_method.charAt(0).toUpperCase() + expense.payment_method.slice(1)}
               </Text>
@@ -151,7 +154,7 @@ export default function ExpenseDetailScreen({ navigation, route }) {
         {lineItems.length > 0 && (
           <View style={[styles.section, { backgroundColor: Colors.white }]}>
             <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-              Line Items
+              {t('expenseDetail.lineItems')}
             </Text>
             {lineItems.map((item, index) => (
               <View
@@ -167,7 +170,7 @@ export default function ExpenseDetailScreen({ navigation, route }) {
                   </Text>
                   {item.quantity && item.quantity > 1 && (
                     <Text style={[styles.lineItemQty, { color: Colors.secondaryText }]}>
-                      Qty: {item.quantity} × ${parseFloat(item.unitPrice || 0).toFixed(2)}
+                      {t('expenseDetail.qtyUnit', { qty: item.quantity, unitPrice: parseFloat(item.unitPrice || 0).toFixed(2) })}
                     </Text>
                   )}
                 </View>
@@ -183,7 +186,7 @@ export default function ExpenseDetailScreen({ navigation, route }) {
         {expense.notes && (
           <View style={[styles.section, { backgroundColor: Colors.white }]}>
             <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-              Notes
+              {t('expenseDetail.notes')}
             </Text>
             <Text style={[styles.notesText, { color: Colors.secondaryText }]}>
               {expense.notes}
@@ -195,13 +198,13 @@ export default function ExpenseDetailScreen({ navigation, route }) {
         {expense.created_at && !isNaN(new Date(expense.created_at).getTime()) && (
           <View style={[styles.metadataSection, { backgroundColor: Colors.lightBackground }]}>
             <Text style={[styles.metadataText, { color: Colors.secondaryText }]}>
-              Submitted on {new Date(expense.created_at).toLocaleDateString('en-US', {
+              {t('expenseDetail.submittedOn', { date: new Date(expense.created_at).toLocaleDateString('en-US', {
                 year: 'numeric',
                 month: 'short',
                 day: 'numeric',
                 hour: 'numeric',
                 minute: '2-digit'
-              })}
+              }) })}
             </Text>
           </View>
         )}

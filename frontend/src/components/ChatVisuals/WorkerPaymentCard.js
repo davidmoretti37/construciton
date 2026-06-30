@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { formatHoursMinutes } from '../../utils/calculations';
 
 export default function WorkerPaymentCard({ data }) {
+  const { t } = useTranslation('chat');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const styles = createStyles(Colors);
@@ -50,8 +52,8 @@ export default function WorkerPaymentCard({ data }) {
           <Ionicons name="cash-outline" size={24} color={Colors.primaryBlue} />
           <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>
             {singleWorkerName
-              ? `${singleWorkerName}'s Payment${periodLabel ? ` - ${periodLabel}` : ''}`
-              : `Payment Summary${periodLabel ? ` - ${periodLabel}` : ''}`
+              ? `${t('workerPaymentCard.workerPaymentTitle', { name: singleWorkerName })}${periodLabel ? ` - ${periodLabel}` : ''}`
+              : `${t('workerPaymentCard.paymentSummaryTitle')}${periodLabel ? ` - ${periodLabel}` : ''}`
             }
           </Text>
         </View>
@@ -59,7 +61,7 @@ export default function WorkerPaymentCard({ data }) {
         <View style={styles.overallSummary}>
           <View style={styles.summaryItem}>
             <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>
-              Total Owed
+              {t('workerPaymentCard.totalOwed')}
             </Text>
             <Text style={[styles.summaryValue, styles.totalAmount, { color: Colors.primaryBlue }]}>
               {formatCurrency(totalAmount)}
@@ -69,7 +71,7 @@ export default function WorkerPaymentCard({ data }) {
           <View style={styles.summaryRow}>
             <View style={styles.summaryItem}>
               <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>
-                Total Hours
+                {t('workerPaymentCard.totalHours')}
               </Text>
               <Text style={[styles.summaryValue, { color: Colors.primaryText }]}>
                 {formatHoursMinutes(totalHours)}
@@ -78,7 +80,7 @@ export default function WorkerPaymentCard({ data }) {
 
             <View style={styles.summaryItem}>
               <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>
-                Days Worked
+                {t('workerPaymentCard.daysWorked')}
               </Text>
               <Text style={[styles.summaryValue, { color: Colors.primaryText }]}>
                 {totalDays}
@@ -87,7 +89,7 @@ export default function WorkerPaymentCard({ data }) {
 
             <View style={styles.summaryItem}>
               <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>
-                Workers
+                {t('workerPaymentCard.workers')}
               </Text>
               <Text style={[styles.summaryValue, { color: Colors.primaryText }]}>
                 {workers.length}
@@ -130,10 +132,10 @@ export default function WorkerPaymentCard({ data }) {
                       {worker.workerName}
                     </Text>
                     <Text style={[styles.workerMeta, { color: Colors.secondaryText }]}>
-                      {worker.paymentType === 'hourly' && `$${worker.rate}/hr`}
-                      {worker.paymentType === 'daily' && `$${worker.rate}/day`}
-                      {worker.paymentType === 'weekly' && `$${worker.rate}/wk`}
-                      {worker.paymentType === 'project' && 'Project-based'}
+                      {worker.paymentType === 'hourly' && t('workerPaymentCard.rateHourly', { rate: worker.rate })}
+                      {worker.paymentType === 'daily' && t('workerPaymentCard.rateDaily', { rate: worker.rate })}
+                      {worker.paymentType === 'weekly' && t('workerPaymentCard.rateWeekly', { rate: worker.rate })}
+                      {worker.paymentType === 'project' && t('workerPaymentCard.rateProject')}
                     </Text>
                   </View>
                 </View>
@@ -157,7 +159,7 @@ export default function WorkerPaymentCard({ data }) {
                   <View style={styles.workerStats}>
                     <View style={styles.statItem}>
                       <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>
-                        Hours
+                        {t('workerPaymentCard.hours')}
                       </Text>
                       <Text style={[styles.statValue, { color: Colors.primaryText }]}>
                         {formatHoursMinutes(worker.totalHours)}
@@ -165,7 +167,7 @@ export default function WorkerPaymentCard({ data }) {
                     </View>
                     <View style={styles.statItem}>
                       <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>
-                        Days
+                        {t('workerPaymentCard.days')}
                       </Text>
                       <Text style={[styles.statValue, { color: Colors.primaryText }]}>
                         {worker.totalDays}
@@ -177,7 +179,7 @@ export default function WorkerPaymentCard({ data }) {
                   {worker.byDate && worker.byDate.length > 0 && (
                     <View style={styles.breakdownSection}>
                       <Text style={[styles.breakdownTitle, { color: Colors.primaryText }]}>
-                        Daily Breakdown
+                        {t('workerPaymentCard.dailyBreakdown')}
                       </Text>
                       {worker.byDate
                         .sort((a, b) => new Date(a.date) - new Date(b.date))
@@ -222,7 +224,7 @@ export default function WorkerPaymentCard({ data }) {
                   {worker.byProject && worker.byProject.length > 1 && (
                     <View style={styles.breakdownSection}>
                       <Text style={[styles.breakdownTitle, { color: Colors.primaryText }]}>
-                        By Project
+                        {t('workerPaymentCard.byProject')}
                       </Text>
                       {worker.byProject.map((project, projectIndex) => (
                         <View

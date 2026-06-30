@@ -17,6 +17,7 @@ import {
   Linking,
   Platform,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -35,6 +36,7 @@ import { supabase } from '../../lib/supabase';
 
 export default function VisitDetailScreen({ route }) {
   const { visit: initialVisit } = route.params || {};
+  const { t } = useTranslation('workers');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const navigation = useNavigation();
@@ -73,7 +75,7 @@ export default function VisitDetailScreen({ route }) {
       const updated = await startVisit(visit.id);
       setVisit(prev => ({ ...prev, ...updated, status: 'in_progress' }));
     } catch (e) {
-      Alert.alert('Error', 'Failed to start visit');
+      Alert.alert(t('common:alerts.error'), t('visitDetail.failedToStart'));
     } finally {
       setActionLoading(false);
     }
@@ -84,9 +86,9 @@ export default function VisitDetailScreen({ route }) {
     try {
       const updated = await completeVisit(visit.id);
       setVisit(prev => ({ ...prev, ...updated, status: 'completed' }));
-      Alert.alert('Visit Complete', `Duration: ${updated.duration_minutes || '—'} minutes`);
+      Alert.alert(t('visitDetail.visitComplete'), t('visitDetail.duration', { minutes: updated.duration_minutes || '—' }));
     } catch (e) {
-      Alert.alert('Error', 'Failed to complete visit');
+      Alert.alert(t('common:alerts.error'), t('visitDetail.failedToComplete'));
     } finally {
       setActionLoading(false);
     }
@@ -123,7 +125,7 @@ export default function VisitDetailScreen({ route }) {
   const handleTakePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Camera access is required to take photos');
+      Alert.alert(t('visitDetail.permissionNeeded'), t('visitDetail.cameraPermission'));
       return;
     }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
@@ -135,7 +137,7 @@ export default function VisitDetailScreen({ route }) {
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Photo library access is required');
+      Alert.alert(t('visitDetail.permissionNeeded'), t('visitDetail.libraryPermission'));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -158,7 +160,7 @@ export default function VisitDetailScreen({ route }) {
         setPhotos(updatedPhotos);
       }
     } catch (e) {
-      Alert.alert('Error', 'Failed to upload photo');
+      Alert.alert(t('common:alerts.error'), t('visitDetail.failedToUpload'));
     }
   };
 
@@ -186,7 +188,7 @@ export default function VisitDetailScreen({ route }) {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={[styles.headerTitle, { color: Colors.primaryText }]} numberOfLines={1}>
-            {location.name || 'Visit'}
+            {location.name || t('visitDetail.defaultTitle')}
           </Text>
           {location.address ? (
             <Text style={[styles.headerSubtitle, { color: Colors.secondaryText }]} numberOfLines={1}>
@@ -225,7 +227,7 @@ export default function VisitDetailScreen({ route }) {
             ) : (
               <>
                 <Ionicons name="play" size={20} color="#fff" />
-                <Text style={styles.actionButtonText}>Start Visit</Text>
+                <Text style={styles.actionButtonText}>{t('visitDetail.startVisit')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -236,7 +238,7 @@ export default function VisitDetailScreen({ route }) {
           <View style={[styles.durationCard, { backgroundColor: '#ECFDF5' }]}>
             <Ionicons name="timer-outline" size={18} color="#059669" />
             <Text style={styles.durationText}>
-              Completed in {visit.duration_minutes} minutes
+              {t('visitDetail.completedIn', { minutes: visit.duration_minutes })}
             </Text>
           </View>
         )}
@@ -247,7 +249,7 @@ export default function VisitDetailScreen({ route }) {
         ) : checklist.length > 0 && (
           <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
             <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Checklist</Text>
+              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('visitDetail.checklist')}</Text>
               <Text style={[styles.sectionCount, { color: Colors.secondaryText }]}>
                 {completedItems}/{totalItems}
               </Text>
@@ -297,12 +299,12 @@ export default function VisitDetailScreen({ route }) {
 
         {/* Notes */}
         <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Notes</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('visitDetail.notes')}</Text>
           <TextInput
             style={[styles.notesInput, { color: Colors.primaryText, borderColor: Colors.border }]}
             value={notes}
             onChangeText={setNotes}
-            placeholder="Add notes about this visit..."
+            placeholder={t('visitDetail.notesPlaceholder')}
             placeholderTextColor={Colors.secondaryText}
             multiline
             numberOfLines={3}
@@ -314,7 +316,7 @@ export default function VisitDetailScreen({ route }) {
         {/* Photos */}
         <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
           <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-            Photos ({photos.length})
+            {t('visitDetail.photos', { count: photos.length })}
           </Text>
           <View style={styles.photoGrid}>
             {photos.map((photo, i) => (
@@ -342,21 +344,21 @@ export default function VisitDetailScreen({ route }) {
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: '#EF4444', marginTop: Spacing.md }]}
             onPress={() => {
-              Alert.alert('Skip Visit?', 'This visit will be marked as cancelled and won\'t count toward billing.', [
-                { text: 'No', style: 'cancel' },
-                { text: 'Skip', style: 'destructive', onPress: async () => {
+              Alert.alert(t('visitDetail.skipVisitTitle'), t('visitDetail.skipVisitMessage'), [
+                { text: t('visitDetail.no'), style: 'cancel' },
+                { text: t('visitDetail.skip'), style: 'destructive', onPress: async () => {
                   try {
                     await supabase.from('service_visits').update({ status: 'cancelled' }).eq('id', visit.id);
                     navigation.goBack();
                   } catch (e) {
-                    Alert.alert('Error', 'Failed to skip visit.');
+                    Alert.alert(t('common:alerts.error'), t('visitDetail.failedToSkip'));
                   }
                 }},
               ]);
             }}
           >
             <Ionicons name="close-circle" size={20} color="#fff" />
-            <Text style={styles.actionButtonText}>Skip Visit</Text>
+            <Text style={styles.actionButtonText}>{t('visitDetail.skipVisitButton')}</Text>
           </TouchableOpacity>
         )}
 
@@ -372,7 +374,7 @@ export default function VisitDetailScreen({ route }) {
             ) : (
               <>
                 <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                <Text style={styles.actionButtonText}>Complete Visit</Text>
+                <Text style={styles.actionButtonText}>{t('visitDetail.completeVisit')}</Text>
               </>
             )}
           </TouchableOpacity>
