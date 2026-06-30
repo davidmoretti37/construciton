@@ -83,3 +83,63 @@ financialReport, arAging (totals tie out), integrations, bankConnection,
 changeLanguage, contracts/pictures (clean empty states), notifications,
 invoiceTemplate, addService, ownerProjects, work, notificationSettings,
 ownerSettings, workerDetailHistory.
+
+---
+
+# Client portal — QA findings (as-a-user walkthrough)
+
+## Method
+Drove all 13 reachable client screens as the seeded QA client **Mike Johnson**
+(single-project, linked to "Johnson Kitchen Remodel"), asserting each renders
+real content and screenshotting it for visual review. Client screens read
+through the backend `/api/portal/*` API (NOT Supabase directly), so the build
+was pointed at a local backend carrying the fixes below and the project was
+seeded so every screen shows real data (estimate→sent, 1 pending change order,
+3 documents, 3 selections, 2 weekly summaries, photos, a conversation, 2
+invoices). **13/13 screens pass.**
+
+## FIXED — backend (client-facing crashes)
+- **`/portal/projects/:id/documents` 500'd → both client document screens were
+  permanently broken.** The query `SELECT`ed columns that don't exist on
+  `project_documents` (`title, description, file_size, mime_type, storage_path`)
+  and signed URLs from a non-existent `storage_path`. Fixed to the real columns
+  (`file_name, file_url, file_type, category, notes, created_at`), added the
+  missing **`visible_to_clients` filter** (clients were never scoped to
+  client-visible docs), and exposed `file_url` as `download_url`. Documents tab +
+  Documents screen now render. (`backend/src/routes/portal.js`)
+- **`/portal/projects/:id/billing` selected `invoices.sent_date`** (no such
+  column) → the Money screen's unified billing rollup silently errored and fell
+  back to a partial view. Fixed to `created_at`.
+
+## FIXED — frontend (currency / dates not US format)
+Per the "always US format" decision, several client screens used bare
+`.toLocaleString()` / `.toLocaleString(undefined,…)` / `.toLocaleDateString()`,
+which pick the device locale — so amounts rendered pt-BR style (`$12.000`,
+`$1.200,00`) and dates DD/MM (`19/06/2026`). Converted all to `'en-US'` across
+**Money, Invoices, EstimateDetail, ChangeOrderDetail, ProjectDetail,
+Selections, Documents, DocumentsTab** (22 currency + 6 date call-sites). Now
+`$12,000` / `+$1,200.00` and `6/19/2026`. (Dashboard was already correct — that's
+how the inconsistency was caught.)
+
+## NEEDS YOUR CALL / product gaps (documented, not changed)
+- **Every client screen is gated by a `client_portal_settings` row, and a new
+  project has NONE** until the owner opens "Client Visibility" — so on a fresh
+  project the client's Photos/Documents/Messages/Daily-logs/Site-activity all
+  **403**, and Phases/Budget are hidden on the project detail. Worth defaulting
+  a settings row (all-on, or your preferred default) at project creation.
+- **`ClientMessagesListScreen` is orphaned** — instrumented but **not registered
+  in `ClientMainNavigator`**, so it's unreachable from anywhere in the app. Either
+  wire it up (e.g. a conversations entry) or delete it.
+- **`ClientProjectDetailScreen` is only reachable for MULTI-project clients** —
+  the single-project dashboard renders inline content with no project card to
+  tap, so a single-project client can never open it. (Instrumented + currency-
+  fixed, but not in the single-project coverage run.)
+
+## Harness notes (for future client e2e)
+- ClientDashboard/ProjectDetail run an **infinite `Animated.loop` pulse**
+  (native-driver → a recurring display-link timer Detox tracks as "busy"), so
+  Detox idle-sync hangs. The client suite **disables synchronization** for the
+  whole run and **resets between screens by navigation** (no relaunch/reload —
+  those re-enable sync and re-hang). Added `isInteraction:false` to both pulses.
+- Login is made deterministic with `delete:true` (always logged-out → funnel
+  under sync-on), disabling sync just before the post-login transition.

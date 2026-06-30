@@ -150,12 +150,29 @@ export default function ClientMessagesScreen({ route, navigation }) {
       {/* Header */}
       <SafeAreaView edges={['top']} style={styles.headerSafe}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <TouchableOpacity
+            testID="clientMessages.backButton"
+            accessibilityLabel="clientMessages.backButton"
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <Ionicons name="chevron-back" size={26} color={C.text} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle} numberOfLines={1}>Messages</Text>
-            {projectName && <Text style={styles.headerSubtitle} numberOfLines={1}>{projectName}</Text>}
+            <Text
+              testID="clientMessages.headerTitle"
+              accessibilityLabel="clientMessages.headerTitle"
+              style={styles.headerTitle}
+              numberOfLines={1}
+            >Messages</Text>
+            {projectName && (
+              <Text
+                testID="clientMessages.projectName"
+                accessibilityLabel="clientMessages.projectName"
+                style={styles.headerSubtitle}
+                numberOfLines={1}
+              >{projectName}</Text>
+            )}
           </View>
           <View style={{ width: 26 }} />
         </View>
@@ -170,6 +187,8 @@ export default function ClientMessagesScreen({ route, navigation }) {
             <Text style={styles.emptyText}>Couldn't load messages</Text>
             <Text style={styles.emptySubtext}>Check your connection and try again</Text>
             <TouchableOpacity
+              testID="clientMessages.retryButton"
+              accessibilityLabel="clientMessages.retryButton"
               style={styles.retryBtn}
               onPress={() => { setLoading(true); loadMessages(); }}
               activeOpacity={0.7}

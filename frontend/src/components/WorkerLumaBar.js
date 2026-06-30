@@ -10,10 +10,14 @@ import { LightColors, getColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import NotificationBell from './NotificationBell';
 
+// routeIndex must match the order in WorkerBottomTabNavigator
+// (TimeClock=0, TodaysWork=1, WorkerProjects=2) so the correct tab is
+// highlighted as active. The visual order (clock, briefcase, clipboard) is
+// independent of the navigator order.
 const items = [
   { id: 0, icon: 'time', label: 'TimeClock', routeIndex: 0 },
-  { id: 1, icon: 'briefcase', label: 'WorkerProjects', routeIndex: 1 },
-  { id: 2, icon: 'clipboard', label: 'TodaysWork', routeIndex: 2 },
+  { id: 1, icon: 'briefcase', label: 'WorkerProjects', routeIndex: 2 },
+  { id: 2, icon: 'clipboard', label: 'TodaysWork', routeIndex: 1 },
 ];
 
 const WorkerLumaBar = ({ state, navigation }) => {
@@ -80,6 +84,8 @@ const NavItem = ({ item, isActive, onPress, Colors }) => {
 
   return (
     <TouchableOpacity
+      testID={`workerTab.${item.label}`}
+      accessibilityLabel={`workerTab.${item.label}`}
       activeOpacity={0.7}
       onPress={onPress}
       style={navItemStyles.navItem}

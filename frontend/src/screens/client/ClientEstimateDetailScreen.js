@@ -179,10 +179,21 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
     <View style={styles.container}>
       <SafeAreaView edges={['top']} style={{ backgroundColor: C.surface }}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <TouchableOpacity
+            testID="clientEstimateDetail.backButton"
+            accessibilityLabel="clientEstimateDetail.backButton"
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <Ionicons name="chevron-back" size={26} color={C.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Estimate</Text>
+          <Text
+            testID="clientEstimateDetail.headerTitle"
+            accessibilityLabel="clientEstimateDetail.headerTitle"
+            style={styles.headerTitle}
+          >
+            Estimate
+          </Text>
           <View style={{ width: 26 }} />
         </View>
       </SafeAreaView>
@@ -191,13 +202,33 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
         {/* Status */}
         <View style={{ alignItems: 'center', marginBottom: 16 }}>
           <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
-            <Text style={[styles.statusText, { color: status.text }]}>{status.label}</Text>
+            <Text
+              testID="clientEstimateDetail.statusBadge"
+              accessibilityLabel="clientEstimateDetail.statusBadge"
+              style={[styles.statusText, { color: status.text }]}
+            >
+              {status.label}
+            </Text>
           </View>
         </View>
 
         {/* Header */}
-        <Text style={styles.title}>{estimate?.estimate_number || 'Estimate'}</Text>
-        {estimate?.project_name ? <Text style={styles.subtitle}>{estimate.project_name}</Text> : null}
+        <Text
+          testID="clientEstimateDetail.title"
+          accessibilityLabel="clientEstimateDetail.title"
+          style={styles.title}
+        >
+          {estimate?.estimate_number || 'Estimate'}
+        </Text>
+        {estimate?.project_name ? (
+          <Text
+            testID="clientEstimateDetail.projectName"
+            accessibilityLabel="clientEstimateDetail.projectName"
+            style={styles.subtitle}
+          >
+            {estimate.project_name}
+          </Text>
+        ) : null}
 
         {/* Signature-required notice */}
         {isPending && estimate?.signature_required && (
@@ -212,7 +243,13 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
         {/* Total */}
         <View style={styles.costCard}>
           <Text style={styles.costLabel}>ESTIMATE TOTAL</Text>
-          <Text style={styles.costAmount}>${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+          <Text
+            testID="clientEstimateDetail.totalAmount"
+            accessibilityLabel="clientEstimateDetail.totalAmount"
+            style={styles.costAmount}
+          >
+            ${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </Text>
           {estimate?.valid_until && (
             <Text style={styles.costSub}>
               Valid until {new Date(estimate.valid_until).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
@@ -237,29 +274,29 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
                       <Text style={styles.lineItemDesc}>{item.description || '—'}</Text>
                       {showQty && (
                         <Text style={styles.lineItemMeta}>
-                          {qty}{unit ? ` ${unit}` : ''}{price != null ? ` × $${price.toLocaleString()}` : ''}
+                          {qty}{unit ? ` ${unit}` : ''}{price != null ? ` × $${price.toLocaleString('en-US')}` : ''}
                         </Text>
                       )}
                     </View>
-                    <Text style={styles.lineItemAmount}>${lineTotal.toLocaleString()}</Text>
+                    <Text style={styles.lineItemAmount}>${lineTotal.toLocaleString('en-US')}</Text>
                   </View>
                 );
               })}
               {subtotal > 0 && (
                 <View style={[styles.lineItem, styles.lineItemBorder]}>
                   <Text style={styles.lineItemDesc}>Subtotal</Text>
-                  <Text style={styles.lineItemAmount}>${subtotal.toLocaleString()}</Text>
+                  <Text style={styles.lineItemAmount}>${subtotal.toLocaleString('en-US')}</Text>
                 </View>
               )}
               {taxAmount > 0 && (
                 <View style={[styles.lineItem, styles.lineItemBorder]}>
                   <Text style={styles.lineItemDesc}>Tax{taxRate ? ` (${taxRate}%)` : ''}</Text>
-                  <Text style={styles.lineItemAmount}>${taxAmount.toLocaleString()}</Text>
+                  <Text style={styles.lineItemAmount}>${taxAmount.toLocaleString('en-US')}</Text>
                 </View>
               )}
               <View style={[styles.lineItem, styles.lineItemTotal]}>
                 <Text style={styles.lineItemTotalLabel}>Total</Text>
-                <Text style={styles.lineItemTotalAmount}>${total.toLocaleString()}</Text>
+                <Text style={styles.lineItemTotalAmount}>${total.toLocaleString('en-US')}</Text>
               </View>
             </View>
           </View>
@@ -308,7 +345,7 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
               )}
               <Text style={styles.signatureName}>{signature.signer_name}</Text>
               <Text style={styles.signatureMeta}>
-                Signed {signature.signed_at ? new Date(signature.signed_at).toLocaleString() : ''}
+                Signed {signature.signed_at ? new Date(signature.signed_at).toLocaleString('en-US') : ''}
               </Text>
             </View>
           </View>
@@ -404,10 +441,20 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
       {/* Bottom action bar — only when pending */}
       {isPending && !showAccept && !showDecline && !showChanges && (
         <SafeAreaView edges={['bottom']} style={styles.bottomBar}>
-          <TouchableOpacity style={styles.declineAction} onPress={() => setShowDecline(true)}>
+          <TouchableOpacity
+            testID="clientEstimateDetail.declineButton"
+            accessibilityLabel="clientEstimateDetail.declineButton"
+            style={styles.declineAction}
+            onPress={() => setShowDecline(true)}
+          >
             <Text style={styles.declineActionText}>Decline</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.changesAction} onPress={() => setShowChanges(true)}>
+          <TouchableOpacity
+            testID="clientEstimateDetail.requestChangesButton"
+            accessibilityLabel="clientEstimateDetail.requestChangesButton"
+            style={styles.changesAction}
+            onPress={() => setShowChanges(true)}
+          >
             <Text style={styles.changesActionText}>Request Changes</Text>
           </TouchableOpacity>
           {estimate?.signature_required ? (

@@ -124,10 +124,19 @@ export default function ClientDocumentsScreen({ navigation }) {
     <View style={styles.container}>
       <SafeAreaView edges={['top']} style={{ backgroundColor: C.surface }}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <TouchableOpacity
+            testID="clientDocuments.backButton"
+            accessibilityLabel="clientDocuments.backButton"
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <Ionicons name="chevron-back" size={26} color={C.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Documents</Text>
+          <Text
+            testID="clientDocuments.headerTitle"
+            accessibilityLabel="clientDocuments.headerTitle"
+            style={styles.headerTitle}
+          >Documents</Text>
           <View style={{ width: 26 }} />
         </View>
       </SafeAreaView>
@@ -140,6 +149,8 @@ export default function ClientDocumentsScreen({ navigation }) {
         {/* Filter Chips */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroll}>
           <TouchableOpacity
+            testID="clientDocuments.filterAllButton"
+            accessibilityLabel="clientDocuments.filterAllButton"
             style={[styles.chip, activeFilter === 'all' && styles.chipActive]}
             onPress={() => setActiveFilter('all')}
           >
@@ -150,6 +161,8 @@ export default function ClientDocumentsScreen({ navigation }) {
             return (
               <TouchableOpacity
                 key={cat.key}
+                testID={`clientDocuments.filter_${cat.key}Button`}
+                accessibilityLabel={`clientDocuments.filter_${cat.key}Button`}
                 style={[styles.chip, activeFilter === cat.key && styles.chipActive]}
                 onPress={() => setActiveFilter(activeFilter === cat.key ? 'all' : cat.key)}
               >
@@ -171,13 +184,19 @@ export default function ClientDocumentsScreen({ navigation }) {
             const category = CATEGORIES.find(c => c.key === catKey) || CATEGORIES[CATEGORIES.length - 1];
             return (
               <View key={catKey} style={styles.section}>
-                <Text style={styles.sectionLabel}>{category.label.toUpperCase()}</Text>
+                <Text
+                  testID={`clientDocuments.section_${catKey}Header`}
+                  accessibilityLabel={`clientDocuments.section_${catKey}Header`}
+                  style={styles.sectionLabel}
+                >{category.label.toUpperCase()}</Text>
                 <View style={styles.docGroup}>
                   {docs.map((doc, i) => {
                     const fileIcon = FILE_ICONS[doc.mime_type] || FILE_ICONS.default;
                     return (
                       <TouchableOpacity
                         key={doc.id}
+                        testID={`clientDocuments.openDocButton_${doc.id}`}
+                        accessibilityLabel={`clientDocuments.openDocButton_${doc.id}`}
                         style={[styles.docRow, i < docs.length - 1 && styles.docRowBorder]}
                         onPress={() => handleOpen(doc)}
                         activeOpacity={0.7}
@@ -186,9 +205,14 @@ export default function ClientDocumentsScreen({ navigation }) {
                           <Ionicons name={fileIcon.icon} size={18} color={fileIcon.color} />
                         </View>
                         <View style={styles.docInfo}>
-                          <Text style={styles.docTitle} numberOfLines={1}>{doc.title || doc.file_name}</Text>
+                          <Text
+                            testID={`clientDocuments.docTitle_${doc.id}`}
+                            accessibilityLabel={`clientDocuments.docTitle_${doc.id}`}
+                            style={styles.docTitle}
+                            numberOfLines={1}
+                          >{doc.title || doc.file_name}</Text>
                           <Text style={styles.docMeta}>
-                            {new Date(doc.created_at).toLocaleDateString()}
+                            {new Date(doc.created_at).toLocaleDateString('en-US')}
                             {doc.file_size ? ` · ${formatFileSize(doc.file_size)}` : ''}
                           </Text>
                         </View>

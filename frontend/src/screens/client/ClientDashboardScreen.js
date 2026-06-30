@@ -83,8 +83,11 @@ export default function ClientDashboardScreen({ navigation }) {
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.4, duration: 1000, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
+        // isInteraction:false — this is a decorative looping pulse; it must not
+        // register an InteractionManager handle (which would block touch
+        // callbacks and make automated UI sync wait on it forever).
+        Animated.timing(pulseAnim, { toValue: 1.4, duration: 1000, useNativeDriver: true, isInteraction: false }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true, isInteraction: false }),
       ])
     ).start();
   }, []);
@@ -133,16 +136,16 @@ export default function ClientDashboardScreen({ navigation }) {
           <SafeAreaView edges={['top']} style={styles.headerInner}>
             <View style={styles.headerContent}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.headerName}>{branding.business_name || 'My Projects'}</Text>
-                <Text style={styles.headerSubtitle}>
+                <Text style={styles.headerName} testID="clientDashboard.headerTitle" accessibilityLabel="clientDashboard.headerTitle">{branding.business_name || 'My Projects'}</Text>
+                <Text style={styles.headerSubtitle} testID="clientDashboard.headerSubtitle" accessibilityLabel="clientDashboard.headerSubtitle">
                   {isSingleProject ? projectDetail.name : `${projects.length} active project${projects.length !== 1 ? 's' : ''}`}
                 </Text>
               </View>
               <View style={styles.headerActions}>
-                <TouchableOpacity onPress={() => navigation.getParent()?.navigate('Notifications')} style={styles.headerBtn}>
+                <TouchableOpacity onPress={() => navigation.getParent()?.navigate('Notifications')} style={styles.headerBtn} testID="clientDashboard.notificationsButton" accessibilityLabel="clientDashboard.notificationsButton">
                   <Ionicons name="notifications-outline" size={20} color="#fff" />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => navigation.getParent()?.navigate('Settings')} style={styles.headerBtn}>
+                <TouchableOpacity onPress={() => navigation.getParent()?.navigate('Settings')} style={styles.headerBtn} testID="clientDashboard.settingsButton" accessibilityLabel="clientDashboard.settingsButton">
                   <Ionicons name="settings-outline" size={20} color="#fff" />
                 </TouchableOpacity>
               </View>
@@ -192,11 +195,11 @@ export default function ClientDashboardScreen({ navigation }) {
 
               {/* Action Buttons */}
               <View style={styles.actions}>
-                <TouchableOpacity style={styles.actionPrimary} onPress={() => navigation.getParent()?.navigate('ClientInvoices', { projectId: activeProject.id })} activeOpacity={0.8}>
+                <TouchableOpacity style={styles.actionPrimary} onPress={() => navigation.getParent()?.navigate('ClientInvoices', { projectId: activeProject.id })} activeOpacity={0.8} testID="clientDashboard.invoicesButton" accessibilityLabel="clientDashboard.invoicesButton">
                   <Ionicons name="receipt-outline" size={18} color="#fff" />
                   <Text style={styles.actionPrimaryText}>Invoices</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionSecondary} onPress={() => navigation.getParent()?.navigate('ClientMessages', { projectId: activeProject.id, projectName: projectDetail.name })} activeOpacity={0.8}>
+                <TouchableOpacity style={styles.actionSecondary} onPress={() => navigation.getParent()?.navigate('ClientMessages', { projectId: activeProject.id, projectName: projectDetail.name })} activeOpacity={0.8} testID="clientDashboard.messagesButton" accessibilityLabel="clientDashboard.messagesButton">
                   <Ionicons name="chatbubbles-outline" size={18} color={C.text} />
                   <Text style={styles.actionSecondaryText}>Messages</Text>
                 </TouchableOpacity>
@@ -205,7 +208,7 @@ export default function ClientDashboardScreen({ navigation }) {
               {/* Phase Stepper */}
               {phases.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionLabel}>PHASES</Text>
+                  <Text style={styles.sectionLabel} testID="clientDashboard.phasesSectionHeader" accessibilityLabel="clientDashboard.phasesSectionHeader">PHASES</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stepper}>
                     {phases.map((phase, i) => {
                       const isCompleted = phase.status === 'completed';
@@ -240,7 +243,7 @@ export default function ClientDashboardScreen({ navigation }) {
 
               {/* Weekly Update — latest only */}
               <View style={styles.section}>
-                <Text style={styles.sectionLabel}>WEEKLY UPDATE</Text>
+                <Text style={styles.sectionLabel} testID="clientDashboard.weeklyUpdateSectionHeader" accessibilityLabel="clientDashboard.weeklyUpdateSectionHeader">WEEKLY UPDATE</Text>
                 {summaries.length > 0 ? (
                   <>
                     <View style={styles.summaryCard}>
@@ -271,7 +274,7 @@ export default function ClientDashboardScreen({ navigation }) {
                       </Text>
                     </View>
                     {summaries.length > 1 && (
-                      <TouchableOpacity style={styles.viewPrevious} onPress={() => navigation.getParent()?.navigate('ClientAISummaries')} activeOpacity={0.7}>
+                      <TouchableOpacity style={styles.viewPrevious} onPress={() => navigation.getParent()?.navigate('ClientAISummaries')} activeOpacity={0.7} testID="clientDashboard.viewPreviousWeeksButton" accessibilityLabel="clientDashboard.viewPreviousWeeksButton">
                         <Ionicons name="time-outline" size={16} color={C.amber} />
                         <Text style={styles.viewPreviousText}>View Previous Weeks</Text>
                         <Ionicons name="chevron-forward" size={16} color={C.amber} />
