@@ -14,11 +14,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { statusLabel } from '../../utils/statusLabel';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { fetchDashboard, fetchMoneySummary, fetchChangeOrders, fetchProjectDraws, fetchProjectBilling, fetchProjectEstimates, payInvoice, createPaymentIntent } from '../../services/clientPortalApi';
 import { supabase } from '../../lib/supabase';
 import ClientHeader from '../../components/ClientHeader';
 import { useClientProject } from '../../contexts/ClientProjectContext';
+import { useTranslation } from 'react-i18next';
 
 const C = {
   amber: '#F59E0B', amberDark: '#D97706', amberLight: '#FEF3C7', amberText: '#92400E',
@@ -43,6 +45,7 @@ const fmt = (d) => {
 };
 
 export default function ClientMoneyScreen({ navigation }) {
+  const { t } = useTranslation('common');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
@@ -153,13 +156,13 @@ export default function ClientMoneyScreen({ navigation }) {
 
         if (presentError) {
           if (presentError.code !== 'Canceled') {
-            Alert.alert('Payment Failed', presentError.message);
+            Alert.alert(t('clientMoney.paymentFailedTitle'), presentError.message);
           }
           return;
         }
 
         // Payment succeeded
-        Alert.alert('Payment Successful', 'Your payment has been processed.');
+        Alert.alert(t('clientMoney.paymentSuccessTitle'), t('clientMoney.paymentSuccessBody'));
         loadData();
       } else {
         // Fallback to browser checkout
@@ -172,13 +175,13 @@ export default function ClientMoneyScreen({ navigation }) {
           await Linking.openURL(result.url);
         } else {
           Alert.alert(
-            'Payment unavailable',
-            result?.error || "Couldn't start checkout. Please try again or contact your contractor.",
+            t('clientMoney.paymentUnavailableTitle'),
+            result?.error || t('clientMoney.paymentUnavailableBody'),
           );
         }
       }
     } catch (e) {
-      Alert.alert('Payment Error', e.message || 'Failed to start payment');
+      Alert.alert(t('clientMoney.paymentErrorTitle'), e.message || t('clientMoney.paymentErrorBody'));
     } finally {
       setPaying(null);
     }
@@ -187,7 +190,7 @@ export default function ClientMoneyScreen({ navigation }) {
   if (loading) {
     return (
       <View style={styles.container}>
-        <ClientHeader title="Money" subtitle={activeProject?.name} navigation={navigation} />
+        <ClientHeader title={t('clientMoney.title')} subtitle={activeProject?.name} navigation={navigation} />
         <ActivityIndicator size="large" color={C.amber} style={{ marginTop: 100 }} />
       </View>
     );
@@ -198,18 +201,18 @@ export default function ClientMoneyScreen({ navigation }) {
   if (error && !summary) {
     return (
       <View style={styles.container}>
-        <ClientHeader title="Money" subtitle={activeProject?.name} navigation={navigation} />
+        <ClientHeader title={t('clientMoney.title')} subtitle={activeProject?.name} navigation={navigation} />
         <View style={styles.errorState}>
           <Ionicons name="cloud-offline-outline" size={48} color={C.textMuted} />
-          <Text style={styles.emptyTitle}>Couldn't load your finances</Text>
-          <Text style={styles.emptySub}>Check your connection and try again.</Text>
+          <Text style={styles.emptyTitle}>{t('clientMoney.loadErrorTitle')}</Text>
+          <Text style={styles.emptySub}>{t('clientMoney.loadErrorSub')}</Text>
           <TouchableOpacity
             style={styles.retryBtn}
             onPress={() => { setLoading(true); loadData(); }}
             activeOpacity={0.8}
           >
             <Ionicons name="refresh" size={16} color="#fff" />
-            <Text style={styles.payBtnText}>Retry</Text>
+            <Text style={styles.payBtnText}>{t('common:buttons.retry')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -253,7 +256,7 @@ export default function ClientMoneyScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <ClientHeader
-        title="Money"
+        title={t('clientMoney.title')}
         subtitle={activeProject?.name}
         navigation={navigation}
       />
@@ -274,7 +277,7 @@ export default function ClientMoneyScreen({ navigation }) {
                 style={styles.budgetLabel}
                 testID="clientMoney.headerTitle"
                 accessibilityLabel="clientMoney.headerTitle"
-              >Budget Overview</Text>
+              >{t('clientMoney.budgetOverview')}</Text>
               <Ionicons name="wallet" size={18} color={C.amber} />
             </View>
 
@@ -283,14 +286,14 @@ export default function ClientMoneyScreen({ navigation }) {
               <View style={[styles.progressFill, { width: `${progress}%` }]} />
             </View>
             <View style={styles.progressLabels}>
-              <Text style={styles.progressPercent}>{Math.round(progress)}% paid</Text>
-              <Text style={styles.progressRemaining}>${remaining.toLocaleString('en-US')} remaining</Text>
+              <Text style={styles.progressPercent}>{t('clientMoney.percentPaid', { percent: Math.round(progress) })}</Text>
+              <Text style={styles.progressRemaining}>{t('clientMoney.remaining', { amount: `$${remaining.toLocaleString()}` })}</Text>
             </View>
 
             {/* Budget Numbers */}
             <View style={styles.budgetGrid}>
               <View style={styles.budgetItem}>
-                <Text style={styles.budgetItemLabel}>Contract</Text>
+                <Text style={styles.budgetItemLabel}>{t('clientMoney.contract')}</Text>
                 <Text
                   style={styles.budgetItemValue}
                   testID="clientMoney.contractValue"
@@ -298,7 +301,7 @@ export default function ClientMoneyScreen({ navigation }) {
                 >${contractAmount.toLocaleString('en-US')}</Text>
               </View>
               <View style={[styles.budgetItem, styles.budgetItemCenter]}>
-                <Text style={styles.budgetItemLabel}>Paid</Text>
+                <Text style={styles.budgetItemLabel}>{t('clientMoney.paid')}</Text>
                 <Text
                   style={[styles.budgetItemValue, { color: C.green }]}
                   testID="clientMoney.paidValue"
@@ -306,7 +309,7 @@ export default function ClientMoneyScreen({ navigation }) {
                 >${totalPaid.toLocaleString('en-US')}</Text>
               </View>
               <View style={styles.budgetItem}>
-                <Text style={styles.budgetItemLabel}>Remaining</Text>
+                <Text style={styles.budgetItemLabel}>{t('clientMoney.remainingLabel')}</Text>
                 <Text
                   style={[styles.budgetItemValue, { color: C.amber }]}
                   testID="clientMoney.remainingValue"
@@ -321,11 +324,11 @@ export default function ClientMoneyScreen({ navigation }) {
         {draws && draws.items?.length > 0 && (
           <View style={styles.budgetCard}>
             <View style={styles.budgetHeader}>
-              <Text style={styles.budgetLabel}>Payment Progress</Text>
+              <Text style={styles.budgetLabel}>{t('clientMoney.paymentProgress')}</Text>
               <Ionicons name="trending-up" size={18} color={C.amber} />
             </View>
             <Text style={{ fontSize: 13, color: C.textSec, marginTop: 6 }}>
-              You're {draws.draws_billed} of {draws.draws_total} draws in
+              {t('clientMoney.drawsProgress', { billed: draws.draws_billed, total: draws.draws_total })}
             </Text>
             <View style={[styles.progressTrack, { marginTop: 8 }]}>
               <View
@@ -342,10 +345,10 @@ export default function ClientMoneyScreen({ navigation }) {
             </View>
             <View style={styles.progressLabels}>
               <Text style={styles.progressPercent}>
-                ${Math.round(draws.drawn_to_date).toLocaleString('en-US')} drawn
+                {t('clientMoney.amountDrawn', { amount: `$${Math.round(draws.drawn_to_date).toLocaleString()}` })}
               </Text>
               <Text style={styles.progressRemaining}>
-                of ${Math.round(draws.contract_amount).toLocaleString('en-US')}
+                {t('clientMoney.ofAmount', { amount: `$${Math.round(draws.contract_amount).toLocaleString()}` })}
               </Text>
             </View>
 
@@ -378,14 +381,14 @@ export default function ClientMoneyScreen({ navigation }) {
                     </View>
                     {isPaid ? (
                       <View style={[styles.statusBadge, { backgroundColor: C.greenBg }]}>
-                        <Text style={[styles.statusText, { color: C.greenText }]}>PAID</Text>
+                        <Text style={[styles.statusText, { color: C.greenText }]}>{t('clientMoney.statusPaid')}</Text>
                       </View>
                     ) : isInvoiced ? (
                       <View style={[styles.statusBadge, { backgroundColor: C.amberLight }]}>
-                        <Text style={[styles.statusText, { color: C.amberText }]}>DUE</Text>
+                        <Text style={[styles.statusText, { color: C.amberText }]}>{t('clientMoney.statusDue')}</Text>
                       </View>
                     ) : (
-                      <Text style={{ fontSize: 11, color: C.textMuted, fontWeight: '600' }}>upcoming</Text>
+                      <Text style={{ fontSize: 11, color: C.textMuted, fontWeight: '600' }}>{t('clientMoney.statusUpcoming')}</Text>
                     )}
                   </View>
                 );
@@ -411,9 +414,9 @@ export default function ClientMoneyScreen({ navigation }) {
             <Ionicons name="alert-circle" size={20} color={C.amberDark} />
             <View style={{ flex: 1 }}>
               <Text style={styles.coBannerTitle}>
-                {changeOrders.filter(co => ['pending_client', 'viewed'].includes(co.status)).length} Change Order{changeOrders.filter(co => ['pending_client', 'viewed'].includes(co.status)).length !== 1 ? 's' : ''} Pending
+                {t('clientMoney.changeOrdersPending', { count: changeOrders.filter(co => ['pending_client', 'viewed'].includes(co.status)).length })}
               </Text>
-              <Text style={styles.coBannerSub}>Tap to review and approve</Text>
+              <Text style={styles.coBannerSub}>{t('clientMoney.tapToReview')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={C.amberDark} />
           </TouchableOpacity>
@@ -421,7 +424,7 @@ export default function ClientMoneyScreen({ navigation }) {
 
         {changeOrders.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>CHANGE ORDERS</Text>
+            <Text style={styles.sectionLabel}>{t('clientMoney.changeOrdersHeader')}</Text>
             {changeOrders.map((co) => {
               const isPending = ['pending_client', 'viewed'].includes(co.status);
               const isApproved = co.status === 'approved';
@@ -433,14 +436,14 @@ export default function ClientMoneyScreen({ navigation }) {
                   activeOpacity={0.7}
                 >
                   <View style={styles.invoiceRow}>
-                    <Text style={styles.invoiceNum}>CO</Text>
+                    <Text style={styles.invoiceNum}>{t('clientMoney.coTag')}</Text>
                     <View style={[styles.statusBadge, {
                       backgroundColor: isPending ? C.amberLight : isApproved ? C.greenBg : C.redBg,
                     }]}>
                       <Text style={[styles.statusText, {
                         color: isPending ? C.amberText : isApproved ? C.greenText : C.redText,
                       }]}>
-                        {isPending ? 'PENDING' : isApproved ? 'APPROVED' : 'DECLINED'}
+                        {isPending ? t('clientMoney.statusPending') : isApproved ? t('clientMoney.statusApproved') : t('clientMoney.statusDeclined')}
                       </Text>
                     </View>
                   </View>
@@ -464,7 +467,7 @@ export default function ClientMoneyScreen({ navigation }) {
               style={styles.sectionLabel}
               testID="clientMoney.outstandingSectionHeader"
               accessibilityLabel="clientMoney.outstandingSectionHeader"
-            >OUTSTANDING</Text>
+            >{t('clientMoney.outstandingHeader')}</Text>
             {unpaidInvoices.map((invoice) => {
               const status = STATUS[invoice.status] || STATUS.unpaid;
               const amount = parseFloat(invoice.total || 0);
@@ -483,7 +486,7 @@ export default function ClientMoneyScreen({ navigation }) {
                   <View style={[styles.invoiceRow, { marginTop: 8 }]}>
                     <Text style={styles.invoiceAmount}>${amount.toLocaleString('en-US')}</Text>
                     {invoice.due_date && (
-                      <Text style={styles.invoiceDate}>Due {fmt(invoice.due_date)}</Text>
+                      <Text style={styles.invoiceDate}>{t('clientMoney.dueDate', { date: fmt(invoice.due_date) })}</Text>
                     )}
                   </View>
                   {due > 0 && (
@@ -498,7 +501,7 @@ export default function ClientMoneyScreen({ navigation }) {
                       ) : (
                         <>
                           <Ionicons name="card-outline" size={16} color="#fff" />
-                          <Text style={styles.payBtnText}>Pay ${due.toLocaleString('en-US')}</Text>
+                          <Text style={styles.payBtnText}>{t('clientMoney.payAmount', { amount: `$${due.toLocaleString()}` })}</Text>
                         </>
                       )}
                     </TouchableOpacity>
@@ -512,20 +515,20 @@ export default function ClientMoneyScreen({ navigation }) {
         {/* Paid Invoices */}
         {paidInvoices.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>PAID</Text>
+            <Text style={styles.sectionLabel}>{t('clientMoney.paidHeader')}</Text>
             {paidInvoices.map((invoice) => (
               <View key={invoice.id} style={styles.invoiceCard}>
                 <View style={styles.invoiceRow}>
                   <Text style={styles.invoiceNum}>{invoice.invoice_number || 'INV'}</Text>
                   <View style={[styles.statusBadge, { backgroundColor: C.greenBg }]}>
-                    <Text style={[styles.statusText, { color: C.greenText }]}>PAID</Text>
+                    <Text style={[styles.statusText, { color: C.greenText }]}>{t('clientMoney.statusPaid')}</Text>
                   </View>
                 </View>
                 {invoice.project_name && <Text style={styles.invoiceProject} numberOfLines={1}>{invoice.project_name}</Text>}
                 <View style={[styles.invoiceRow, { marginTop: 8 }]}>
                   <Text style={[styles.invoiceAmount, { color: C.textSec }]}>${parseFloat(invoice.total || 0).toLocaleString('en-US')}</Text>
                   {invoice.paid_date && (
-                    <Text style={styles.invoiceDate}>Paid {fmt(invoice.paid_date)}</Text>
+                    <Text style={styles.invoiceDate}>{t('clientMoney.paidDate', { date: fmt(invoice.paid_date) })}</Text>
                   )}
                 </View>
               </View>
@@ -537,8 +540,8 @@ export default function ClientMoneyScreen({ navigation }) {
         {invoices.length === 0 && contractAmount === 0 && (
           <View style={styles.emptyState}>
             <Ionicons name="card-outline" size={48} color={C.border} />
-            <Text style={styles.emptyTitle}>No financial activity yet</Text>
-            <Text style={styles.emptySub}>Invoices and payments will appear here</Text>
+            <Text style={styles.emptyTitle}>{t('clientMoney.noActivityTitle')}</Text>
+            <Text style={styles.emptySub}>{t('clientMoney.noActivitySub')}</Text>
           </View>
         )}
 
@@ -549,7 +552,7 @@ export default function ClientMoneyScreen({ navigation }) {
               style={styles.sectionLabel}
               testID="clientMoney.estimatesSectionHeader"
               accessibilityLabel="clientMoney.estimatesSectionHeader"
-            >ESTIMATES</Text>
+            >{t('clientMoney.estimatesHeader')}</Text>
             {estimates.map((est) => (
               <TouchableOpacity
                 key={est.id}
@@ -574,10 +577,10 @@ export default function ClientMoneyScreen({ navigation }) {
                     if (match) {
                       navigation.getParent()?.navigate('ClientEstimateDetail', { estimate: match, project: activeProject });
                     } else {
-                      Alert.alert('Not available', 'This estimate is no longer available.');
+                      Alert.alert(t('clientMoney.estimateUnavailableTitle'), t('clientMoney.estimateUnavailableBody'));
                     }
                   } catch (e) {
-                    Alert.alert('Error', e.message || 'Could not open estimate');
+                    Alert.alert(t('common:alerts.error'), e.message || t('clientMoney.couldNotOpenEstimate'));
                   } finally {
                     // Small delay so React Navigation finishes the push before we re-enable
                     setTimeout(() => setOpeningEstimate(null), 600);
@@ -590,7 +593,7 @@ export default function ClientMoneyScreen({ navigation }) {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.activityTitle}>{est.label}</Text>
                   <Text style={styles.activitySub}>
-                    {est.status?.charAt(0).toUpperCase() + est.status?.slice(1)} · {fmt(est.occurred_at)}
+                    {statusLabel(est.status)} · {fmt(est.occurred_at)}
                   </Text>
                 </View>
                 <Text style={styles.activityAmount}>${(est.amount || 0).toLocaleString('en-US')}</Text>
@@ -603,14 +606,14 @@ export default function ClientMoneyScreen({ navigation }) {
         {/* Recent activity timeline */}
         {recentActivity.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>RECENT ACTIVITY</Text>
+            <Text style={styles.sectionLabel}>{t('clientMoney.recentActivityHeader')}</Text>
             {recentActivity.map((evt) => {
               const icon = evt.source === 'invoice' ? 'receipt-outline' : 'swap-horizontal-outline';
               const iconBg = evt.source === 'invoice' ? '#DBEAFE' : '#FEF3C7';
               const iconColor = evt.source === 'invoice' ? '#1E40AF' : C.amberDark;
               const subText = evt.source === 'invoice'
                 ? `${evt.status?.toUpperCase() || ''} · ${fmt(evt.occurred_at)}`
-                : `Change order · ${(evt.raw_status || evt.status || '').replace(/_/g, ' ')} · ${fmt(evt.occurred_at)}`;
+                : `${t('clientMoney.changeOrder')} · ${(evt.raw_status || evt.status || '').replace(/_/g, ' ')} · ${fmt(evt.occurred_at)}`;
               return (
                 <View key={evt.id} style={styles.activityRow}>
                   <View style={[styles.activityIcon, { backgroundColor: iconBg }]}>

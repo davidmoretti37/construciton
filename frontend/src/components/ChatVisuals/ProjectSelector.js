@@ -1,10 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export default function ProjectSelector({ data, onAction }) {
+  const { t } = useTranslation('chat');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const styles = createStyles(Colors);
@@ -30,7 +32,7 @@ export default function ProjectSelector({ data, onAction }) {
       <View style={styles.header}>
         <Ionicons name="list-outline" size={24} color={Colors.primaryBlue} />
         <Text style={[styles.headerText, { color: Colors.primaryText }]}>
-          Select a Project
+          {t('projectSelector.title')}
         </Text>
       </View>
 
@@ -72,7 +74,7 @@ export default function ProjectSelector({ data, onAction }) {
         <View style={styles.emptyState}>
           <Ionicons name="folder-open-outline" size={32} color={Colors.secondaryText} />
           <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-            No projects available
+            {t('projectSelector.noProjects')}
           </Text>
         </View>
       )}

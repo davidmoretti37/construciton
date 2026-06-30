@@ -17,6 +17,7 @@ import { fetchDashboard, fetchProject, fetchProjectCalendar } from '../../servic
 import AppleCalendarMonth from '../../components/AppleCalendarMonth';
 import ClientHeader from '../../components/ClientHeader';
 import { useClientProject } from '../../contexts/ClientProjectContext';
+import { useTranslation } from 'react-i18next';
 
 const C = {
   amber: '#F59E0B', amberDark: '#D97706', amberLight: '#FEF3C7',
@@ -40,6 +41,7 @@ const getMonthRange = (date) => {
 };
 
 export default function ClientTimelineScreen({ navigation }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { selectedProjectId, setProjects } = useClientProject();
@@ -174,7 +176,7 @@ export default function ClientTimelineScreen({ navigation }) {
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: Colors.background }]}>
-        <ClientHeader title="Timeline" subtitle={projectName} navigation={navigation} />
+        <ClientHeader title={t('clientTimeline.title')} subtitle={projectName} navigation={navigation} />
         <ActivityIndicator size="large" color={C.amber} style={{ marginTop: 100 }} />
       </View>
     );
@@ -183,16 +185,16 @@ export default function ClientTimelineScreen({ navigation }) {
   if (error) {
     return (
       <View style={[styles.container, { backgroundColor: Colors.background }]}>
-        <ClientHeader title="Timeline" subtitle={projectName} navigation={navigation} />
+        <ClientHeader title={t('clientTimeline.title')} subtitle={projectName} navigation={navigation} />
         <View style={styles.stateContainer}>
           <Ionicons name="cloud-offline-outline" size={48} color={C.textMuted} />
-          <Text style={[styles.stateTitle, { color: Colors.primaryText }]}>Couldn't load your timeline</Text>
-          <Text style={[styles.stateText, { color: Colors.secondaryText }]}>Check your connection and try again.</Text>
+          <Text style={[styles.stateTitle, { color: Colors.primaryText }]}>{t('clientTimeline.errorTitle')}</Text>
+          <Text style={[styles.stateText, { color: Colors.secondaryText }]}>{t('clientTimeline.errorText')}</Text>
           <TouchableOpacity
             style={styles.retryButton}
             onPress={() => { setLoading(true); loadData(); }}
           >
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <Text style={styles.retryButtonText}>{t('clientTimeline.retry')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -202,11 +204,11 @@ export default function ClientTimelineScreen({ navigation }) {
   if (noProjects) {
     return (
       <View style={[styles.container, { backgroundColor: Colors.background }]}>
-        <ClientHeader title="Timeline" subtitle={projectName} navigation={navigation} />
+        <ClientHeader title={t('clientTimeline.title')} subtitle={projectName} navigation={navigation} />
         <View style={styles.stateContainer}>
           <Ionicons name="calendar-outline" size={48} color={C.textMuted} />
-          <Text style={[styles.stateTitle, { color: Colors.primaryText }]}>No active project yet</Text>
-          <Text style={[styles.stateText, { color: Colors.secondaryText }]}>Your timeline will appear here once a project is assigned to you.</Text>
+          <Text style={[styles.stateTitle, { color: Colors.primaryText }]}>{t('clientTimeline.noProjectTitle')}</Text>
+          <Text style={[styles.stateText, { color: Colors.secondaryText }]}>{t('clientTimeline.noProjectText')}</Text>
         </View>
       </View>
     );
@@ -222,7 +224,7 @@ export default function ClientTimelineScreen({ navigation }) {
       testID="clientTimeline.screen"
       accessibilityLabel="clientTimeline.screen"
     >
-      <ClientHeader title="Timeline" subtitle={projectName} navigation={navigation} />
+      <ClientHeader title={t('clientTimeline.title')} subtitle={projectName} navigation={navigation} />
       <View style={styles.header}>
         {/* Empty - title moved to ClientHeader, but keep wrapper for spacing */}
       </View>
@@ -239,7 +241,7 @@ export default function ClientTimelineScreen({ navigation }) {
           <View style={styles.currentBanner}>
             <View style={styles.currentDot} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.currentLabel}>CURRENT PHASE</Text>
+              <Text style={styles.currentLabel}>{t('clientTimeline.currentPhaseLabel')}</Text>
               <Text
                 style={styles.currentName}
                 testID="clientTimeline.currentPhaseName"
@@ -283,7 +285,7 @@ export default function ClientTimelineScreen({ navigation }) {
 
           {!hasAnything ? (
             <View style={styles.dayEmpty}>
-              <Text style={[styles.dayEmptyText, { color: Colors.secondaryText }]}>Nothing scheduled</Text>
+              <Text style={[styles.dayEmptyText, { color: Colors.secondaryText }]}>{t('clientTimeline.nothingScheduled')}</Text>
             </View>
           ) : (
             <>
@@ -315,7 +317,7 @@ export default function ClientTimelineScreen({ navigation }) {
                     <Text style={styles.phaseName}>{phase.name}</Text>
                     <View style={styles.phaseRow}>
                       <Text style={styles.phaseStatus}>
-                        {phase.status === 'completed' ? 'Completed' : phase.status === 'in_progress' || phase.status === 'active' ? 'In Progress' : 'Upcoming'}
+                        {phase.status === 'completed' ? t('clientTimeline.statusCompleted') : phase.status === 'in_progress' || phase.status === 'active' ? t('clientTimeline.statusInProgress') : t('clientTimeline.statusUpcoming')}
                       </Text>
                       <Text style={styles.phaseDates}>
                         {new Date(phase.start_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -342,7 +344,7 @@ export default function ClientTimelineScreen({ navigation }) {
               style={styles.sectionLabel}
               testID="clientTimeline.allPhasesLabel"
               accessibilityLabel="clientTimeline.allPhasesLabel"
-            >ALL PHASES</Text>
+            >{t('clientTimeline.allPhasesLabel')}</Text>
             {phases.map((phase, i) => {
               const isActive = phase.status === 'in_progress' || phase.status === 'active';
               const isComplete = phase.status === 'completed';
@@ -379,12 +381,14 @@ export default function ClientTimelineScreen({ navigation }) {
                       const total = tasks.length;
                       const done = tasks.filter(t => t?.completed === true || t?.status === 'done').length;
                       const statusLabel = isComplete
-                        ? 'Completed'
+                        ? t('clientTimeline.statusCompleted')
                         : isActive
-                        ? `In progress${total ? ` · ${done}/${total} tasks` : ''}`
+                        ? total > 0
+                          ? t('clientTimeline.inProgressWithTasks', { done, total })
+                          : t('clientTimeline.statusInProgress')
                         : total > 0
-                        ? `Upcoming · ${total} task${total !== 1 ? 's' : ''}`
-                        : 'Upcoming';
+                        ? t('clientTimeline.upcomingWithCount', { count: total })
+                        : t('clientTimeline.statusUpcoming');
                       return (
                         <Text style={[
                           styles.phaseListDate,

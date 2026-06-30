@@ -105,5 +105,112 @@
     "invoiceDetails": "Detalhes da Nota Fiscal",
     "estimateDetails": "Detalhes do Orçamento",
     "unpaid": "Não Pago"
+  },
+  "invoiceList": {
+    "title": "Faturas",
+    "stats": {
+      "unpaid": "Não Pagas",
+      "paid": "Pagas",
+      "totalDue": "Total a Pagar"
+    },
+    "empty": "Nenhuma fatura ainda",
+    "status": {
+      "unpaid": "Não Paga",
+      "partial": "Parcial",
+      "paid": "Paga",
+      "overdue": "Vencida",
+      "cancelled": "Cancelada"
+    },
+    "na": "N/D",
+    "dueDate": "Venc.: {{date}}",
+    "itemCount": "{{count}} item",
+    "total": "Total:",
+    "amountDue": "Valor a Pagar:"
+  },
+  "invoicePreview": {
+    "notAvailable": "N/D",
+    "previewError": "Falha ao visualizar a fatura. Tente novamente.",
+    "unit": "unidade",
+    "sendToClient": "Enviar ao Cliente",
+    "previewModalTitle": "Visualização da Fatura"
+  },
+  "overdueInvoicesWidget": {
+    "title": "Faturas",
+    "outstanding": "EM ABERTO",
+    "allPaid": "TUDO PAGO",
+    "amountOutstanding": "{{amount}} em aberto"
+  },
+  "clientInvoices": {
+    "title": "Faturas",
+    "errorTitle": "Não foi possível carregar as faturas",
+    "retry": "Tentar Novamente",
+    "emptyTitle": "Nenhuma fatura ainda",
+    "paymentAlertTitle": "Pagamento",
+    "paymentAlertBody": "Não foi possível iniciar o pagamento agora.",
+    "paymentErrorTitle": "Erro no Pagamento",
+    "paymentErrorBody": "Falha ao iniciar o pagamento",
+    "status": {
+      "paid": "PAGO",
+      "partial": "PARCIAL",
+      "overdue": "VENCIDO",
+      "unpaid": "A PAGAR"
+    },
+    "payAmount": "Pagar ${{amount}}"
+  },
+  "invoiceTemplate": {
+    "title": "Modelo de Fatura e Orçamento",
+    "infoText": "Personalize a aparência das suas faturas e orçamentos. Isso se aplica a todos os PDFs que você gerar.",
+    "templateStyleTitle": "Estilo do Modelo",
+    "templateStyleSubtitle": "Escolha o estilo visual das suas faturas e orçamentos. Toque em Visualizar para ver com as informações da sua empresa.",
+    "preview": "Visualizar",
+    "businessLogoTitle": "Logotipo da Empresa",
+    "tapToUploadLogo": "Toque para enviar o logotipo",
+    "removeLogo": "Remover Logotipo",
+    "businessInfoTitle": "Informações da Empresa",
+    "businessNameLabel": "Nome da Empresa",
+    "businessNamePlaceholder": "Digite o nome da empresa",
+    "addressLabel": "Endereço",
+    "addressPlaceholder": "Rua Principal, 123, Cidade, Estado, 00000-000",
+    "phoneLabel": "Telefone",
+    "phonePlaceholder": "(11) 98765-4321",
+    "emailLabel": "Email",
+    "emailPlaceholder": "contato@empresa.com",
+    "paymentTermsTitle": "Condições de Pagamento",
+    "footerTextTitle": "Texto do Rodapé",
+    "footerTextSubtitle": "Mensagem de agradecimento ou instruções de pagamento",
+    "footerTextPlaceholder": "Obrigado pela preferência! O pagamento pode ser feito via...",
+    "livePreviewTitle": "Pré-visualização ao vivo",
+    "livePreviewSubtitle": "É assim que sua fatura vai realmente ficar com as suas informações.",
+    "saveTemplate": "Salvar Modelo",
+    "stylePreviewTitle": "Pré-visualização {{style}}",
+    "invoiceToggle": "Fatura",
+    "estimateToggle": "Orçamento",
+    "useThisTemplate": "Usar este modelo",
+    "sampleBusinessName": "Nome da Sua Empresa",
+    "sampleBusinessNameShort": "Sua Empresa",
+    "permissionTitle": "Permissão necessária",
+    "logoPermissionMessage": "Conceda acesso à galeria de fotos para enviar um logotipo",
+    "logoPickFailed": "Falha ao selecionar a imagem do logotipo",
+    "logoUploadFailed": "Falha ao enviar o logotipo. O modelo será salvo sem logotipo.",
+    "saveSuccess": "Modelo de fatura salvo com sucesso",
+    "saveFailed": "Falha ao salvar o modelo",
+    "ok": "OK"
+  },
+  "invoicesDetail": {
+    "fromSubcontractors": "DE SUBEMPREITEIROS",
+    "subcontractorFallback": "Subempreiteiro",
+    "sentDate": "Enviado {{date}}",
+    "dueDate": "Vence {{date}}",
+    "paidDate": "Pago {{date}}",
+    "markPaid": "Marcar como pago",
+    "markAsPaidTitle": "Marcar como pago?",
+    "markAsPaidMessage": "Marcar esta fatura de ${{amount}} como paga? O subempreiteiro será notificado.",
+    "errorMarkPaid": "Não foi possível marcar como pago",
+    "tryAgain": "Tente novamente",
+    "invoiceFileName": "Fatura {{number}}",
+    "invoiceFileNameId": "Fatura #{{id}}",
+    "errorCouldNotOpen": "Não foi possível abrir",
+    "invoiceNumberLabel": "Fatura #{{number}}",
+    "invoiceLabel": "Fatura"
   }
 }

@@ -14,6 +14,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { fetchDashboard, fetchProjectBilling, fetchProjectDocuments, fetchProjectApprovals } from '../../services/clientPortalApi';
 import ClientHeader from '../../components/ClientHeader';
 import { useClientProject } from '../../contexts/ClientProjectContext';
+import { useTranslation } from 'react-i18next';
 
 const C = {
   amber: '#F59E0B', amberDark: '#D97706', amberLight: '#FEF3C7', amberText: '#92400E',
@@ -61,6 +62,7 @@ function sortTime(value) {
 }
 
 function ActivityRow({ event }) {
+  const { t } = useTranslation('common');
   const v = ACTIVITY_VISUAL[event.action] || ACTIVITY_VISUAL.viewed;
   const entityLabel = ENTITY_LABEL[event.entity_type] || event.entity_type;
   return (
@@ -75,7 +77,7 @@ function ActivityRow({ event }) {
       <View style={{ flex: 1 }}>
         <Text style={styles.activityTitle}>
           {entityLabel} {v.label.toLowerCase()}
-          {event.actor_type === 'client' ? ' by you' : ''}
+          {event.actor_type === 'client' ? ` ${t('clientDocumentsTab.byYou')}` : ''}
         </Text>
         <Text style={styles.activitySub} numberOfLines={2}>
           {event.notes || `${entityLabel} ${event.entity_id?.slice(0, 8)}`} · {fmtDate(event.created_at)}
@@ -86,18 +88,19 @@ function ActivityRow({ event }) {
 }
 
 function DocumentRow({ doc }) {
+  const { t } = useTranslation('common');
   const isImage = doc.mime_type?.startsWith('image/');
   const ready = !!doc.download_url;
 
   const openDoc = async () => {
     if (!ready) {
-      Alert.alert('Not ready yet', "This document isn't ready to view yet — pull down to refresh.");
+      Alert.alert(t('clientDocumentsTab.docNotReadyTitle'), t('clientDocumentsTab.docNotReadyBody'));
       return;
     }
     try {
       await Linking.openURL(doc.download_url);
     } catch (e) {
-      Alert.alert('Couldn’t open file', "We couldn't open this file. Please try again later.");
+      Alert.alert(t('clientDocumentsTab.docOpenErrorTitle'), t('clientDocumentsTab.docOpenErrorBody'));
     }
   };
 
@@ -118,9 +121,9 @@ function DocumentRow({ doc }) {
           numberOfLines={1}
           testID="clientDocumentsTab.documentTitle"
           accessibilityLabel="clientDocumentsTab.documentTitle"
-        >{doc.title || doc.file_name || 'Untitled document'}</Text>
+        >{doc.title || doc.file_name || t('clientDocumentsTab.untitledDocument')}</Text>
         <Text style={styles.docSub}>
-          {doc.category ? doc.category[0].toUpperCase() + doc.category.slice(1) : 'Document'} ·
+          {doc.category ? doc.category[0].toUpperCase() + doc.category.slice(1) : t('clientDocumentsTab.documentCategory')} ·
           {' '}{fmtDate(doc.created_at)}
         </Text>
       </View>
@@ -130,6 +133,7 @@ function DocumentRow({ doc }) {
 }
 
 export default function ClientDocumentsTabScreen({ navigation }) {
+  const { t } = useTranslation('common');
   const { selectedProjectId, setProjects } = useClientProject();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -168,11 +172,11 @@ export default function ClientDocumentsTabScreen({ navigation }) {
       // Only flag an error if BOTH primary feeds failed — that's a real problem
       // (auth invalid, network down). One failing is fine — show what we have.
       if (docsRes.status === 'rejected' && appsRes.status === 'rejected') {
-        setLoadError('Could not load documents. Pull down to retry.');
+        setLoadError(t('clientDocumentsTab.loadErrorRetry'));
       }
     } catch (e) {
       console.error('Documents load error:', e);
-      setLoadError(e.message || 'Could not load documents');
+      setLoadError(e.message || t('clientDocumentsTab.loadError'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -200,7 +204,7 @@ export default function ClientDocumentsTabScreen({ navigation }) {
   if (loading) {
     return (
       <View style={styles.container}>
-        <ClientHeader title="Documents" subtitle={activeProject?.name} navigation={navigation} titleTestID="clientDocumentsTab.headerTitle" />
+        <ClientHeader title={t('clientDocumentsTab.title')} subtitle={activeProject?.name} navigation={navigation} titleTestID="clientDocumentsTab.headerTitle" />
         <ActivityIndicator size="large" color={C.amber} style={{ marginTop: 80 }} />
       </View>
     );
@@ -208,7 +212,7 @@ export default function ClientDocumentsTabScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <ClientHeader title="Documents" subtitle={activeProject?.name} navigation={navigation} titleTestID="clientDocumentsTab.headerTitle" />
+      <ClientHeader title={t('clientDocumentsTab.title')} subtitle={activeProject?.name} navigation={navigation} titleTestID="clientDocumentsTab.headerTitle" />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -231,7 +235,7 @@ export default function ClientDocumentsTabScreen({ navigation }) {
               style={styles.sectionLabel}
               testID="clientDocumentsTab.activitySectionLabel"
               accessibilityLabel="clientDocumentsTab.activitySectionLabel"
-            >RECENT ACTIVITY</Text>
+            >{t('clientDocumentsTab.recentActivity')}</Text>
             {activityFeed.map((evt) => (
               <ActivityRow key={evt.id} event={evt} />
             ))}
@@ -245,7 +249,7 @@ export default function ClientDocumentsTabScreen({ navigation }) {
               style={styles.sectionLabel}
               testID="clientDocumentsTab.documentsSectionLabel"
               accessibilityLabel="clientDocumentsTab.documentsSectionLabel"
-            >DOCUMENTS ({documents.length})</Text>
+            >{t('clientDocumentsTab.documentsCount', { count: documents.length })}</Text>
             {documents.map((doc) => (
               <DocumentRow key={doc.id} doc={doc} />
             ))}
@@ -253,8 +257,8 @@ export default function ClientDocumentsTabScreen({ navigation }) {
         ) : (
           <View style={styles.empty}>
             <Ionicons name="folder-open-outline" size={42} color={C.textMuted} />
-            <Text style={styles.emptyTitle}>No documents yet</Text>
-            <Text style={styles.emptySub}>Your contractor will share contracts, permits, and other files here.</Text>
+            <Text style={styles.emptyTitle}>{t('clientDocumentsTab.noDocumentsTitle')}</Text>
+            <Text style={styles.emptySub}>{t('clientDocumentsTab.noDocumentsSub')}</Text>
           </View>
         )}
 

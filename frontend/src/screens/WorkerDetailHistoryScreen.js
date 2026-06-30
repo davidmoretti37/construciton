@@ -132,27 +132,27 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
 
   const handleClockOutWorker = () => {
     Alert.alert(
-      'Clock Out Worker',
-      `Are you sure you want to clock out ${worker.full_name}?`,
+      t('common:workerDetailHistory.clockOutWorkerTitle'),
+      t('common:workerDetailHistory.clockOutConfirm', { name: worker.full_name }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
         {
-          text: 'Clock Out',
+          text: t('common:workerDetailHistory.clockOut'),
           style: 'destructive',
           onPress: async () => {
             setClockOutLoading(true);
             try {
               const result = await remoteClockOutWorker(worker.id);
               if (result.success) {
-                Alert.alert('Success', `${worker.full_name} has been clocked out. (${formatHoursMinutes(result.hours || 0)})`);
+                Alert.alert(t('common:alerts.success'), t('common:workerDetailHistory.clockedOutSuccess', { name: worker.full_name, hours: formatHoursMinutes(result.hours || 0) }));
                 setActiveSession(null);
                 loadData();
                 loadPaymentData();
               } else {
-                Alert.alert('Error', result.error || 'Failed to clock out worker.');
+                Alert.alert(t('common:alerts.error'), result.error || t('common:workerDetailHistory.clockOutFailed'));
               }
             } catch (e) {
-              Alert.alert('Error', 'Something went wrong.');
+              Alert.alert(t('common:alerts.error'), t('common:workerDetailHistory.somethingWentWrong'));
             } finally {
               setClockOutLoading(false);
             }
@@ -566,7 +566,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
               onPress={() => navigation.navigate('EditWorkerPayment', { worker })}
             >
               <Ionicons name="create-outline" size={15} color="#1E40AF" />
-              <Text style={{ color: '#1E40AF', fontSize: 13, fontWeight: '600' }}>Edit Info</Text>
+              <Text style={{ color: '#1E40AF', fontSize: 13, fontWeight: '600' }}>{t('common:workerDetailHistory.editInfo')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -644,7 +644,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                   ) : (
                     <>
                       <Ionicons name="log-out-outline" size={18} color="#FFF" />
-                      <Text style={styles.clockOutButtonText}>Clock Out</Text>
+                      <Text style={styles.clockOutButtonText}>{t('common:workerDetailHistory.clockOut')}</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -681,7 +681,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                 ${paymentData.totalAmount.toFixed(2)}
               </Text>
               <Text testID="workerDetailHistory.totalHours" style={[styles.totalHoursText, { color: Colors.secondaryText }]}>
-                {formatHoursMinutes(paymentData.totalHours)} total
+                {t('common:workerDetailHistory.totalHoursDisplay', { hours: formatHoursMinutes(paymentData.totalHours) })}
               </Text>
             </View>
 
@@ -878,7 +878,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                         <Ionicons name="time-outline" size={13} color={Colors.secondaryText} />
                         <Text style={{ fontSize: 12, color: Colors.secondaryText, marginLeft: 4 }}>
                           {formatTime(session.clock_in)}
-                          {session.clock_out ? ` → ${formatTime(session.clock_out)}` : ' → now'}
+                          {session.clock_out ? ` → ${formatTime(session.clock_out)}` : t('common:workerDetailHistory.toNow')}
                         </Text>
                       </View>
                       {session.location_lat && session.location_lng && (

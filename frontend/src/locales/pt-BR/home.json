@@ -6,7 +6,9 @@
     "minuteAgo": "1 min atrás",
     "minutesAgo": "{{count}} mins atrás",
     "hourAgo": "1 hora atrás",
-    "hoursAgo": "{{count}} horas atrás"
+    "hoursAgo": "{{count}} horas atrás",
+    "today": "Hoje",
+    "yesterday": "Ontem"
   },
   "fallbacks": {
     "worker": "Trabalhador",
@@ -51,5 +53,47 @@
     "onSiteProjects": "Projetos No Local",
     "projectsNeedingAttention": "Projetos que Precisam de Atenção",
     "noProjectsFound": "Nenhum projeto encontrado"
+  },
+  "clockIn": {
+    "successMessage": "Ponto de entrada registrado com sucesso!",
+    "failedCheckDb": "Não foi possível registrar o ponto. Verifique se a tabela supervisor_time_tracking existe no banco de dados.",
+    "failedWithError": "Não foi possível registrar o ponto: {{message}}",
+    "noProjectsTitle": "Nenhum Projeto",
+    "noProjectsMessage": "Você precisa ter pelo menos um projeto para registrar o ponto.",
+    "selectProjectTitle": "Selecionar Projeto",
+    "noProjectsAvailable": "Nenhum projeto disponível"
+  },
+  "clockOut": {
+    "title": "Ponto de Saída",
+    "workedHours": "Você trabalhou {{hours}}",
+    "failed": "Não foi possível registrar o ponto de saída",
+    "failedWithError": "Não foi possível registrar o ponto de saída: {{message}}"
+  },
+  "errors": {
+    "unknown": "Erro desconhecido"
+  },
+  "margin": {
+    "healthy": "Saudável",
+    "moderate": "Moderado",
+    "atRisk": "Em risco"
+  },
+  "workers": {
+    "unknownWorker": "Funcionário"
+  },
+  "retryBanner": {
+    "message": "Falha ao carregar dados. Toque para tentar novamente."
+  },
+  "forgottenClockOut": {
+    "title": "Pontos de Saída Esquecidos",
+    "alertTitle": "Registrar Saída do Funcionário",
+    "alertMessage": "Registrar saída de {{name}}?",
+    "clockOutButton": "Registrar Saída",
+    "successMessage": "{{name}} teve o ponto de saída registrado."
+  },
+  "editDashboard": {
+    "reset": "Redefinir",
+    "title": "Editando Painel",
+    "addWidget": "Adicionar widget",
+    "emptyMessage": "Toque para adicionar widgets ao seu painel"
   }
 }

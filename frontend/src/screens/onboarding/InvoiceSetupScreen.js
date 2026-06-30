@@ -36,7 +36,7 @@ const PAYMENT_TERMS = [
 export default function InvoiceSetupScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
-  const { t } = useTranslation('common');
+  const { t } = useTranslation('onboarding');
   const { selectedTrades, selectedServices, businessInfo, pricing, phasesTemplate, profitMargin } = route.params;
 
   const [setupNow, setSetupNow] = useState(null); // null = showing intro, true = showing form
@@ -82,7 +82,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(t('alerts.permissionDenied'), t('permissions.photoLibraryRequired'));
+        Alert.alert(t('common:alerts.permissionDenied'), t('common:permissions.photoLibraryRequired'));
         return;
       }
 
@@ -99,7 +99,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
       }
     } catch (error) {
       console.error('Error picking logo:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToLoad'));
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToLoad'));
     }
   };
 
@@ -137,7 +137,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
       setLogoUrl(publicUrl);
     } catch (error) {
       console.error('Error uploading logo:', error);
-      Alert.alert(t('alerts.uploadFailed'), t('messages.failedToSave'));
+      Alert.alert(t('common:alerts.uploadFailed'), t('common:messages.failedToSave'));
     } finally {
       setUploadingLogo(false);
     }
@@ -167,13 +167,13 @@ export default function InvoiceSetupScreen({ navigation, route }) {
 
     const sampleInvoiceData = {
       invoiceNumber: 'INV-001',
-      clientName: 'Sample Client',
-      clientAddress: '123 Client Street\nCity, State 12345',
+      clientName: t('invoiceSetup.sampleClientName'),
+      clientAddress: t('invoiceSetup.sampleClientAddress'),
       clientEmail: 'client@example.com',
-      projectName: 'Sample Project',
+      projectName: t('invoiceSetup.sampleProjectName'),
       items: [
-        { description: 'Sample Item 1', quantity: 1, rate: 500, amount: 500 },
-        { description: 'Sample Item 2', quantity: 2, rate: 250, amount: 500 },
+        { description: t('invoiceSetup.sampleItem1'), quantity: 1, rate: 500, amount: 500 },
+        { description: t('invoiceSetup.sampleItem2'), quantity: 2, rate: 250, amount: 500 },
       ],
       subtotal: 1000,
       taxRate: 0.08,
@@ -188,7 +188,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
     };
 
     const businessInfoForPreview = {
-      name: businessName || 'Your Business Name',
+      name: businessName || t('invoiceSetup.yourBusinessName'),
       address: businessAddress,
       phone: businessPhone,
       email: businessEmail,
@@ -262,7 +262,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: '#1F2937' }]}>Invoice Setup</Text>
+          <Text style={[styles.headerTitle, { color: '#1F2937' }]}>{t('invoiceSetup.introHeaderTitle')}</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -270,30 +270,30 @@ export default function InvoiceSetupScreen({ navigation, route }) {
           <Ionicons name="receipt-outline" size={80} color={Colors.primaryBlue} style={styles.icon} />
 
           <Text style={[styles.choiceTitle, { color: Colors.primaryText }]}>
-            Configure Your Invoices
+            {t('invoiceSetup.configureTitle')}
           </Text>
 
           <Text style={[styles.choiceSubtitle, { color: Colors.secondaryText }]}>
-            Your AI assistant will use this info to automatically generate and send professional invoices to clients.
+            {t('invoiceSetup.configureSubtitle')}
           </Text>
 
           <View style={styles.benefitsContainer}>
             <View style={styles.benefitRow}>
               <Ionicons name="checkmark-circle" size={24} color={Colors.primaryGreen} />
               <Text style={[styles.benefitText, { color: Colors.primaryText }]}>
-                Professional PDF invoices
+                {t('invoiceSetup.benefitPdf')}
               </Text>
             </View>
             <View style={styles.benefitRow}>
               <Ionicons name="checkmark-circle" size={24} color={Colors.primaryGreen} />
               <Text style={[styles.benefitText, { color: Colors.primaryText }]}>
-                Multiple payment methods
+                {t('invoiceSetup.benefitPaymentMethods')}
               </Text>
             </View>
             <View style={styles.benefitRow}>
               <Ionicons name="checkmark-circle" size={24} color={Colors.primaryGreen} />
               <Text style={[styles.benefitText, { color: Colors.primaryText }]}>
-                Preview before sending
+                {t('invoiceSetup.benefitPreview')}
               </Text>
             </View>
           </View>
@@ -302,7 +302,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
             style={[styles.primaryButton, { backgroundColor: Colors.primaryBlue }]}
             onPress={() => setSetupNow(true)}
           >
-            <Text style={styles.primaryButtonText}>Set Up Now</Text>
+            <Text style={styles.primaryButtonText}>{t('invoiceSetup.setUpNow')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -316,7 +316,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
         <TouchableOpacity onPress={() => setSetupNow(null)} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: '#1F2937' }]}>Invoice & Estimate Template</Text>
+        <Text style={[styles.headerTitle, { color: '#1F2937' }]}>{t('invoiceSetup.formHeaderTitle')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -329,13 +329,13 @@ export default function InvoiceSetupScreen({ navigation, route }) {
           <View style={[styles.infoBox, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue + '30' }]}>
             <Ionicons name="information-circle-outline" size={20} color={Colors.primaryBlue} />
             <Text style={[styles.infoText, { color: Colors.primaryBlue }]}>
-              This information will appear on all your invoices. You can change it later in Settings.
+              {t('invoiceSetup.infoText')}
             </Text>
           </View>
 
           {/* Logo Section */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Business Logo</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('invoiceSetup.businessLogo')}</Text>
 
             <TouchableOpacity
               style={[styles.logoContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}
@@ -350,7 +350,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
                 <View style={styles.logoPlaceholder}>
                   <Ionicons name="image-outline" size={48} color={Colors.secondaryText} />
                   <Text style={[styles.logoPlaceholderText, { color: Colors.secondaryText }]}>
-                    Tap to upload logo
+                    {t('invoiceSetup.tapToUploadLogo')}
                   </Text>
                 </View>
               )}
@@ -361,36 +361,36 @@ export default function InvoiceSetupScreen({ navigation, route }) {
                 style={[styles.removeButton, { backgroundColor: '#EF4444' + '10' }]}
                 onPress={() => setLogoUrl(null)}
               >
-                <Text style={[styles.removeButtonText, { color: '#EF4444' }]}>Remove Logo</Text>
+                <Text style={[styles.removeButtonText, { color: '#EF4444' }]}>{t('invoiceSetup.removeLogo')}</Text>
               </TouchableOpacity>
             )}
           </View>
 
           {/* Business Information */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Business Information</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('invoiceSetup.businessInformation')}</Text>
 
-            <Text style={[styles.label, { color: Colors.secondaryText }]}>Business Name</Text>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('invoiceSetup.businessName')}</Text>
             <TextInput
               style={[styles.input, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
               value={businessName}
               onChangeText={setBusinessName}
-              placeholder="Enter business name"
+              placeholder={t('invoiceSetup.businessNamePlaceholder')}
               placeholderTextColor={Colors.secondaryText}
             />
 
-            <Text style={[styles.label, { color: Colors.secondaryText }]}>Address</Text>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('invoiceSetup.address')}</Text>
             <TextInput
               style={[styles.input, styles.multilineInput, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
               value={businessAddress}
               onChangeText={setBusinessAddress}
-              placeholder="123 Main St, City, State 12345"
+              placeholder={t('invoiceSetup.addressPlaceholder')}
               placeholderTextColor={Colors.secondaryText}
               multiline
               numberOfLines={2}
             />
 
-            <Text style={[styles.label, { color: Colors.secondaryText }]}>Phone</Text>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('invoiceSetup.phone')}</Text>
             <TextInput
               style={[styles.input, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
               value={businessPhone}
@@ -400,12 +400,12 @@ export default function InvoiceSetupScreen({ navigation, route }) {
               keyboardType="phone-pad"
             />
 
-            <Text style={[styles.label, { color: Colors.secondaryText }]}>Email</Text>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('invoiceSetup.email')}</Text>
             <TextInput
               style={[styles.input, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
               value={businessEmail}
               onChangeText={setBusinessEmail}
-              placeholder="contact@business.com"
+              placeholder={t('invoiceSetup.emailPlaceholder')}
               placeholderTextColor={Colors.secondaryText}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -414,7 +414,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
 
           {/* Payment Terms */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Payment Terms</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('invoiceSetup.paymentTerms')}</Text>
 
             <View style={styles.termsGrid}>
               {PAYMENT_TERMS.map((term) => (
@@ -442,9 +442,9 @@ export default function InvoiceSetupScreen({ navigation, route }) {
 
           {/* Payment Methods */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Payment Methods</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('invoiceSetup.paymentMethods')}</Text>
             <Text style={[styles.sectionSubtitle, { color: Colors.secondaryText }]}>
-              Select and configure your accepted payment methods
+              {t('invoiceSetup.paymentMethodsSubtitle')}
             </Text>
 
             {/* Zelle */}
@@ -468,7 +468,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
               <View style={styles.paymentInput}>
                 <TextInput
                   style={[styles.input, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
-                  placeholder="Email or phone for Zelle"
+                  placeholder={t('invoiceSetup.zellePlaceholder')}
                   placeholderTextColor={Colors.secondaryText}
                   value={zelleInfo}
                   onChangeText={setZelleInfo}
@@ -488,23 +488,23 @@ export default function InvoiceSetupScreen({ navigation, route }) {
                     size={24}
                     color={enabledPayments.bank ? Colors.primaryBlue : Colors.secondaryText}
                   />
-                  <Text style={[styles.paymentMethodName, { color: Colors.primaryText }]}>Bank Transfer / Wire</Text>
+                  <Text style={[styles.paymentMethodName, { color: Colors.primaryText }]}>{t('invoiceSetup.bankTransferWire')}</Text>
                 </View>
               </View>
             </TouchableOpacity>
 
             {enabledPayments.bank && (
               <View style={styles.paymentInput}>
-                <Text style={[styles.label, { color: Colors.secondaryText }]}>Bank Name</Text>
+                <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('invoiceSetup.bankName')}</Text>
                 <TextInput
                   style={[styles.input, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
-                  placeholder="e.g., Chase Bank"
+                  placeholder={t('invoiceSetup.bankNamePlaceholder')}
                   placeholderTextColor={Colors.secondaryText}
                   value={bankName}
                   onChangeText={setBankName}
                 />
 
-                <Text style={[styles.label, { color: Colors.secondaryText }]}>Account Number</Text>
+                <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('invoiceSetup.accountNumber')}</Text>
                 <TextInput
                   style={[styles.input, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
                   placeholder="123456789"
@@ -514,7 +514,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
                   keyboardType="number-pad"
                 />
 
-                <Text style={[styles.label, { color: Colors.secondaryText }]}>ACH Routing (Optional)</Text>
+                <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('invoiceSetup.achRoutingOptional')}</Text>
                 <TextInput
                   style={[styles.input, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
                   placeholder="021000021"
@@ -524,7 +524,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
                   keyboardType="number-pad"
                 />
 
-                <Text style={[styles.label, { color: Colors.secondaryText }]}>Wire Routing (Optional)</Text>
+                <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('invoiceSetup.wireRoutingOptional')}</Text>
                 <TextInput
                   style={[styles.input, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
                   placeholder="021000021"
@@ -557,7 +557,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
               <View style={styles.paymentInput}>
                 <TextInput
                   style={[styles.input, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
-                  placeholder="PayPal email or link"
+                  placeholder={t('invoiceSetup.paypalPlaceholder')}
                   placeholderTextColor={Colors.secondaryText}
                   value={paypalInfo}
                   onChangeText={setPaypalInfo}
@@ -586,7 +586,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
               <View style={styles.paymentInput}>
                 <TextInput
                   style={[styles.input, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
-                  placeholder="@username or phone"
+                  placeholder={t('invoiceSetup.venmoPlaceholder')}
                   placeholderTextColor={Colors.secondaryText}
                   value={venmoInfo}
                   onChangeText={setVenmoInfo}
@@ -626,15 +626,15 @@ export default function InvoiceSetupScreen({ navigation, route }) {
 
           {/* Footer Text */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Footer Text</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('invoiceSetup.footerText')}</Text>
             <Text style={[styles.label, { color: Colors.secondaryText }]}>
-              Thank you message or additional notes
+              {t('invoiceSetup.footerTextLabel')}
             </Text>
             <TextInput
               style={[styles.input, styles.multilineInput, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
               value={footerText}
               onChangeText={setFooterText}
-              placeholder="Thank you for your business!"
+              placeholder={t('invoiceSetup.notesPlaceholder')}
               placeholderTextColor={Colors.secondaryText}
               multiline
               numberOfLines={3}
@@ -643,14 +643,14 @@ export default function InvoiceSetupScreen({ navigation, route }) {
 
           {/* Preview Section */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Preview Invoice</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('invoiceSetup.previewInvoice')}</Text>
 
             <TouchableOpacity
               style={[styles.previewButton, { backgroundColor: Colors.primaryBlue }]}
               onPress={() => setShowPreview(true)}
             >
               <Ionicons name="eye-outline" size={20} color="#fff" />
-              <Text style={styles.previewButtonText}>Preview Invoice PDF</Text>
+              <Text style={styles.previewButtonText}>{t('invoiceSetup.previewInvoicePdf')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -664,7 +664,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
             style={[styles.continueButton, { backgroundColor: Colors.primaryBlue }]}
             onPress={handleContinue}
           >
-            <Text style={styles.continueButtonText}>Continue</Text>
+            <Text style={styles.continueButtonText}>{t('common:buttons.continue')}</Text>
             <Ionicons name="arrow-forward" size={20} color="#fff" />
           </TouchableOpacity>
 
@@ -684,7 +684,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
             <TouchableOpacity onPress={() => setShowPreview(false)} style={styles.closeButton}>
               <Ionicons name="close-circle" size={32} color={Colors.primaryText} />
             </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: '#1F2937' }]}>Invoice Preview</Text>
+            <Text style={[styles.headerTitle, { color: '#1F2937' }]}>{t('invoiceSetup.invoicePreview')}</Text>
             <View style={{ width: 40 }} />
           </View>
           <WebView

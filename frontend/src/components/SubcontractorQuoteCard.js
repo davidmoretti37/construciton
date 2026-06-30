@@ -1,10 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
 export default function SubcontractorQuoteCard({ quote, onPress, onTogglePreferred, onDelete }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -19,19 +21,19 @@ export default function SubcontractorQuoteCard({ quote, onPress, onTogglePreferr
 
   const formatPricing = () => {
     if (!quote.services || quote.services.length === 0) {
-      return 'No pricing data';
+      return t('subcontractorQuoteCard.noPricingData');
     }
 
     // Show first service as preview
     const firstService = quote.services[0];
     const price = firstService.pricePerUnit || firstService.price_per_unit || 0;
-    const unit = firstService.unit || 'unit';
+    const unit = firstService.unit || t('subcontractorQuoteCard.defaultUnit');
 
     if (quote.services.length === 1) {
-      return `$${price.toFixed(2)}/${unit}`;
+      return t('subcontractorQuoteCard.pricePerUnit', { price: price.toFixed(2), unit });
     }
 
-    return `$${price.toFixed(2)}/${unit} +${quote.services.length - 1} more`;
+    return t('subcontractorQuoteCard.pricePerUnitMore', { price: price.toFixed(2), unit, count: quote.services.length - 1 });
   };
 
   const formatDate = (dateString) => {
@@ -71,7 +73,7 @@ export default function SubcontractorQuoteCard({ quote, onPress, onTogglePreferr
       {quote.is_preferred && (
         <View style={[styles.preferredBar, { backgroundColor: Colors.primaryBlue }]}>
           <Ionicons name="star" size={12} color="#FFF" />
-          <Text style={styles.preferredText}>PREFERRED</Text>
+          <Text style={styles.preferredText}>{t('subcontractorQuoteCard.preferred')}</Text>
         </View>
       )}
 
@@ -135,7 +137,7 @@ export default function SubcontractorQuoteCard({ quote, onPress, onTogglePreferr
           </View>
           {quote.services && quote.services.length > 0 && (
             <Text style={[styles.servicesCount, { color: Colors.secondaryText }]}>
-              {quote.services.length} service{quote.services.length > 1 ? 's' : ''}
+              {t('subcontractorQuoteCard.serviceCount', { count: quote.services.length })}
             </Text>
           )}
         </View>
@@ -154,7 +156,7 @@ export default function SubcontractorQuoteCard({ quote, onPress, onTogglePreferr
             <View style={styles.documentBadge}>
               <Ionicons name="document-attach-outline" size={10} color={Colors.primaryBlue} />
               <Text style={[styles.documentText, { color: Colors.primaryBlue }]}>
-                Doc
+                {t('subcontractorQuoteCard.doc')}
               </Text>
             </View>
           )}

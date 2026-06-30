@@ -20,6 +20,7 @@
  */
 
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   View,
   Text,
@@ -78,6 +79,7 @@ export default function TodaysChecklistSection({
 }) {
   // Note: worker_tasks has no per-worker column. All crew on a project share
   // the same task pool; access is gated by project_assignments + RLS.
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -203,11 +205,11 @@ export default function TodaysChecklistSection({
   const handleSaveTask = async () => {
     const titles = newTitles.map(t => t.trim()).filter(Boolean);
     if (titles.length === 0) {
-      Alert.alert('Title required', 'Give at least one task a name first.');
+      Alert.alert(t('todaysChecklistSection.alertTitleRequired'), t('todaysChecklistSection.alertTitleRequiredMsg'));
       return;
     }
     if (newEnd < newStart) {
-      Alert.alert('Invalid range', 'End date must be on or after start date.');
+      Alert.alert(t('todaysChecklistSection.alertInvalidRange'), t('todaysChecklistSection.alertInvalidRangeMsg'));
       return;
     }
     setSaving(true);
@@ -218,7 +220,7 @@ export default function TodaysChecklistSection({
       for (const title of titles) {
         const created = await createAdHocDayTask(projectId, title, newStart, newEnd);
         if (!created) {
-          Alert.alert('Couldn\'t create task', `Failed on "${title}". The rest were saved.`);
+          Alert.alert(t('todaysChecklistSection.alertCreateFailed'), t('todaysChecklistSection.alertCreateFailedMsg', { title }));
           break;
         }
       }
@@ -265,12 +267,12 @@ export default function TodaysChecklistSection({
             <Ionicons name="today" size={16} color="#3B82F6" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.title, { color: Colors.primaryText }]}>Today's Checklist</Text>
+            <Text style={[styles.title, { color: Colors.primaryText }]}>{t('todaysChecklistSection.title')}</Text>
             <Text style={[styles.subtitle, { color: Colors.secondaryText }]} numberOfLines={1}>
               {formatTodayLabel()}
               {totalCount > 0
-                ? ` · ${totalCount} task${totalCount === 1 ? '' : 's'}`
-                : ' · nothing scheduled yet'}
+                ? ` ${t('todaysChecklistSection.taskCount', { count: totalCount })}`
+                : ` ${t('todaysChecklistSection.nothingScheduledYet')}`}
             </Text>
           </View>
         </View>
@@ -290,7 +292,7 @@ export default function TodaysChecklistSection({
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Ionicons name="add" size={16} color="#fff" />
-              <Text style={styles.addBtnText}>Add</Text>
+              <Text style={styles.addBtnText}>{t('common:buttons.add')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -300,11 +302,11 @@ export default function TodaysChecklistSection({
       {totalCount === 0 ? (
         <View style={styles.emptyBody}>
           <Ionicons name="calendar-outline" size={28} color={Colors.secondaryText + '60'} />
-          <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>Nothing scheduled today</Text>
+          <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>{t('todaysChecklistSection.emptyTitle')}</Text>
           <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
             {canAdd
-              ? 'Tap Add to drop a task on today (or pick a date range for multi-day work).'
-              : 'Check back later or jump in on the daily crew checks below.'}
+              ? t('todaysChecklistSection.emptyTextOwner')
+              : t('todaysChecklistSection.emptyTextWorker')}
           </Text>
         </View>
       ) : (
@@ -351,7 +353,7 @@ export default function TodaysChecklistSection({
                       <View style={[styles.phasePill, { backgroundColor: '#F59E0B15' }]}>
                         <Ionicons name="bookmark-outline" size={10} color="#F59E0B" />
                         <Text style={[styles.phasePillText, { color: '#F59E0B' }]} numberOfLines={1}>
-                          Custom
+                          {t('todaysChecklistSection.customPill')}
                         </Text>
                       </View>
                     )}
@@ -383,7 +385,7 @@ export default function TodaysChecklistSection({
           >
             <View style={[styles.modalCard, { backgroundColor: Colors.cardBackground }]}>
               <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Add Task</Text>
+                <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>{t('todaysChecklistSection.modalTitle')}</Text>
                 <TouchableOpacity onPress={closeAdd} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Ionicons name="close" size={22} color={Colors.secondaryText} />
                 </TouchableOpacity>
@@ -399,14 +401,14 @@ export default function TodaysChecklistSection({
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
               >
-              <Text style={[styles.modalLabel, { color: Colors.secondaryText }]}>TASKS</Text>
+              <Text style={[styles.modalLabel, { color: Colors.secondaryText }]}>{t('todaysChecklistSection.modalTasksLabel')}</Text>
               {newTitles.map((title, i) => (
                 <View key={`task-row-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                   <TextInput
                     ref={(el) => { rowRefs.current[i] = el; }}
                     value={title}
                     onChangeText={(v) => handleTitleChange(i, v)}
-                    placeholder={i === 0 ? 'e.g. Pick up tile from supplier' : 'Another task…'}
+                    placeholder={i === 0 ? t('todaysChecklistSection.placeholderFirst') : t('todaysChecklistSection.placeholderNext')}
                     placeholderTextColor={Colors.secondaryText + '80'}
                     autoFocus={i === 0}
                     style={[styles.modalInput, { flex: 1, color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.background, marginBottom: 0 }]}
@@ -430,10 +432,10 @@ export default function TodaysChecklistSection({
                 activeOpacity={0.7}
               >
                 <Ionicons name="add" size={16} color={Colors.primaryBlue} />
-                <Text style={{ fontSize: 13, color: Colors.primaryBlue, fontWeight: '600' }}>Add another task</Text>
+                <Text style={{ fontSize: 13, color: Colors.primaryBlue, fontWeight: '600' }}>{t('todaysChecklistSection.addAnotherTask')}</Text>
               </TouchableOpacity>
 
-              <Text style={[styles.modalLabel, { color: Colors.secondaryText, marginTop: 14 }]}>WHEN</Text>
+              <Text style={[styles.modalLabel, { color: Colors.secondaryText, marginTop: 14 }]}>{t('todaysChecklistSection.modalWhenLabel')}</Text>
               <View style={styles.dateRow}>
                 <TouchableOpacity
                   onPress={() => setPickerMode('start')}
@@ -442,7 +444,7 @@ export default function TodaysChecklistSection({
                 >
                   <Ionicons name="calendar-outline" size={14} color="#3B82F6" />
                   <View>
-                    <Text style={[styles.dateChipLabel, { color: Colors.secondaryText }]}>Start</Text>
+                    <Text style={[styles.dateChipLabel, { color: Colors.secondaryText }]}>{t('todaysChecklistSection.startLabel')}</Text>
                     <Text style={[styles.dateChipValue, { color: Colors.primaryText }]}>{formatPickerLabel(newStart)}</Text>
                   </View>
                 </TouchableOpacity>
@@ -454,15 +456,15 @@ export default function TodaysChecklistSection({
                 >
                   <Ionicons name="calendar-outline" size={14} color="#3B82F6" />
                   <View>
-                    <Text style={[styles.dateChipLabel, { color: Colors.secondaryText }]}>End</Text>
+                    <Text style={[styles.dateChipLabel, { color: Colors.secondaryText }]}>{t('todaysChecklistSection.endLabel')}</Text>
                     <Text style={[styles.dateChipValue, { color: Colors.primaryText }]}>{formatPickerLabel(newEnd)}</Text>
                   </View>
                 </TouchableOpacity>
               </View>
               <Text style={[styles.modalHint, { color: Colors.secondaryText }]}>
                 {newStart === newEnd
-                  ? 'Single-day task. Tap End to span multiple days.'
-                  : `Multi-day task — shows on every day in this range.`}
+                  ? t('todaysChecklistSection.singleDayHint')
+                  : t('todaysChecklistSection.multiDayHint')}
               </Text>
 
               {pickerMode && (
@@ -482,7 +484,7 @@ export default function TodaysChecklistSection({
                   style={[styles.modalBtn, { backgroundColor: 'transparent', borderColor: Colors.border, borderWidth: 1 }]}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.modalBtnText, { color: Colors.primaryText }]}>Cancel</Text>
+                  <Text style={[styles.modalBtnText, { color: Colors.primaryText }]}>{t('common:buttons.cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={handleSaveTask}
@@ -496,7 +498,7 @@ export default function TodaysChecklistSection({
                   {saving ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
-                    <Text style={[styles.modalBtnText, { color: '#fff' }]}>Save</Text>
+                    <Text style={[styles.modalBtnText, { color: '#fff' }]}>{t('common:buttons.save')}</Text>
                   )}
                 </TouchableOpacity>
               </View>

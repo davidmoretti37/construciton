@@ -15,12 +15,14 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
 const UNITS = ['ea', 'sf', 'lf', 'sy', 'cy', 'hr', 'day', 'lot'];
 
 const fmt$ = (n) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function LineItemEditor({ items, onChange, Colors }) {
+  const { t } = useTranslation('common');
   const styles = makeStyles(Colors);
 
   const updateItem = (idx, patch) => {
@@ -71,12 +73,12 @@ export default function LineItemEditor({ items, onChange, Colors }) {
             style={[styles.input, { marginTop: 6 }]}
             value={it.description}
             onChangeText={(v) => updateItem(idx, { description: v })}
-            placeholder="Description"
+            placeholder={t('lineItemEditor.descriptionPlaceholder')}
             placeholderTextColor={Colors.placeholder || '#9CA3AF'}
           />
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.miniLabel}>Qty</Text>
+              <Text style={styles.miniLabel}>{t('lineItemEditor.qty')}</Text>
               <TextInput
                 style={styles.input}
                 value={String(it.quantity)}
@@ -85,13 +87,13 @@ export default function LineItemEditor({ items, onChange, Colors }) {
               />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.miniLabel}>Unit</Text>
+              <Text style={styles.miniLabel}>{t('lineItemEditor.unit')}</Text>
               <TouchableOpacity
                 style={styles.input}
                 onPress={() => {
-                  Alert.alert('Unit', null, [
+                  Alert.alert(t('lineItemEditor.unit'), null, [
                     ...UNITS.map((u) => ({ text: u, onPress: () => updateItem(idx, { unit: u }) })),
-                    { text: 'Cancel', style: 'cancel' },
+                    { text: t('common:buttons.cancel'), style: 'cancel' },
                   ]);
                 }}
                 activeOpacity={0.7}
@@ -100,7 +102,7 @@ export default function LineItemEditor({ items, onChange, Colors }) {
               </TouchableOpacity>
             </View>
             <View style={{ flex: 1.3 }}>
-              <Text style={styles.miniLabel}>Unit price</Text>
+              <Text style={styles.miniLabel}>{t('lineItemEditor.unitPrice')}</Text>
               <TextInput
                 style={styles.input}
                 value={String(it.pricePerUnit)}
@@ -110,14 +112,14 @@ export default function LineItemEditor({ items, onChange, Colors }) {
             </View>
           </View>
           <View style={styles.lineItemTotalRow}>
-            <Text style={styles.miniLabel}>Total</Text>
+            <Text style={styles.miniLabel}>{t('lineItemEditor.totalLabel')}</Text>
             <Text style={styles.lineItemTotal}>{fmt$(it.total)}</Text>
           </View>
         </View>
       ))}
       <TouchableOpacity style={styles.addItemBtn} onPress={addItem} activeOpacity={0.7}>
         <Ionicons name="add-circle-outline" size={18} color={Colors.primaryBlue} />
-        <Text style={[styles.addItemBtnText, { color: Colors.primaryBlue }]}>Add line item</Text>
+        <Text style={[styles.addItemBtnText, { color: Colors.primaryBlue }]}>{t('lineItemEditor.addLineItem')}</Text>
       </TouchableOpacity>
     </View>
   );

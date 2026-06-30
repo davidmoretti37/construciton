@@ -16,6 +16,7 @@ import {
   Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import {
@@ -26,12 +27,14 @@ import {
 
 export default function ServiceSearchInput({
   onServiceSelect,
-  placeholder = "Search for a service...",
+  placeholder,
   selectedServices = [],
   showPopularOnFocus = true,
 }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const resolvedPlaceholder = placeholder !== undefined ? placeholder : t('serviceSearchInput.placeholder');
 
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
@@ -222,7 +225,7 @@ export default function ServiceSearchInput({
         <View style={styles.emptyState}>
           <Ionicons name="search-outline" size={32} color={Colors.secondaryText} />
           <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-            No results found
+            {t('serviceSearchInput.noResultsFound')}
           </Text>
           <TouchableOpacity
             style={[styles.createButton, { backgroundColor: Colors.primaryBlue }]}
@@ -230,7 +233,7 @@ export default function ServiceSearchInput({
           >
             <Ionicons name="add" size={18} color="#fff" />
             <Text style={styles.createButtonText}>
-              Create "{query.trim()}"
+              {t('serviceSearchInput.createService', { name: query.trim() })}
             </Text>
           </TouchableOpacity>
         </View>
@@ -249,7 +252,7 @@ export default function ServiceSearchInput({
         <TextInput
           ref={inputRef}
           style={[styles.input, { color: Colors.primaryText }]}
-          placeholder={placeholder}
+          placeholder={resolvedPlaceholder}
           placeholderTextColor={Colors.secondaryText}
           value={query}
           onChangeText={handleInputChange}
@@ -281,7 +284,7 @@ export default function ServiceSearchInput({
         <View style={[styles.generatingBanner, { backgroundColor: Colors.primaryBlue + '15' }]}>
           <ActivityIndicator size="small" color={Colors.primaryBlue} />
           <Text style={[styles.generatingText, { color: Colors.primaryBlue }]}>
-            Generating template...
+            {t('serviceSearchInput.generatingTemplate')}
           </Text>
         </View>
       )}
@@ -305,7 +308,7 @@ export default function ServiceSearchInput({
       {showDropdown && query.trim().length === 0 && popularServices.length > 0 && (
         <View style={[styles.dropdown, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
           <Text style={[styles.dropdownHeader, { color: Colors.secondaryText }]}>
-            Popular Services
+            {t('serviceSearchInput.popularServices')}
           </Text>
           <FlatList
             data={popularServices}

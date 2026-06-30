@@ -160,19 +160,19 @@ export default function TransactionEntryScreen({ route, navigation }) {
   const projectName = selectedProject?.name || initialProjectName;
 
   const expenseCategories = [
-    { value: 'materials', label: 'Materials', icon: 'construct' },
-    { value: 'labor', label: 'Labor', icon: 'people' },
-    { value: 'equipment', label: 'Equipment', icon: 'hammer' },
-    { value: 'permits', label: 'Permits', icon: 'document-text' },
-    { value: 'other', label: 'Other', icon: 'ellipsis-horizontal-circle' },
+    { value: 'materials', label: t('transactionEntry.categoryMaterials'), icon: 'construct' },
+    { value: 'labor', label: t('transactionEntry.categoryLabor'), icon: 'people' },
+    { value: 'equipment', label: t('transactionEntry.categoryEquipment'), icon: 'hammer' },
+    { value: 'permits', label: t('transactionEntry.categoryPermits'), icon: 'document-text' },
+    { value: 'other', label: t('transactionEntry.categoryOther'), icon: 'ellipsis-horizontal-circle' },
   ];
 
   const paymentMethods = [
-    { value: 'cash', label: 'Cash', icon: 'cash' },
-    { value: 'check', label: 'Check', icon: 'card' },
-    { value: 'transfer', label: 'Transfer', icon: 'swap-horizontal' },
-    { value: 'card', label: 'Card', icon: 'card' },
-    { value: 'other', label: 'Other', icon: 'ellipsis-horizontal' },
+    { value: 'cash', label: t('transactionEntry.paymentCash'), icon: 'cash' },
+    { value: 'check', label: t('transactionEntry.paymentCheck'), icon: 'card' },
+    { value: 'transfer', label: t('transactionEntry.paymentTransfer'), icon: 'swap-horizontal' },
+    { value: 'card', label: t('transactionEntry.paymentCard'), icon: 'card' },
+    { value: 'other', label: t('transactionEntry.paymentOther'), icon: 'ellipsis-horizontal' },
   ];
 
   /**
@@ -204,8 +204,8 @@ export default function TransactionEntryScreen({ route, navigation }) {
   };
 
   const handlePickReceipt = () => {
-    Alert.alert('Add Receipt', null, [
-      { text: 'Take Photo', onPress: async () => {
+    Alert.alert(t('transactionEntry.addReceiptTitle'), null, [
+      { text: t('transactionEntry.takePhoto'), onPress: async () => {
         const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
         if (!result.canceled && result.assets?.[0]) {
           const uri = result.assets[0].uri;
@@ -213,7 +213,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
           autoExtractFromReceipt(uri); // fire-and-forget pre-fill
         }
       }},
-      { text: 'Choose from Gallery', onPress: async () => {
+      { text: t('transactionEntry.chooseFromGallery'), onPress: async () => {
         const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
         if (!result.canceled && result.assets?.[0]) {
           const uri = result.assets[0].uri;
@@ -221,7 +221,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
           autoExtractFromReceipt(uri);
         }
       }},
-      { text: 'Cancel', style: 'cancel' },
+      { text: t('common:buttons.cancel'), style: 'cancel' },
     ]);
   };
 
@@ -254,7 +254,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
     setAttemptedSubmit(true);
     // Validation
     if (needsProjectPicker && !selectedProject) {
-      Alert.alert('Required', 'Please select a project');
+      Alert.alert(t('alerts.required'), t('transactionEntry.pleaseSelectProject'));
       return;
     }
     if (!description.trim()) {
@@ -268,8 +268,8 @@ export default function TransactionEntryScreen({ route, navigation }) {
     // Phase / subcategory required for expenses (income still optional).
     if (type === 'expense' && !subcategory && !phaseId) {
       Alert.alert(
-        'Phase required',
-        'Pick a phase for this expense so the project budget breakdown stays accurate.'
+        t('transactionEntry.phaseRequiredTitle'),
+        t('transactionEntry.phaseRequiredMessage')
       );
       return;
     }
@@ -300,10 +300,10 @@ export default function TransactionEntryScreen({ route, navigation }) {
 
       if (isEditing) {
         await updateTransaction(transaction.id, transactionData);
-        Alert.alert(t('alerts.success'), t('messages.updatedSuccessfully', { item: 'Transaction' }));
+        Alert.alert(t('alerts.success'), t('messages.updatedSuccessfully', { item: t('transactionEntry.transaction') }));
       } else {
         await addProjectTransaction(transactionData);
-        Alert.alert(t('alerts.success'), t('messages.savedSuccessfully', { item: 'Transaction' }));
+        Alert.alert(t('alerts.success'), t('messages.savedSuccessfully', { item: t('transactionEntry.transaction') }));
       }
 
       if (onSave) {
@@ -312,7 +312,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
       navigation.goBack();
     } catch (error) {
       console.error('Error saving transaction:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'transaction' }));
+      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: t('transactionEntry.transactionLower') }));
     } finally {
       setSaving(false);
     }
@@ -571,7 +571,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
             <Ionicons name="close" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
           <Text testID="transactionEntry.headerTitle" style={styles.headerTitle}>
-            {isEditing ? 'Edit Transaction' : 'New Transaction'}
+            {isEditing ? t('transactionEntry.editTitle') : t('transactionEntry.newTitle')}
           </Text>
           <TouchableOpacity
             testID="transactionEntry.saveButton"
@@ -581,7 +581,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
             disabled={saving}
           >
             <Text style={[styles.saveButtonText, saving && styles.saveButtonTextDisabled]}>
-              Save
+              {t('common:buttons.save')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -594,7 +594,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
           {/* Project Selection */}
           {needsProjectPicker ? (
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Project</Text>
+              <Text style={styles.sectionLabel}>{t('transactionEntry.project')}</Text>
               <TouchableOpacity
                 testID="transactionEntry.projectSelector"
                 accessibilityLabel="Select project"
@@ -603,7 +603,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
               >
                 <Ionicons name="briefcase" size={18} color={selectedProject ? Colors.primaryText : Colors.placeholderText} />
                 <Text style={[styles.projectSelectorText, !selectedProject && styles.projectSelectorTextEmpty]}>
-                  {selectedProject?.name || 'Select a project...'}
+                  {selectedProject?.name || t('transactionEntry.selectProjectPlaceholder')}
                 </Text>
                 <Ionicons name="chevron-down" size={18} color={Colors.secondaryText} />
               </TouchableOpacity>
@@ -617,7 +617,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
 
           {/* Type Selection */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Type</Text>
+            <Text style={styles.sectionLabel}>{t('transactionEntry.type')}</Text>
             <View style={styles.typeContainer}>
               <TouchableOpacity
                 testID="transactionEntry.typeExpense"
@@ -631,7 +631,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
                   color={type === 'expense' ? Colors.white : '#EF4444'}
                 />
                 <Text style={[styles.typeButtonText, type === 'expense' && styles.typeButtonTextActive]}>
-                  Expense
+                  {t('transactionEntry.expense')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -646,7 +646,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
                   color={type === 'income' ? Colors.white : '#10B981'}
                 />
                 <Text style={[styles.typeButtonText, type === 'income' && styles.typeButtonTextActive]}>
-                  Income
+                  {t('transactionEntry.income')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -655,7 +655,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
           {/* Category (for expenses) */}
           {type === 'expense' && (
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Category</Text>
+              <Text style={styles.sectionLabel}>{t('transactionEntry.category')}</Text>
               <View style={styles.categoryGrid}>
                 {expenseCategories.map((cat) => (
                   <TouchableOpacity
@@ -703,7 +703,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
               ]}
             >
               <Text style={styles.sectionLabel}>
-                {phases.length > 0 ? 'Phase' : 'Phase or Trade'} <Text style={{ color: '#EF4444' }}>*</Text>
+                {phases.length > 0 ? t('transactionEntry.phase') : t('transactionEntry.phaseOrTrade')} <Text style={{ color: '#EF4444' }}>*</Text>
               </Text>
 
               <View style={styles.categoryGrid}>
@@ -790,18 +790,18 @@ export default function TransactionEntryScreen({ route, navigation }) {
                       subcategory === 'overhead' && [styles.categoryButtonTextActive, { color: '#10B981' }],
                     ]}
                   >
-                    Extras / Overhead
+                    {t('transactionEntry.extrasOverhead')}
                   </Text>
                 </TouchableOpacity>
               </View>
               {subcategory === 'overhead' && (
                 <Text style={{ color: Colors.secondaryText, fontSize: 12, marginTop: 8 }}>
-                  Use Description below to note what this extra was for.
+                  {t('transactionEntry.overheadHint')}
                 </Text>
               )}
               {attemptedSubmit && !subcategory && !phaseId && (
                 <Text style={{ color: '#EF4444', fontSize: 12, marginTop: 6 }}>
-                  Pick a phase so this expense rolls up to the right bucket.
+                  {t('transactionEntry.phaseRequiredHint')}
                 </Text>
               )}
             </View>
@@ -810,7 +810,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
           {/* Tax Category (for expenses, owners only — supervisors get the default from DEFAULT_TAX_CATEGORY) */}
           {type === 'expense' && !isSupervisor && (
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Tax Category (Optional)</Text>
+              <Text style={styles.sectionLabel}>{t('transactionEntry.taxCategoryOptional')}</Text>
               <View style={styles.categoryGrid}>
                 {TAX_CATEGORIES.map((tc) => (
                   <TouchableOpacity
@@ -840,7 +840,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
           {/* Income Type (subcategory for income) */}
           {type === 'income' && (
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Income Type (Optional)</Text>
+              <Text style={styles.sectionLabel}>{t('transactionEntry.incomeTypeOptional')}</Text>
               <View style={styles.categoryGrid}>
                 {INCOME_SUBCATEGORIES.map((sub) => (
                   <TouchableOpacity
@@ -870,7 +870,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
           {/* Payment Method (for income) */}
           {type === 'income' && (
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Payment Method</Text>
+              <Text style={styles.sectionLabel}>{t('transactionEntry.paymentMethod')}</Text>
               <View style={styles.categoryGrid}>
                 {paymentMethods.map((method) => (
                   <TouchableOpacity
@@ -904,21 +904,21 @@ export default function TransactionEntryScreen({ route, navigation }) {
 
           {/* Description */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Description</Text>
+            <Text style={styles.sectionLabel}>{t('transactionEntry.description')}</Text>
             <TextInput
               testID="transactionEntry.descriptionInput"
               accessibilityLabel="Description"
               style={styles.input}
               value={description}
               onChangeText={setDescription}
-              placeholder="e.g., Lumber for framing"
+              placeholder={t('transactionEntry.descriptionPlaceholder')}
               placeholderTextColor={Colors.placeholderText}
             />
           </View>
 
           {/* Amount */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Amount</Text>
+            <Text style={styles.sectionLabel}>{t('transactionEntry.amount')}</Text>
             <View style={styles.amountInputContainer}>
               <Text style={styles.currencySymbol}>$</Text>
               <TextInput
@@ -936,7 +936,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
 
           {/* Date — proper date picker */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Date</Text>
+            <Text style={styles.sectionLabel}>{t('transactionEntry.date')}</Text>
             <TouchableOpacity
               testID="transactionEntry.dateButton"
               accessibilityLabel="Select date"
@@ -959,7 +959,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
                 />
                 {Platform.OS === 'ios' && (
                   <TouchableOpacity testID="transactionEntry.datePickerDone" accessibilityLabel="Done selecting date" onPress={() => setShowDatePicker(false)} style={{ alignSelf: 'flex-end', padding: 8 }}>
-                    <Text style={{ color: '#3B82F6', fontWeight: '600' }}>Done</Text>
+                    <Text style={{ color: '#3B82F6', fontWeight: '600' }}>{t('common:buttons.done')}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -968,7 +968,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
 
           {/* Receipt Photo */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Receipt / Document</Text>
+            <Text style={styles.sectionLabel}>{t('transactionEntry.receiptDocument')}</Text>
             {receiptUri ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 <Image source={{ uri: receiptUri }} style={{ width: 80, height: 80, borderRadius: 8 }} />
@@ -977,18 +977,18 @@ export default function TransactionEntryScreen({ route, navigation }) {
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       <ActivityIndicator size="small" color="#3B82F6" />
                       <Text style={{ color: '#3B82F6', fontSize: 13, fontWeight: '600' }}>
-                        Reading receipt…
+                        {t('transactionEntry.readingReceipt')}
                       </Text>
                     </View>
                   ) : (
                     <>
                       <TouchableOpacity testID="transactionEntry.receiptReplaceButton" accessibilityLabel="Replace receipt" onPress={handlePickReceipt} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                         <Ionicons name="swap-horizontal" size={16} color="#3B82F6" />
-                        <Text style={{ color: '#3B82F6', fontWeight: '600', fontSize: 13 }}>Replace</Text>
+                        <Text style={{ color: '#3B82F6', fontWeight: '600', fontSize: 13 }}>{t('transactionEntry.replace')}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity testID="transactionEntry.receiptRemoveButton" accessibilityLabel="Remove receipt" onPress={() => setReceiptUri(null)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                         <Ionicons name="trash-outline" size={16} color="#EF4444" />
-                        <Text style={{ color: '#EF4444', fontWeight: '600', fontSize: 13 }}>Remove</Text>
+                        <Text style={{ color: '#EF4444', fontWeight: '600', fontSize: 13 }}>{t('transactionEntry.remove')}</Text>
                       </TouchableOpacity>
                     </>
                   )}
@@ -1002,21 +1002,21 @@ export default function TransactionEntryScreen({ route, navigation }) {
                 onPress={handlePickReceipt}
               >
                 <Ionicons name="camera-outline" size={20} color={Colors.secondaryText} />
-                <Text style={{ color: Colors.secondaryText, fontSize: 14 }}>Add receipt photo — auto-fills the form</Text>
+                <Text style={{ color: Colors.secondaryText, fontSize: 14 }}>{t('transactionEntry.addReceiptPhoto')}</Text>
               </TouchableOpacity>
             )}
           </View>
 
           {/* Notes */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Notes (Optional)</Text>
+            <Text style={styles.sectionLabel}>{t('transactionEntry.notesOptional')}</Text>
             <TextInput
               testID="transactionEntry.notesInput"
               accessibilityLabel="Notes"
               style={[styles.input, styles.notesInput]}
               value={notes}
               onChangeText={setNotes}
-              placeholder="Additional details..."
+              placeholder={t('transactionEntry.notesPlaceholder')}
               placeholderTextColor={Colors.placeholderText}
               multiline
               numberOfLines={4}
@@ -1036,7 +1036,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
               <TouchableOpacity testID="transactionEntry.projectPickerClose" accessibilityLabel="Close project picker" onPress={() => setShowProjectPicker(false)}>
                 <Ionicons name="close" size={24} color={Colors.primaryText} />
               </TouchableOpacity>
-              <Text testID="transactionEntry.projectPickerTitle" style={[styles.modalTitle, { color: Colors.primaryText }]}>Select Project</Text>
+              <Text testID="transactionEntry.projectPickerTitle" style={[styles.modalTitle, { color: Colors.primaryText }]}>{t('transactionEntry.selectProjectTitle')}</Text>
               <View style={{ width: 24 }} />
             </View>
             {loadingProjects ? (
@@ -1046,7 +1046,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
             ) : projects.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Ionicons name="folder-outline" size={48} color={Colors.secondaryText} />
-                <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>No active projects</Text>
+                <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>{t('transactionEntry.noActiveProjects')}</Text>
               </View>
             ) : (
               <FlatList

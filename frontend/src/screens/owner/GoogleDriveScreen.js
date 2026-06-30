@@ -22,6 +22,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
@@ -73,6 +74,7 @@ function formatDate(dateStr) {
 
 export default function GoogleDriveScreen() {
   const navigation = useNavigation();
+  const { t } = useTranslation('owner');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -149,9 +151,9 @@ export default function GoogleDriveScreen() {
       if (error.code === 'DRIVE_TOKEN_EXPIRED') {
         setConnected(false);
         setEmail('');
-        Alert.alert('Connection Expired', 'Please reconnect your Google Drive.');
+        Alert.alert(t('googleDrive.alerts.connectionExpired'), t('googleDrive.alerts.pleaseReconnect'));
       } else {
-        Alert.alert('Error', error.message || 'Failed to load files');
+        Alert.alert(t('common:alerts.error'), error.message || t('googleDrive.alerts.failedToLoadFiles'));
       }
     } finally {
       setFilesLoading(false);
@@ -166,7 +168,7 @@ export default function GoogleDriveScreen() {
       await startOAuthFlow();
       // Status refresh happens via deep link listener
     } catch (error) {
-      Alert.alert('Error', error.message || 'Failed to start connection');
+      Alert.alert(t('common:alerts.error'), error.message || t('googleDrive.alerts.failedToConnect'));
     } finally {
       setConnecting(false);
     }
@@ -175,12 +177,12 @@ export default function GoogleDriveScreen() {
   // ---- Disconnect ----
   const handleDisconnect = () => {
     Alert.alert(
-      'Disconnect Google Drive',
-      `Disconnect ${email}? Your imported files will remain in Sylk.`,
+      t('googleDrive.alerts.disconnectTitle'),
+      t('googleDrive.alerts.disconnectBody', { email }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
         {
-          text: 'Disconnect',
+          text: t('googleDrive.disconnectButton'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -191,7 +193,7 @@ export default function GoogleDriveScreen() {
               setFiles([]);
               setFolderStack([]);
             } catch (error) {
-              Alert.alert('Error', error.message || 'Failed to disconnect');
+              Alert.alert(t('common:alerts.error'), error.message || t('googleDrive.alerts.failedToDisconnect'));
             } finally {
               setDisconnecting(false);
             }
@@ -272,13 +274,13 @@ export default function GoogleDriveScreen() {
 
     try {
       await importFile(selectedFile.id, projectId, selectedFile.name);
-      Alert.alert('Imported', `"${selectedFile.name}" has been imported to your project.`);
+      Alert.alert(t('googleDrive.alerts.importedTitle'), t('googleDrive.alerts.importedBody', { name: selectedFile.name }));
     } catch (error) {
       if (error.code === 'DRIVE_NOT_CONNECTED' || error.code === 'DRIVE_TOKEN_EXPIRED') {
         setConnected(false);
-        Alert.alert('Connection Issue', 'Please reconnect your Google Drive.');
+        Alert.alert(t('googleDrive.alerts.connectionIssue'), t('googleDrive.alerts.pleaseReconnect'));
       } else {
-        Alert.alert('Import Failed', error.message || 'Could not import file');
+        Alert.alert(t('googleDrive.alerts.importFailed'), error.message || t('googleDrive.alerts.couldNotImport'));
       }
     } finally {
       setImportingFileId(null);
@@ -287,7 +289,7 @@ export default function GoogleDriveScreen() {
   };
 
   // ---- Breadcrumb ----
-  const breadcrumb = [{ id: null, name: 'My Drive' }, ...folderStack];
+  const breadcrumb = [{ id: null, name: t('googleDrive.myDrive') }, ...folderStack];
 
   // ---- Render file row ----
   const renderFileItem = ({ item }) => {
@@ -364,10 +366,10 @@ export default function GoogleDriveScreen() {
             <Ionicons name="logo-google" size={40} color={OWNER_COLORS.google} />
           </View>
           <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>
-            Connect Google Drive
+            {t('googleDrive.connectTitle')}
           </Text>
           <Text style={[styles.emptySubtitle, { color: Colors.secondaryText }]}>
-            Import and sync project documents with your Google Drive account.
+            {t('googleDrive.connectSubtitle')}
           </Text>
           <TouchableOpacity
             style={[styles.connectButton, { backgroundColor: OWNER_COLORS.google }]}
@@ -380,7 +382,7 @@ export default function GoogleDriveScreen() {
               <Ionicons name="logo-google" size={20} color="#FFF" />
             )}
             <Text style={styles.connectButtonText}>
-              {connecting ? 'Connecting...' : 'Connect Google Drive'}
+              {connecting ? t('googleDrive.connecting') : t('googleDrive.connectTitle')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -403,7 +405,7 @@ export default function GoogleDriveScreen() {
               {disconnecting ? (
                 <ActivityIndicator size="small" color={OWNER_COLORS.danger} />
               ) : (
-                <Text style={[styles.disconnectText, { color: OWNER_COLORS.danger }]}>Disconnect</Text>
+                <Text style={[styles.disconnectText, { color: OWNER_COLORS.danger }]}>{t('googleDrive.disconnectButton')}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -413,7 +415,7 @@ export default function GoogleDriveScreen() {
             <Ionicons name="search" size={18} color={Colors.secondaryText} />
             <TextInput
               style={[styles.searchInput, { color: Colors.primaryText }]}
-              placeholder="Search Drive files..."
+              placeholder={t('googleDrive.searchPlaceholder')}
               placeholderTextColor={Colors.secondaryText}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -456,7 +458,7 @@ export default function GoogleDriveScreen() {
           {searchMode && (
             <View style={[styles.searchResultsBar, { borderBottomColor: Colors.border }]}>
               <Text style={[styles.searchResultsText, { color: Colors.secondaryText }]}>
-                Search results for "{searchQuery}" ({files.length} found)
+                {t('googleDrive.searchResults', { query: searchQuery, count: files.length })}
               </Text>
             </View>
           )}
@@ -485,7 +487,7 @@ export default function GoogleDriveScreen() {
                 <View style={styles.emptyFiles}>
                   <Ionicons name="folder-open-outline" size={40} color={Colors.secondaryText} />
                   <Text style={[styles.emptyFilesText, { color: Colors.secondaryText }]}>
-                    {searchMode ? 'No files match your search' : 'This folder is empty'}
+                    {searchMode ? t('googleDrive.noSearchResults') : t('googleDrive.emptyFolder')}
                   </Text>
                 </View>
               }
@@ -507,7 +509,7 @@ export default function GoogleDriveScreen() {
               <Ionicons name="close" size={28} color={Colors.primaryText} />
             </TouchableOpacity>
             <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>
-              Import to Project
+              {t('googleDrive.importToProject')}
             </Text>
             <View style={{ width: 28 }} />
           </View>
@@ -528,7 +530,7 @@ export default function GoogleDriveScreen() {
           ) : projects.length === 0 ? (
             <View style={styles.emptyFiles}>
               <Text style={[styles.emptyFilesText, { color: Colors.secondaryText }]}>
-                No projects found. Create a project first.
+                {t('googleDrive.noProjects')}
               </Text>
             </View>
           ) : (

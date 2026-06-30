@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { CATEGORY_COLORS, CATEGORY_LABELS } from '../../utils/financialReportUtils';
@@ -11,6 +12,7 @@ const formatCurrency = (amount) => {
 };
 
 export default function CategoryBreakdownBar({ breakdown, total }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -22,7 +24,7 @@ export default function CategoryBreakdownBar({ breakdown, total }) {
 
   return (
     <View style={[styles.container, { backgroundColor: Colors.cardBackground }]}>
-      <Text style={[styles.title, { color: Colors.primaryText }]}>Cost Breakdown</Text>
+      <Text style={[styles.title, { color: Colors.primaryText }]}>{t('categoryBreakdownBar.title')}</Text>
 
       {/* Stacked bar */}
       <View style={[styles.barContainer, { backgroundColor: Colors.lightGray }]}>

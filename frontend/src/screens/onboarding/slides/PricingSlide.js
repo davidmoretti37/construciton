@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Dimensions, ScrollView } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -102,6 +103,7 @@ const AnimatedBenefitItem = ({ text, index, animationKey }) => {
 // Animated title that pulses on change
 // NO SCALE - prevents iOS rasterization blur, using opacity pulse instead
 const AnimatedBenefitsTitle = ({ planName, animationKey }) => {
+  const { t } = useTranslation('onboarding');
   const translateY = useSharedValue(0);
   const opacity = useSharedValue(1);
 
@@ -120,12 +122,13 @@ const AnimatedBenefitsTitle = ({ planName, animationKey }) => {
 
   return (
     <Animated.Text style={[styles.benefitsTitle, animatedStyle]}>
-      What you get with {planName}:
+      {t('pricingSlide.benefitsTitle', { planName })}
     </Animated.Text>
   );
 };
 
 export default function PricingSlide({ isActive = true, selectedPlan, onSelectPlan, onStartTrial }) {
+  const { t } = useTranslation('onboarding');
   const currentBenefits = BENEFITS[selectedPlan] || BENEFITS.pro;
   const currentPlanName = PLANS.find(p => p.id === selectedPlan)?.name || 'Pro';
 
@@ -157,8 +160,8 @@ export default function PricingSlide({ isActive = true, selectedPlan, onSelectPl
     >
       {/* Header */}
       <Animated.View style={[styles.header, headerAnim]}>
-        <Text style={styles.title}>Choose Your Plan</Text>
-        <Text style={styles.subtitle}>Start with 7 days free. Cancel anytime.</Text>
+        <Text style={styles.title}>{t('pricingSlide.title')}</Text>
+        <Text style={styles.subtitle}>{t('pricingSlide.subtitle')}</Text>
       </Animated.View>
 
       {/* Plan cards */}
@@ -196,7 +199,7 @@ export default function PricingSlide({ isActive = true, selectedPlan, onSelectPl
         {/* Trial benefit - always last */}
         <AnimatedBenefitItem
           key={`${selectedPlan}-trial`}
-          text="7-day free trial included"
+          text={t('pricingSlide.trialBenefit')}
           index={currentBenefits.length}
           animationKey={animationKey}
         />
@@ -205,7 +208,7 @@ export default function PricingSlide({ isActive = true, selectedPlan, onSelectPl
       {/* CTA */}
       <Animated.View style={[styles.ctaContainer, ctaAnim]}>
         <ShimmerButton
-          title="Start Free Trial"
+          title={t('pricingSlide.startTrial')}
           onPress={onStartTrial}
           gradientColors={['#3B82F6', '#06B6D4']}
         />
@@ -215,12 +218,12 @@ export default function PricingSlide({ isActive = true, selectedPlan, onSelectPl
       <Animated.View style={[styles.trustFooter, footerAnim]}>
         <View style={styles.trustItem}>
           <Ionicons name="shield-checkmark" size={14} color="#64748B" />
-          <Text style={styles.trustText}>Secure</Text>
+          <Text style={styles.trustText}>{t('pricingSlide.secure')}</Text>
         </View>
         <View style={styles.trustDivider} />
         <View style={styles.trustItem}>
           <Ionicons name="refresh" size={14} color="#64748B" />
-          <Text style={styles.trustText}>Cancel anytime</Text>
+          <Text style={styles.trustText}>{t('pricingSlide.cancelAnytime')}</Text>
         </View>
         <View style={styles.trustDivider} />
         <View style={styles.trustItem}>

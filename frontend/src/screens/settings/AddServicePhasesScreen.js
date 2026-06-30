@@ -26,7 +26,7 @@ import { getPhaseTemplates } from '../../services/serviceDataService';
 export default function AddServicePhasesScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
-  const { t } = useTranslation('common');
+  const { t } = useTranslation('settings');
   const { categoryId, categoryName, categoryIcon } = route.params || {};
 
   const [phases, setPhases] = useState([]);
@@ -52,7 +52,7 @@ export default function AddServicePhasesScreen({ navigation, route }) {
       setPhases(editablePhases);
     } catch (error) {
       console.error('Error loading phase templates:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'phase templates' }));
+      Alert.alert(t('common:alerts.error'), t('addServicePhases.failedToLoadTemplates'));
     } finally {
       setLoading(false);
     }
@@ -104,17 +104,17 @@ export default function AddServicePhasesScreen({ navigation, route }) {
 
   const handleDeletePhase = (index) => {
     if (phases.length === 1) {
-      Alert.alert(t('alerts.cannotDelete'), t('messages.atLeastOne', { item: 'phase' }));
+      Alert.alert(t('addServicePhases.cannotDeleteTitle'), t('addServicePhases.atLeastOnePhase'));
       return;
     }
 
     Alert.alert(
-      t('alerts.cannotDelete'),
-      t('messages.confirmDeletePhase'),
+      t('addServicePhases.deletePhaseTitle'),
+      t('addServicePhases.deletePhaseConfirm'),
       [
-        { text: t('buttons.cancel'), style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
         {
-          text: t('buttons.delete'),
+          text: t('common:buttons.delete'),
           style: 'destructive',
           onPress: () => {
             setPhases(phases.filter((_, i) => i !== index));
@@ -149,7 +149,7 @@ export default function AddServicePhasesScreen({ navigation, route }) {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primaryBlue} />
           <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>
-            Loading phases...
+            {t('addServicePhases.loadingPhases')}
           </Text>
         </View>
       </SafeAreaView>
@@ -163,7 +163,7 @@ export default function AddServicePhasesScreen({ navigation, route }) {
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Configure Phases</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('addServicePhases.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -177,7 +177,7 @@ export default function AddServicePhasesScreen({ navigation, route }) {
           <View style={styles.serviceInfo}>
             <Text style={[styles.serviceName, { color: Colors.primaryText }]}>{categoryName}</Text>
             <Text style={[styles.serviceSubtitle, { color: Colors.secondaryText }]}>
-              Customize your workflow phases
+              {t('addServicePhases.subtitle')}
             </Text>
           </View>
         </View>
@@ -208,7 +208,7 @@ export default function AddServicePhasesScreen({ navigation, route }) {
                     </View>
                     <View style={styles.phaseInfo}>
                       <Text style={[styles.phaseName, { color: Colors.primaryText }]}>
-                        {phase.name || 'Unnamed Phase'}
+                        {phase.name || t('addServicePhases.unnamedPhase')}
                       </Text>
                       {phase.description && (
                         <Text style={[styles.phaseDescription, { color: Colors.secondaryText }]}>
@@ -216,7 +216,7 @@ export default function AddServicePhasesScreen({ navigation, route }) {
                         </Text>
                       )}
                       <Text style={[styles.phaseDays, { color: Colors.secondaryText }]}>
-                        ~{phase.defaultDays || 1} days
+                        {t('addServicePhases.daysCount', { count: phase.defaultDays || 1 })}
                       </Text>
                     </View>
                   </View>
@@ -242,7 +242,7 @@ export default function AddServicePhasesScreen({ navigation, route }) {
                 {phase.tasks && phase.tasks.length > 0 && (
                   <View style={styles.tasksContainer}>
                     <Text style={[styles.tasksTitle, { color: Colors.secondaryText }]}>
-                      Tasks:
+                      {t('addServicePhases.tasksColon')}
                     </Text>
                     {phase.tasks.map((task, taskIndex) => (
                       <View key={taskIndex} style={styles.taskItem}>
@@ -260,7 +260,7 @@ export default function AddServicePhasesScreen({ navigation, route }) {
             <View style={styles.emptyState}>
               <Ionicons name="git-network-outline" size={64} color={Colors.secondaryText} />
               <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-                No phases yet. Add your first phase below.
+                {t('addServicePhases.emptyState')}
               </Text>
             </View>
           )}
@@ -273,7 +273,7 @@ export default function AddServicePhasesScreen({ navigation, route }) {
           >
             <Ionicons name="add-circle-outline" size={24} color={Colors.primaryBlue} />
             <Text style={[styles.addPhaseText, { color: Colors.primaryBlue }]}>
-              Add Phase
+              {t('addServicePhases.addPhase')}
             </Text>
           </TouchableOpacity>
         </ScrollView>
@@ -286,7 +286,7 @@ export default function AddServicePhasesScreen({ navigation, route }) {
           onPress={handleContinue}
           activeOpacity={0.8}
         >
-          <Text style={styles.buttonText}>Continue to Pricing</Text>
+          <Text style={styles.buttonText}>{t('addServicePhases.continueToPricing')}</Text>
           <Ionicons name="arrow-forward" size={20} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -318,7 +318,7 @@ function PhaseEditModal({ phase, onSave, onCancel, Colors, t }) {
 
   const handleSave = () => {
     if (!name.trim()) {
-      Alert.alert(t('alerts.error'), t('messages.pleaseEnter', { item: 'phase name' }));
+      Alert.alert(t('common:alerts.error'), t('addServicePhases.pleaseEnterPhaseName'));
       return;
     }
 
@@ -354,34 +354,34 @@ function PhaseEditModal({ phase, onSave, onCancel, Colors, t }) {
             <Ionicons name="close" size={28} color={Colors.primaryText} />
           </TouchableOpacity>
           <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>
-            {phase.isNew ? 'Add Phase' : 'Edit Phase'}
+            {phase.isNew ? t('addServicePhases.addPhase') : t('addServicePhases.editPhase')}
           </Text>
           <TouchableOpacity onPress={handleSave}>
-            <Text style={[styles.saveText, { color: Colors.primaryBlue }]}>Save</Text>
+            <Text style={[styles.saveText, { color: Colors.primaryBlue }]}>{t('common:buttons.save')}</Text>
           </TouchableOpacity>
         </View>
 
         <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
           {/* Phase Name */}
           <View style={styles.modalField}>
-            <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>Phase Name *</Text>
+            <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>{t('addServicePhases.phaseNameLabel')}</Text>
             <TextInput
               style={[styles.modalInput, { backgroundColor: Colors.white, color: Colors.primaryText, borderColor: Colors.border }]}
               value={name}
               onChangeText={setName}
-              placeholder="e.g., Site Preparation"
+              placeholder={t('addServicePhases.phaseNamePlaceholder')}
               placeholderTextColor={Colors.secondaryText}
             />
           </View>
 
           {/* Description */}
           <View style={styles.modalField}>
-            <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>Description</Text>
+            <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>{t('addServicePhases.descriptionLabel')}</Text>
             <TextInput
               style={[styles.modalInput, styles.modalTextArea, { backgroundColor: Colors.white, color: Colors.primaryText, borderColor: Colors.border }]}
               value={description}
               onChangeText={setDescription}
-              placeholder="What happens in this phase..."
+              placeholder={t('addServicePhases.descriptionPlaceholder')}
               placeholderTextColor={Colors.secondaryText}
               multiline
               numberOfLines={3}
@@ -390,7 +390,7 @@ function PhaseEditModal({ phase, onSave, onCancel, Colors, t }) {
 
           {/* Days */}
           <View style={styles.modalField}>
-            <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>Estimated Days</Text>
+            <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>{t('addServicePhases.estimatedDaysLabel')}</Text>
             <TextInput
               style={[styles.modalInput, { backgroundColor: Colors.white, color: Colors.primaryText, borderColor: Colors.border }]}
               value={days}
@@ -403,7 +403,7 @@ function PhaseEditModal({ phase, onSave, onCancel, Colors, t }) {
 
           {/* Tasks */}
           <View style={styles.modalField}>
-            <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>Tasks</Text>
+            <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>{t('addServicePhases.tasksLabel')}</Text>
 
             {tasks.map((task, index) => (
               <View key={index} style={[styles.taskRow, { backgroundColor: Colors.white }]}>
@@ -419,7 +419,7 @@ function PhaseEditModal({ phase, onSave, onCancel, Colors, t }) {
                 style={[styles.addTaskInput, { color: Colors.primaryText }]}
                 value={newTask}
                 onChangeText={setNewTask}
-                placeholder="Add a task..."
+                placeholder={t('addServicePhases.addTaskPlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 onSubmitEditing={handleAddTask}
                 returnKeyType="done"

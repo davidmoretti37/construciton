@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import MiniSparkline from './svg/MiniSparkline';
 
 function fmtK(amount) {
@@ -12,6 +13,7 @@ function fmtK(amount) {
 }
 
 export default function PnLWidget({ pnl, size, editMode, onPress }) {
+  const { t } = useTranslation('common');
   // Decorative sparkline data — use revenue/expense/profit to create a simple shape
   const sparkData = [
     pnl.expenses * 0.6,
@@ -36,17 +38,17 @@ export default function PnLWidget({ pnl, size, editMode, onPress }) {
         end={{ x: 1, y: 1 }}
         style={styles.gradient}
       >
-        <Text style={styles.label}>ALL TIME</Text>
+        <Text style={styles.label}>{t('pnLWidget.allTime')}</Text>
         <Text style={styles.revenue}>{fmtK(pnl.revenue)}</Text>
 
         <View style={styles.pills}>
           <View style={styles.expensePill}>
             <Ionicons name="arrow-down-outline" size={11} color="#FCA5A5" />
-            <Text style={styles.expenseText}>{fmtK(pnl.expenses)} Expenses</Text>
+            <Text style={styles.expenseText}>{t('pnLWidget.expenses', { amount: fmtK(pnl.expenses) })}</Text>
           </View>
           <View style={styles.profitPill}>
             <Ionicons name="arrow-up-outline" size={11} color="#6EE7B7" />
-            <Text style={styles.profitText}>{fmtK(pnl.profit)} Profit</Text>
+            <Text style={styles.profitText}>{t('pnLWidget.profit', { amount: fmtK(pnl.profit) })}</Text>
           </View>
         </View>
 
@@ -63,7 +65,7 @@ export default function PnLWidget({ pnl, size, editMode, onPress }) {
 
         <View style={styles.footer}>
           <View style={styles.footerBtn}>
-            <Text style={styles.footerText}>View Full P&L Report</Text>
+            <Text style={styles.footerText}>{t('pnLWidget.viewReport')}</Text>
             <Ionicons name="chevron-forward" size={13} color="#38BDF8" />
           </View>
         </View>

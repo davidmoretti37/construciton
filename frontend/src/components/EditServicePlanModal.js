@@ -3,6 +3,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   View,
   Text,
@@ -34,6 +35,7 @@ const STATUS_OPTIONS = [
 ];
 
 export default function EditServicePlanModal({ visible, onClose, plan, onSave }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -66,7 +68,7 @@ export default function EditServicePlanModal({ visible, onClose, plan, onSave })
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('Required', 'Plan name is required.');
+      Alert.alert(t('editServicePlanModal.requiredTitle'), t('editServicePlanModal.planNameRequired'));
       return;
     }
 
@@ -74,11 +76,11 @@ export default function EditServicePlanModal({ visible, onClose, plan, onSave })
     const monthVal = parseFloat(monthlyRate) || null;
 
     if (billingCycle === 'per_visit' && (!priceVal || priceVal <= 0)) {
-      Alert.alert('Required', 'Price per visit must be greater than 0.');
+      Alert.alert(t('editServicePlanModal.requiredTitle'), t('editServicePlanModal.pricePerVisitRequired'));
       return;
     }
     if ((billingCycle === 'monthly' || billingCycle === 'quarterly') && (!monthVal || monthVal <= 0)) {
-      Alert.alert('Required', 'Monthly rate must be greater than 0.');
+      Alert.alert(t('editServicePlanModal.requiredTitle'), t('editServicePlanModal.monthlyRateRequired'));
       return;
     }
 
@@ -107,7 +109,7 @@ export default function EditServicePlanModal({ visible, onClose, plan, onSave })
       onClose();
     } catch (e) {
       console.error('Error updating service plan:', e);
-      Alert.alert('Error', 'Failed to update service plan.');
+      Alert.alert(t('common:alerts.error'), t('editServicePlanModal.updateError'));
     } finally {
       setSaving(false);
     }
@@ -125,7 +127,7 @@ export default function EditServicePlanModal({ visible, onClose, plan, onSave })
           <View style={[styles.container, { backgroundColor: Colors.cardBackground }]}>
             {/* Header */}
             <View style={styles.header}>
-              <Text style={[styles.title, { color: Colors.primaryText }]}>Edit Service Plan</Text>
+              <Text style={[styles.title, { color: Colors.primaryText }]}>{t('editServicePlanModal.title')}</Text>
               <TouchableOpacity onPress={onClose}>
                 <Ionicons name="close" size={24} color={Colors.secondaryText} />
               </TouchableOpacity>
@@ -133,44 +135,44 @@ export default function EditServicePlanModal({ visible, onClose, plan, onSave })
 
             <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
               {/* Name */}
-              <Text style={[styles.label, { color: Colors.secondaryText }]}>Plan Name *</Text>
+              <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('editServicePlanModal.planNameLabel')}</Text>
               <TextInput
                 style={[styles.input, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.inputBackground }]}
                 value={name}
                 onChangeText={setName}
-                placeholder="Plan name"
+                placeholder={t('editServicePlanModal.planNamePlaceholder')}
                 placeholderTextColor={Colors.placeholderText}
               />
 
               {/* Client */}
-              <Text style={[styles.label, { color: Colors.secondaryText }]}>Client Name</Text>
+              <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('editServicePlanModal.clientNameLabel')}</Text>
               <TextInput
                 style={[styles.input, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.inputBackground }]}
                 value={clientName}
                 onChangeText={setClientName}
-                placeholder="Client name"
+                placeholder={t('editServicePlanModal.clientNamePlaceholder')}
                 placeholderTextColor={Colors.placeholderText}
               />
 
               <View style={styles.row}>
                 <View style={{ flex: 1, marginRight: 8 }}>
-                  <Text style={[styles.label, { color: Colors.secondaryText }]}>Phone</Text>
+                  <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('editServicePlanModal.phone')}</Text>
                   <TextInput
                     style={[styles.input, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.inputBackground }]}
                     value={clientPhone}
                     onChangeText={setClientPhone}
-                    placeholder="Phone"
+                    placeholder={t('editServicePlanModal.phone')}
                     placeholderTextColor={Colors.placeholderText}
                     keyboardType="phone-pad"
                   />
                 </View>
                 <View style={{ flex: 1, marginLeft: 8 }}>
-                  <Text style={[styles.label, { color: Colors.secondaryText }]}>Email</Text>
+                  <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('editServicePlanModal.email')}</Text>
                   <TextInput
                     style={[styles.input, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.inputBackground }]}
                     value={clientEmail}
                     onChangeText={setClientEmail}
-                    placeholder="Email"
+                    placeholder={t('editServicePlanModal.email')}
                     placeholderTextColor={Colors.placeholderText}
                     keyboardType="email-address"
                     autoCapitalize="none"
@@ -179,7 +181,7 @@ export default function EditServicePlanModal({ visible, onClose, plan, onSave })
               </View>
 
               {/* Billing */}
-              <Text style={[styles.label, { color: Colors.secondaryText }]}>Billing Cycle</Text>
+              <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('editServicePlanModal.billingCycleLabel')}</Text>
               <View style={styles.optionRow}>
                 {BILLING_OPTIONS.map(opt => (
                   <TouchableOpacity
@@ -202,7 +204,7 @@ export default function EditServicePlanModal({ visible, onClose, plan, onSave })
 
               {billingCycle === 'per_visit' ? (
                 <>
-                  <Text style={[styles.label, { color: Colors.secondaryText }]}>Price per Visit ($)</Text>
+                  <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('editServicePlanModal.pricePerVisitLabel')}</Text>
                   <TextInput
                     style={[styles.input, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.inputBackground }]}
                     value={pricePerVisit}
@@ -214,7 +216,7 @@ export default function EditServicePlanModal({ visible, onClose, plan, onSave })
                 </>
               ) : (
                 <>
-                  <Text style={[styles.label, { color: Colors.secondaryText }]}>Monthly Rate ($)</Text>
+                  <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('editServicePlanModal.monthlyRateLabel')}</Text>
                   <TextInput
                     style={[styles.input, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.inputBackground }]}
                     value={monthlyRate}
@@ -227,7 +229,7 @@ export default function EditServicePlanModal({ visible, onClose, plan, onSave })
               )}
 
               {/* Status */}
-              <Text style={[styles.label, { color: Colors.secondaryText }]}>Status</Text>
+              <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('editServicePlanModal.statusLabel')}</Text>
               <View style={styles.optionRow}>
                 {STATUS_OPTIONS.map(opt => (
                   <TouchableOpacity
@@ -249,24 +251,24 @@ export default function EditServicePlanModal({ visible, onClose, plan, onSave })
               </View>
 
               {/* Description */}
-              <Text style={[styles.label, { color: Colors.secondaryText }]}>Description</Text>
+              <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('editServicePlanModal.descriptionLabel')}</Text>
               <TextInput
                 style={[styles.input, styles.multiline, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.inputBackground }]}
                 value={description}
                 onChangeText={setDescription}
-                placeholder="Service description"
+                placeholder={t('editServicePlanModal.descriptionPlaceholder')}
                 placeholderTextColor={Colors.placeholderText}
                 multiline
                 numberOfLines={3}
               />
 
               {/* Notes */}
-              <Text style={[styles.label, { color: Colors.secondaryText }]}>Notes</Text>
+              <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('editServicePlanModal.notesLabel')}</Text>
               <TextInput
                 style={[styles.input, styles.multiline, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.inputBackground }]}
                 value={notes}
                 onChangeText={setNotes}
-                placeholder="Internal notes"
+                placeholder={t('editServicePlanModal.notesPlaceholder')}
                 placeholderTextColor={Colors.placeholderText}
                 multiline
                 numberOfLines={3}
@@ -281,7 +283,7 @@ export default function EditServicePlanModal({ visible, onClose, plan, onSave })
               onPress={handleSave}
               disabled={saving}
             >
-              <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save Changes'}</Text>
+              <Text style={styles.saveBtnText}>{saving ? t('common:status.saving') : t('editServicePlanModal.saveChanges')}</Text>
             </TouchableOpacity>
           </View>
         </View>

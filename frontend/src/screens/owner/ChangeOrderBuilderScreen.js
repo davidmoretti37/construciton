@@ -20,6 +20,7 @@ import {
   TextInput, ActivityIndicator, Alert, AppState, Switch, Modal, FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../contexts/ThemeContext';
 import { LightColors, DarkColors } from '../../constants/theme';
 import {
@@ -64,6 +65,7 @@ function pillForStatus(status) {
 }
 
 export default function ChangeOrderBuilderScreen({ route, navigation }) {
+  const { t } = useTranslation('owner');
   const { isDark } = useTheme();
   const Colors = isDark ? DarkColors : LightColors;
   const styles = makeStyles(Colors);
@@ -259,29 +261,29 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
   // ───── Send ────────────────────────────────────────────────────
   const handleSend = async () => {
     if (!projectId) {
-      Alert.alert('Pick a project'); setExpanded((s) => ({ ...s, basics: true })); return;
+      Alert.alert(t('changeOrderBuilder.pickProject')); setExpanded((s) => ({ ...s, basics: true })); return;
     }
     if (!title?.trim()) {
-      Alert.alert('Add a title'); setExpanded((s) => ({ ...s, basics: true })); return;
+      Alert.alert(t('changeOrderBuilder.addTitle')); setExpanded((s) => ({ ...s, basics: true })); return;
     }
     if (items.length === 0 || items.every((it) => !it.description?.trim())) {
-      Alert.alert('Add at least one line item'); setExpanded((s) => ({ ...s, lineItems: true })); return;
+      Alert.alert(t('changeOrderBuilder.addLineItemTitle')); setExpanded((s) => ({ ...s, lineItems: true })); return;
     }
     try {
       setSaveState('saving');
       await flushSaveRef.current();
       if (!coId) {
-        Alert.alert('Save failed', 'Could not save the change order. Please try again.');
+        Alert.alert(t('changeOrderBuilder.saveFailedTitle'), t('changeOrderBuilder.saveFailedBody'));
         return;
       }
       await sendChangeOrder(coId);
       setStatus('sent');
       setSaveState('saved');
-      Alert.alert('Sent', `CO-${String(coNumber || '').padStart(3, '0')} sent to the client portal.`);
+      Alert.alert(t('changeOrderBuilder.sentTitle'), t('changeOrderBuilder.sentBody', { number: String(coNumber || '').padStart(3, '0') }));
     } catch (e) {
       console.warn('[CO Builder] send failed', e);
       setSaveState('error');
-      Alert.alert('Send failed', e?.message || 'Please try again.');
+      Alert.alert(t('changeOrderBuilder.sendFailedTitle'), e?.message || t('changeOrderBuilder.sendFailedBody'));
     }
   };
 
@@ -308,7 +310,7 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center' }}>
           <Text testID="changeOrderBuilder.headerTitle" style={[styles.headerTitle, { color: Colors.primaryText }]}>
-            {coNumber ? `CO-${String(coNumber).padStart(3, '0')}` : 'New change order'}
+            {coNumber ? `CO-${String(coNumber).padStart(3, '0')}` : t('changeOrderBuilder.newChangeOrder')}
           </Text>
           <SaveIndicator state={saveState} readOnly={readOnly} Colors={Colors} />
         </View>
@@ -321,11 +323,11 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
 
         {/* Section 1 — Basics */}
         <Section
-          sectionKey="basics" title="Change order basics" icon="document-text-outline"
+          sectionKey="basics" title={t('changeOrderBuilder.sectionBasics')} icon="document-text-outline"
           expanded={!!expanded.basics} chip={sectionChip('basics')} onToggle={toggle}
           Colors={Colors} styles={styles}
         >
-          <Field label="Project *" Colors={Colors} styles={styles}>
+          <Field label={t('changeOrderBuilder.fieldProject')} Colors={Colors} styles={styles}>
             <TouchableOpacity
               testID="changeOrderBuilder.projectPickerButton"
               accessibilityLabel="Pick a project"
@@ -334,30 +336,30 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
               activeOpacity={readOnly ? 1 : 0.7}
             >
               <Text testID="changeOrderBuilder.projectName" style={[styles.inputText, !projectId && styles.placeholderText]}>
-                {projectName || (projectId ? '(loading project name)' : 'Pick a project')}
+                {projectName || (projectId ? t('changeOrderBuilder.loadingProjectName') : t('changeOrderBuilder.pickProject'))}
               </Text>
             </TouchableOpacity>
           </Field>
-          <Field label="Title *" Colors={Colors} styles={styles}>
+          <Field label={t('changeOrderBuilder.fieldTitle')} Colors={Colors} styles={styles}>
             <TextInput
               testID="changeOrderBuilder.titleInput"
               accessibilityLabel="Title"
               style={styles.input}
               value={title}
               onChangeText={setTitle}
-              placeholder="e.g. Add wainscoting to dining room"
+              placeholder={t('changeOrderBuilder.titlePlaceholder')}
               placeholderTextColor={Colors.placeholder || '#9CA3AF'}
               editable={!readOnly}
             />
           </Field>
-          <Field label="Justification / description" Colors={Colors} styles={styles}>
+          <Field label={t('changeOrderBuilder.fieldJustification')} Colors={Colors} styles={styles}>
             <TextInput
               testID="changeOrderBuilder.descriptionInput"
               accessibilityLabel="Justification or description"
               style={[styles.input, styles.multilineInput]}
               value={description}
               onChangeText={setDescription}
-              placeholder="Why is this change needed? What's included?"
+              placeholder={t('changeOrderBuilder.justificationPlaceholder')}
               placeholderTextColor={Colors.placeholder || '#9CA3AF'}
               multiline
               editable={!readOnly}
@@ -367,7 +369,7 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
 
         {/* Section 2 — Line items */}
         <Section
-          sectionKey="lineItems" title="Line items" icon="list-outline"
+          sectionKey="lineItems" title={t('changeOrderBuilder.sectionLineItems')} icon="list-outline"
           expanded={!!expanded.lineItems} chip={sectionChip('lineItems')} onToggle={toggle}
           Colors={Colors} styles={styles}
         >
@@ -376,11 +378,11 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
 
         {/* Section 3 — Pricing */}
         <Section
-          sectionKey="pricing" title="Pricing & tax" icon="calculator-outline"
+          sectionKey="pricing" title={t('changeOrderBuilder.sectionPricing')} icon="calculator-outline"
           expanded={!!expanded.pricing} chip={sectionChip('pricing')} onToggle={toggle}
           Colors={Colors} styles={styles}
         >
-          <Field label="Tax rate (%)" Colors={Colors} styles={styles}>
+          <Field label={t('changeOrderBuilder.taxRate')} Colors={Colors} styles={styles}>
             <TextInput
               testID="changeOrderBuilder.taxRateInput"
               accessibilityLabel="Tax rate percent"
@@ -392,20 +394,20 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
             />
           </Field>
           <View style={{ marginTop: 12 }}>
-            <SummaryRow label="Subtotal"   value={fmt$(subtotal)}  valueTestID="changeOrderBuilder.subtotal"  styles={styles} />
-            <SummaryRow label="Tax"        value={fmt$(taxAmount)} valueTestID="changeOrderBuilder.taxAmount" styles={styles} />
+            <SummaryRow label={t('changeOrderBuilder.subtotal')}   value={fmt$(subtotal)}  valueTestID="changeOrderBuilder.subtotal"  styles={styles} />
+            <SummaryRow label={t('changeOrderBuilder.tax')}        value={fmt$(taxAmount)} valueTestID="changeOrderBuilder.taxAmount" styles={styles} />
             <View style={styles.divider} />
-            <SummaryRow label="Total"      value={fmt$(total)}     valueTestID="changeOrderBuilder.total" bold styles={styles} />
+            <SummaryRow label={t('changeOrderBuilder.total')}      value={fmt$(total)}     valueTestID="changeOrderBuilder.total" bold styles={styles} />
           </View>
         </Section>
 
         {/* Section 4 — Schedule & billing */}
         <Section
-          sectionKey="schedule" title="Schedule & billing" icon="calendar-outline"
+          sectionKey="schedule" title={t('changeOrderBuilder.sectionSchedule')} icon="calendar-outline"
           expanded={!!expanded.schedule} chip={sectionChip('schedule')} onToggle={toggle}
           Colors={Colors} styles={styles}
         >
-          <Field label="Schedule impact (days)" Colors={Colors} styles={styles}>
+          <Field label={t('changeOrderBuilder.fieldScheduleImpact')} Colors={Colors} styles={styles}>
             <TextInput
               testID="changeOrderBuilder.scheduleImpactInput"
               accessibilityLabel="Schedule impact in days"
@@ -416,7 +418,7 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
               editable={!readOnly}
             />
           </Field>
-          <Field label="Billing strategy" Colors={Colors} styles={styles}>
+          <Field label={t('changeOrderBuilder.fieldBillingStrategy')} Colors={Colors} styles={styles}>
             {BILLING_STRATEGIES.map((opt) => (
               <TouchableOpacity
                 key={opt.key}
@@ -439,20 +441,20 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
 
         {/* Section 5 — Review & send */}
         <Section
-          sectionKey="review" title="Review & send" icon="paper-plane-outline"
+          sectionKey="review" title={t('changeOrderBuilder.sectionReview')} icon="paper-plane-outline"
           expanded={!!expanded.review} chip={sectionChip('review')} onToggle={toggle}
           Colors={Colors} styles={styles}
         >
           <View style={styles.reviewBlock}>
-            <Text style={styles.reviewLabel}>Title</Text>
+            <Text style={styles.reviewLabel}>{t('changeOrderBuilder.reviewTitleLabel')}</Text>
             <Text testID="changeOrderBuilder.reviewTitle" style={styles.reviewValue}>{title || '—'}</Text>
-            <Text style={[styles.reviewLabel, { marginTop: 12 }]}>Project</Text>
+            <Text style={[styles.reviewLabel, { marginTop: 12 }]}>{t('changeOrderBuilder.reviewProjectLabel')}</Text>
             <Text testID="changeOrderBuilder.reviewProject" style={styles.reviewValue}>{projectName || '—'}</Text>
-            <Text style={[styles.reviewLabel, { marginTop: 12 }]}>Total</Text>
+            <Text style={[styles.reviewLabel, { marginTop: 12 }]}>{t('changeOrderBuilder.total')}</Text>
             <Text testID="changeOrderBuilder.reviewTotal" style={[styles.reviewValue, { fontSize: 22, fontWeight: '800' }]}>{fmt$(total)}</Text>
-            <Text testID="changeOrderBuilder.reviewItemCount" style={styles.reviewSub}>{items.length} line item{items.length === 1 ? '' : 's'} · {scheduleImpactDays || 0} day impact</Text>
+            <Text testID="changeOrderBuilder.reviewItemCount" style={styles.reviewSub}>{t('changeOrderBuilder.reviewItemSummary', { count: items.length, days: scheduleImpactDays || 0 })}</Text>
           </View>
-          <Field label="Require signature on approval" Colors={Colors} styles={styles}>
+          <Field label={t('changeOrderBuilder.requireSignature')} Colors={Colors} styles={styles}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Switch
                 testID="changeOrderBuilder.signatureRequiredSwitch"
@@ -462,7 +464,7 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
                 disabled={readOnly}
               />
               <Text style={{ color: Colors.secondaryText, fontSize: 13 }}>
-                {signatureRequired ? 'Signature required' : 'No signature required'}
+                {signatureRequired ? t('changeOrderBuilder.signatureRequired') : t('changeOrderBuilder.noSignatureRequired')}
               </Text>
             </View>
           </Field>
@@ -476,7 +478,7 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
                 activeOpacity={0.85}
               >
                 <Ionicons name="paper-plane" size={18} color="#fff" />
-                <Text style={styles.sendBtnText}>Send to client</Text>
+                <Text style={styles.sendBtnText}>{t('changeOrderBuilder.sendToClient')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 testID="changeOrderBuilder.saveAndCloseButton"
@@ -489,7 +491,7 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
                 activeOpacity={0.85}
               >
                 <Ionicons name="checkmark" size={18} color={Colors.primaryBlue} />
-                <Text style={[styles.sendBtnText, { color: Colors.primaryBlue }]}>Save & close</Text>
+                <Text style={[styles.sendBtnText, { color: Colors.primaryBlue }]}>{t('changeOrderBuilder.saveAndClose')}</Text>
               </TouchableOpacity>
             </>
           )}
@@ -502,7 +504,7 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalCard, { backgroundColor: Colors.surface || Colors.background }]}>
             <View style={styles.modalHeader}>
-              <Text testID="changeOrderBuilder.projectPickerTitle" style={[styles.modalTitle, { color: Colors.primaryText }]}>Pick a project</Text>
+              <Text testID="changeOrderBuilder.projectPickerTitle" style={[styles.modalTitle, { color: Colors.primaryText }]}>{t('changeOrderBuilder.pickProject')}</Text>
               <TouchableOpacity testID="changeOrderBuilder.projectPickerClose" accessibilityLabel="Close project picker" onPress={() => setShowProjectPicker(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Ionicons name="close" size={22} color={Colors.primaryText} />
               </TouchableOpacity>
@@ -521,7 +523,7 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
                     setShowProjectPicker(false);
                   }}
                 >
-                  <Text style={[styles.projectName, { color: Colors.primaryText }]}>{item.name || '(no name)'}</Text>
+                  <Text style={[styles.projectName, { color: Colors.primaryText }]}>{item.name || t('changeOrderBuilder.noName')}</Text>
                   {item.client_name && (
                     <Text style={[styles.projectMeta, { color: Colors.secondaryText }]}>{item.client_name}</Text>
                   )}
@@ -529,7 +531,7 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
               )}
               ListEmptyComponent={
                 <Text style={{ padding: 20, color: Colors.secondaryText, textAlign: 'center' }}>
-                  No projects yet.
+                  {t('changeOrderBuilder.noProjectsYet')}
                 </Text>
               }
             />
@@ -577,12 +579,13 @@ function SummaryRow({ label, value, bold, valueTestID, styles }) {
 }
 
 function SaveIndicator({ state, readOnly, Colors }) {
+  const { t } = useTranslation('owner');
   let label = '';
   let color = Colors.secondaryText;
-  if (readOnly) { label = 'Read-only'; }
-  else if (state === 'saving') { label = 'Saving…'; }
-  else if (state === 'saved')  { label = 'Saved'; color = '#10B981'; }
-  else if (state === 'error')  { label = 'Save failed · retrying…'; color = '#DC2626'; }
+  if (readOnly) { label = t('changeOrderBuilder.readOnly'); }
+  else if (state === 'saving') { label = t('changeOrderBuilder.saving'); }
+  else if (state === 'saved')  { label = t('changeOrderBuilder.saved'); color = '#10B981'; }
+  else if (state === 'error')  { label = t('changeOrderBuilder.saveFailedRetrying'); color = '#DC2626'; }
   if (!label) return null;
   return <Text style={{ fontSize: 11, color, marginTop: 1 }}>{label}</Text>;
 }

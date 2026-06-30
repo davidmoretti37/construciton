@@ -23,6 +23,7 @@ import { formatHoursMinutes } from '../utils/calculations';
 import { supabase } from '../lib/supabase';
 import { editTimeEntry, editSupervisorTimeEntry } from '../utils/storage/timeTracking';
 import { API_URL as BACKEND_URL } from '../config/api';
+import { useTranslation } from 'react-i18next';
 
 export default function TimeEditModal({
   visible,
@@ -31,6 +32,7 @@ export default function TimeEditModal({
   record,
   isSupervisor = false,
 }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -54,7 +56,7 @@ export default function TimeEditModal({
 
   const handleSave = async () => {
     if (!isValid) {
-      Alert.alert('Invalid Time', 'Clock out must be after clock in.');
+      Alert.alert(t('timeEditModal.invalidTimeTitle'), t('timeEditModal.clockOutAfterClockIn'));
       return;
     }
 
@@ -118,7 +120,7 @@ export default function TimeEditModal({
             : await editTimeEntry(record.id, updates);
 
           if (!success) {
-            Alert.alert('Error', 'Unable to update time entry. You may not have permission to edit this record.');
+            Alert.alert(t('common:alerts.error'), t('timeEditModal.permissionError'));
             return;
           }
         }
@@ -128,7 +130,7 @@ export default function TimeEditModal({
       onClose();
     } catch (error) {
       console.error('Error saving time edit:', error);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      Alert.alert(t('common:alerts.error'), t('timeEditModal.genericError'));
     } finally {
       setSaving(false);
     }
@@ -165,7 +167,7 @@ export default function TimeEditModal({
               <Ionicons name="close" size={24} color={Colors.secondaryText} />
             </TouchableOpacity>
             <Text style={[styles.title, { color: Colors.primaryText }]}>
-              Edit Time Entry
+              {t('timeEditModal.title')}
             </Text>
             <TouchableOpacity
               onPress={handleSave}
@@ -178,7 +180,7 @@ export default function TimeEditModal({
               {saving ? (
                 <ActivityIndicator size="small" color="#FFF" />
               ) : (
-                <Text style={styles.saveButtonText}>Save</Text>
+                <Text style={styles.saveButtonText}>{t('common:buttons.save')}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -188,7 +190,7 @@ export default function TimeEditModal({
             <View style={[styles.projectRow, { backgroundColor: Colors.lightGray || '#F3F4F6' }]}>
               <Ionicons name="briefcase-outline" size={16} color="#1E40AF" />
               <Text style={[styles.projectName, { color: Colors.primaryText }]}>
-                {record.projects?.name || record.service_plans?.name || record.project_name || 'Unknown Project'}
+                {record.projects?.name || record.service_plans?.name || record.project_name || t('timeEditModal.unknownProject')}
               </Text>
             </View>
           )}
@@ -200,7 +202,7 @@ export default function TimeEditModal({
                 <Ionicons name="log-in-outline" size={18} color="#10B981" />
               </View>
               <Text style={[styles.timeLabel, { color: Colors.primaryText }]}>
-                Clock In
+                {t('timeEditModal.clockIn')}
               </Text>
               {Platform.OS === 'android' && (
                 <TouchableOpacity
@@ -235,7 +237,7 @@ export default function TimeEditModal({
                 <Ionicons name="log-out-outline" size={18} color="#EF4444" />
               </View>
               <Text style={[styles.timeLabel, { color: Colors.primaryText }]}>
-                Clock Out
+                {t('timeEditModal.clockOut')}
               </Text>
               {Platform.OS === 'android' && (
                 <TouchableOpacity
@@ -272,8 +274,8 @@ export default function TimeEditModal({
             />
             <Text style={[styles.summaryText, { color: isValid ? '#1E40AF' : '#EF4444' }]}>
               {isValid
-                ? `Total: ${formatHoursMinutes(hoursWorked)}`
-                : 'Clock out must be after clock in'}
+                ? t('timeEditModal.total', { hours: formatHoursMinutes(hoursWorked) })
+                : t('timeEditModal.clockOutAfterClockIn')}
             </Text>
           </View>
         </View>

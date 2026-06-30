@@ -7,6 +7,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import { View, StyleSheet, Dimensions, FlatList, TouchableOpacity, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from 'react-i18next';
 
 import { AnimatedBackground, PaginationDots } from '../../components/onboarding';
 import {
@@ -32,6 +33,7 @@ const SLIDES = [
 ];
 
 export default function PremiumOnboarding({ navigation }) {
+  const { t } = useTranslation('onboarding');
   const insets = useSafeAreaInsets();
   const flatListRef = useRef(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -123,7 +125,7 @@ export default function PremiumOnboarding({ navigation }) {
             onPress={handleSkip}
             activeOpacity={0.7}
           >
-            <Text style={styles.skipText}>Skip</Text>
+            <Text style={styles.skipText}>{t('premiumOnboarding.skip')}</Text>
           </TouchableOpacity>
         )}
 
@@ -159,7 +161,7 @@ export default function PremiumOnboarding({ navigation }) {
               onPress={handleNext}
               activeOpacity={0.8}
             >
-              <Text style={styles.nextText}>Next</Text>
+              <Text style={styles.nextText}>{t('common:buttons.next')}</Text>
             </TouchableOpacity>
           )}
         </View>

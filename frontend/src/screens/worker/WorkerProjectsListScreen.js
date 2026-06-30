@@ -23,6 +23,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
@@ -39,6 +40,7 @@ import { getCurrentUserId } from '../../utils/storage/auth';
 let cachedProjects = null;
 
 export default function WorkerProjectsListScreen() {
+  const { t } = useTranslation('workers');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const navigation = useNavigation();
@@ -486,7 +488,7 @@ export default function WorkerProjectsListScreen() {
                 accessibilityLabel={`workerProjects.todayToggleButton.${item.id}`}
               >
                 <Text style={[styles.todayLabel, { color: '#3B82F6' }]}>
-                  Today · {totalToday} item{totalToday === 1 ? '' : 's'}
+                  {t('workerProjectsList.todayItems', { count: totalToday })}
                 </Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={[styles.todayCount, { color: Colors.secondaryText }]}>
@@ -536,7 +538,7 @@ export default function WorkerProjectsListScreen() {
                 ]}
                 numberOfLines={1}
               >
-                {next ? `Next: ${next.title} · ${formatDate(next.start_date)}` : 'No upcoming tasks'}
+                {next ? t('workerProjectsList.nextTaskLabel', { title: next.title, date: formatDate(next.start_date) }) : t('workerProjectsList.noUpcomingTasks')}
               </Text>
             </View>
           )}
@@ -585,11 +587,11 @@ export default function WorkerProjectsListScreen() {
             testID="workerProjects.dailyChecksHeader"
             accessibilityLabel="workerProjects.dailyChecksHeader"
           >
-            TODAY'S DAILY CHECKS
+            {t('workerProjectsList.dailyChecksSection')}
           </Text>
           {totalDailyPending > 0 && (
             <Text style={[styles.sectionMeta, { color: purple }]}>
-              {totalDailyPending} pending
+              {t('workerProjectsList.pendingCount', { count: totalDailyPending })}
             </Text>
           )}
         </View>
@@ -635,7 +637,7 @@ export default function WorkerProjectsListScreen() {
         </View>
         <View style={styles.sectionLabelRow}>
           <Text style={[styles.sectionLabel, { color: Colors.secondaryText, marginTop: 14 }]}>
-            PROJECTS
+            {t('workerProjectsList.projectsSection')}
           </Text>
         </View>
       </View>
@@ -650,7 +652,7 @@ export default function WorkerProjectsListScreen() {
           testID="workerProjects.headerTitle"
           accessibilityLabel="workerProjects.headerTitle"
         >
-          My Projects
+          {t('workerProjectsList.title')}
         </Text>
       </View>
       <FlatList
@@ -663,9 +665,9 @@ export default function WorkerProjectsListScreen() {
           loadError ? (
             <View style={styles.emptyState}>
               <Ionicons name="cloud-offline-outline" size={48} color={(Colors.secondaryText || '#666') + '80'} />
-              <Text style={styles.emptyTitle}>Couldn't load your projects</Text>
+              <Text style={styles.emptyTitle}>{t('workerProjectsList.errorTitle')}</Text>
               <Text style={styles.emptyText}>
-                Something went wrong reaching the server. Check your connection and try again.
+                {t('workerProjectsList.errorBody')}
               </Text>
               <TouchableOpacity
                 style={styles.retryButton}
@@ -675,15 +677,15 @@ export default function WorkerProjectsListScreen() {
                 accessibilityLabel="workerProjects.retryButton"
               >
                 <Ionicons name="refresh" size={16} color="#FFFFFF" />
-                <Text style={styles.retryButtonText}>Try again</Text>
+                <Text style={styles.retryButtonText}>{t('workerProjectsList.retryButton')}</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <View style={styles.emptyState}>
               <Ionicons name="folder-open-outline" size={48} color={(Colors.secondaryText || '#666') + '80'} />
-              <Text style={styles.emptyTitle}>No projects yet</Text>
+              <Text style={styles.emptyTitle}>{t('workerProjectsList.emptyTitle')}</Text>
               <Text style={styles.emptyText}>
-                When your supervisor assigns you to a project, it'll show up here.
+                {t('workerProjectsList.emptyBody')}
               </Text>
             </View>
           )

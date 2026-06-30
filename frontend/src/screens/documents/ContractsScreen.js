@@ -353,7 +353,7 @@ export default function ContractsScreen({ navigation }) {
         >
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="contracts.headerTitle">Contracts</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="contracts.headerTitle">{t('contracts.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -371,12 +371,12 @@ export default function ContractsScreen({ navigation }) {
           ) : (
             <>
               <Ionicons name="cloud-upload-outline" size={20} color="#fff" />
-              <Text style={styles.uploadButtonText}>Add Contract Document</Text>
+              <Text style={styles.uploadButtonText}>{t('contracts.addDocumentButton')}</Text>
             </>
           )}
         </TouchableOpacity>
         <Text style={[styles.uploadHint, { color: Colors.secondaryText }]}>
-          Upload contracts from photos, camera, or PDF files
+          {t('contracts.uploadHint')}
         </Text>
       </View>
 
@@ -388,7 +388,7 @@ export default function ContractsScreen({ navigation }) {
         {/* Typical Contracts Section (from onboarding) */}
         {typicalContracts.length > 0 && (
           <View style={styles.listSection}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]} testID="contracts.templatesSectionTitle">Contract Templates</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]} testID="contracts.templatesSectionTitle">{t('contracts.templatesSectionTitle')}</Text>
             {typicalContracts.map((contract) => {
               const getFileIcon = () => {
                 if (contract.file_mime_type?.includes('pdf')) return 'document-text';
@@ -421,9 +421,9 @@ export default function ContractsScreen({ navigation }) {
                         {contract.name}
                       </Text>
                       <Text style={[styles.documentDate, { color: Colors.secondaryText }]}>
-                        {contract.base_contract === 'fixed' ? 'Fixed Price' :
-                         contract.base_contract === 'time_materials' ? 'Time & Materials' :
-                         'Cost Plus'}
+                        {contract.base_contract === 'fixed' ? t('contracts.contractTypeFixed') :
+                         contract.base_contract === 'time_materials' ? t('contracts.contractTypeTimeMaterials') :
+                         t('contracts.contractTypeCostPlus')}
                         {contract.contract_amount ? ` • $${contract.contract_amount}` : ''}
                       </Text>
                     </View>
@@ -436,20 +436,20 @@ export default function ContractsScreen({ navigation }) {
 
         {/* Contract Documents Section */}
         <View style={styles.listSection}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]} testID="contracts.documentsSectionTitle">Uploaded Documents</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]} testID="contracts.documentsSectionTitle">{t('contracts.uploadedDocumentsSectionTitle')}</Text>
             {contractDocuments.length === 0 && typicalContracts.length === 0 ? (
               <View style={[styles.emptyState, { backgroundColor: Colors.lightGray }]}>
                 <Ionicons name="cloud-upload-outline" size={48} color={Colors.secondaryText} />
                 <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-                  No contract documents uploaded
+                  {t('contracts.emptyText')}
                 </Text>
                 <Text style={[styles.emptySubtext, { color: Colors.secondaryText }]}>
-                  Upload your contract templates to easily send them to clients
+                  {t('contracts.emptySubtext')}
                 </Text>
               </View>
             ) : contractDocuments.length === 0 ? (
               <Text style={[styles.emptySubtext, { color: Colors.secondaryText, textAlign: 'center', padding: 20 }]}>
-                No additional documents uploaded
+                {t('contracts.noAdditionalDocuments')}
               </Text>
             ) : (
               contractDocuments.map((doc) => (
@@ -477,7 +477,7 @@ export default function ContractsScreen({ navigation }) {
                         {doc.file_name}
                       </Text>
                       <Text style={[styles.documentDate, { color: Colors.secondaryText }]}>
-                        Uploaded {new Date(doc.created_at).toLocaleDateString()}
+                        {t('contracts.uploadedDate', { date: new Date(doc.created_at).toLocaleDateString() })}
                       </Text>
                     </View>
                   </TouchableOpacity>

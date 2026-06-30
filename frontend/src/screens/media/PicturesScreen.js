@@ -77,10 +77,10 @@ export default function PicturesScreen({ navigation }) {
               id: `${report.id}-${photoUrl}`,
               uri: photoUrl,
               projectId: report.project_id,
-              projectName: report.projects?.name || report.service_plans?.name || 'Unknown Project',
+              projectName: report.projects?.name || report.service_plans?.name || t('pictures.unknownProject'),
               reportId: report.id,
               date: report.report_date,
-              workerName: report.worker_name || 'Unknown',
+              workerName: report.worker_name || t('pictures.unknownWorker'),
             });
           });
         }
@@ -166,7 +166,7 @@ export default function PicturesScreen({ navigation }) {
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primaryBlue} />
-          <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>Loading pictures...</Text>
+          <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>{t('pictures.loadingPictures')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -183,7 +183,7 @@ export default function PicturesScreen({ navigation }) {
         >
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="pictures.headerTitle" accessibilityLabel="Pictures">Pictures</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="pictures.headerTitle" accessibilityLabel="Pictures">{t('pictures.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -194,7 +194,7 @@ export default function PicturesScreen({ navigation }) {
       >
         {/* Project Filter */}
         <View style={styles.filterSection}>
-          <Text style={[styles.filterLabel, { color: Colors.secondaryText }]} testID="pictures.filterLabel" accessibilityLabel="Filter by Project">Filter by Project</Text>
+          <Text style={[styles.filterLabel, { color: Colors.secondaryText }]} testID="pictures.filterLabel" accessibilityLabel="Filter by Project">{t('pictures.filterByProject')}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
             <TouchableOpacity
               style={[
@@ -204,7 +204,7 @@ export default function PicturesScreen({ navigation }) {
               onPress={() => setSelectedProject('all')}
             >
               <Text style={[styles.filterChipText, { color: selectedProject === 'all' ? '#FFFFFF' : Colors.primaryText }]}>
-                All ({photos.length})
+                {t('pictures.allCount', { count: photos.length })}
               </Text>
             </TouchableOpacity>
 
@@ -230,7 +230,7 @@ export default function PicturesScreen({ navigation }) {
           <View style={[styles.emptyState, { backgroundColor: Colors.lightGray }]}>
             <Ionicons name="images-outline" size={48} color={Colors.secondaryText} />
             <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-              No pictures {selectedProject !== 'all' ? 'for this project' : 'uploaded yet'}
+              {selectedProject !== 'all' ? t('pictures.noPicturesForProject') : t('pictures.noPicturesUploaded')}
             </Text>
           </View>
         ) : (

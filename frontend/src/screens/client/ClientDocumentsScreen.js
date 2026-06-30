@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { fetchDashboard } from '../../services/clientPortalApi';
 import { supabase } from '../../lib/supabase';
 import { useClientProject } from '../../contexts/ClientProjectContext';
@@ -60,6 +61,7 @@ function formatFileSize(bytes) {
 }
 
 export default function ClientDocumentsScreen({ navigation }) {
+  const { t } = useTranslation('common');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [documents, setDocuments] = useState([]);
@@ -136,7 +138,7 @@ export default function ClientDocumentsScreen({ navigation }) {
             testID="clientDocuments.headerTitle"
             accessibilityLabel="clientDocuments.headerTitle"
             style={styles.headerTitle}
-          >Documents</Text>
+          >{t('clientDocuments.title')}</Text>
           <View style={{ width: 26 }} />
         </View>
       </SafeAreaView>
@@ -154,7 +156,7 @@ export default function ClientDocumentsScreen({ navigation }) {
             style={[styles.chip, activeFilter === 'all' && styles.chipActive]}
             onPress={() => setActiveFilter('all')}
           >
-            <Text style={[styles.chipText, activeFilter === 'all' && styles.chipTextActive]}>All ({documents.length})</Text>
+            <Text style={[styles.chipText, activeFilter === 'all' && styles.chipTextActive]}>{t('clientDocuments.filterAll', { count: documents.length })}</Text>
           </TouchableOpacity>
           {CATEGORIES.filter(c => documents.some(d => (d.category || 'other') === c.key)).map(cat => {
             const count = documents.filter(d => (d.category || 'other') === cat.key).length;
@@ -176,8 +178,8 @@ export default function ClientDocumentsScreen({ navigation }) {
         {Object.keys(groupedByCategory).length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="folder-open-outline" size={48} color={C.border} />
-            <Text style={styles.emptyTitle}>No documents yet</Text>
-            <Text style={styles.emptySub}>Your contractor will upload contracts, permits, and other documents here</Text>
+            <Text style={styles.emptyTitle}>{t('clientDocuments.emptyTitle')}</Text>
+            <Text style={styles.emptySub}>{t('clientDocuments.emptySub')}</Text>
           </View>
         ) : (
           Object.entries(groupedByCategory).map(([catKey, docs]) => {

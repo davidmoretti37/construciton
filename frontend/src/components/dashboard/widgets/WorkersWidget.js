@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
 /**
  * WorkersWidget
@@ -21,6 +22,7 @@ export default function WorkersWidget({
   onsiteCount,
   onWorkerPress,
 }) {
+  const { t } = useTranslation('common');
   const onsite = typeof onsiteCount === 'number' ? onsiteCount : (onsiteWorkers?.length || 0);
   const showRows = (size === 'medium' || size === 'large') && onsiteWorkers.length > 0;
   const rowLimit = size === 'large' ? 5 : 2;
@@ -43,8 +45,8 @@ export default function WorkersWidget({
           <View style={styles.headerRow}>
             <Text style={styles.headerCount}>{onsite}</Text>
             <View style={styles.headerText}>
-              <Text style={styles.labelMedium}>ON-SITE NOW</Text>
-              <Text style={styles.headerSub}>{onsite} of {totalWorkers} workers</Text>
+              <Text style={styles.labelMedium}>{t('workersWidget.onsiteLabel')}</Text>
+              <Text style={styles.headerSub}>{t('workersWidget.onsiteCount', { onsite, total: totalWorkers })}</Text>
             </View>
             <Ionicons name="people" size={20} color="rgba(255,255,255,0.18)" />
           </View>
@@ -60,7 +62,7 @@ export default function WorkersWidget({
                   onPress={() => onWorkerPress && onWorkerPress(w.id)}
                 >
                   <View style={styles.activeDot} />
-                  <Text style={styles.rowName} numberOfLines={1}>{w.name || 'Worker'}</Text>
+                  <Text style={styles.rowName} numberOfLines={1}>{w.name || t('workersWidget.workerDefault')}</Text>
                   {!!w.projectName && (
                     <Text style={styles.rowProject} numberOfLines={1}>{w.projectName}</Text>
                   )}
@@ -69,7 +71,7 @@ export default function WorkersWidget({
             </View>
           ) : (
             <Text style={styles.emptyRow}>
-              {onsite === 0 ? 'No workers clocked in' : 'Tap to see the team'}
+              {onsite === 0 ? t('workersWidget.noWorkersClockedIn') : t('workersWidget.tapToSeeTeam')}
             </Text>
           )}
         </LinearGradient>
@@ -91,10 +93,10 @@ export default function WorkersWidget({
         end={{ x: 1, y: 1 }}
         style={styles.gradientSmall}
       >
-        <Text style={styles.titleSmall}>Workers</Text>
+        <Text style={styles.titleSmall}>{t('workersWidget.title')}</Text>
         <Ionicons name="people" size={16} color="rgba(255,255,255,0.35)" style={styles.bgIcon} />
         <Text style={styles.valueSmall}>{totalWorkers}</Text>
-        <Text style={styles.label}>{onsite} on-site</Text>
+        <Text style={styles.label}>{t('workersWidget.onsiteShort', { onsite })}</Text>
       </LinearGradient>
     </TouchableOpacity>
   );

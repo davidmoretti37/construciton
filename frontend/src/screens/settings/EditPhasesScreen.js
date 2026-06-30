@@ -23,6 +23,7 @@ export default function EditPhasesScreen({ navigation }) {
   const Colors = getColors(isDark) || LightColors;
   const insets = useSafeAreaInsets();
   const { t } = useTranslation('common');
+  const { t: ts } = useTranslation('settings');
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -219,7 +220,7 @@ export default function EditPhasesScreen({ navigation }) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Edit Project Phases</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{ts('editPhases.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -230,7 +231,7 @@ export default function EditPhasesScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
       >
         <Text style={[styles.description, { color: Colors.secondaryText }]}>
-          Define your typical project workflow. These phases will be used by AI to create intelligent estimates.
+          {ts('editPhases.description')}
         </Text>
 
         {phases.map((phase, index) => (
@@ -245,7 +246,7 @@ export default function EditPhasesScreen({ navigation }) {
                   style={[styles.phaseNameInput, { color: Colors.primaryText }]}
                   value={phase.name}
                   onChangeText={(value) => updatePhase(phase.id, 'name', value)}
-                  placeholder="Phase Name"
+                  placeholder={ts('editPhases.phaseNamePlaceholder')}
                   placeholderTextColor={Colors.secondaryText}
                 />
               </View>
@@ -271,7 +272,7 @@ export default function EditPhasesScreen({ navigation }) {
                   placeholderTextColor={Colors.secondaryText}
                   keyboardType="number-pad"
                 />
-                <Text style={[styles.metaLabel, { color: Colors.secondaryText }]}>days</Text>
+                <Text style={[styles.metaLabel, { color: Colors.secondaryText }]}>{ts('editPhases.days')}</Text>
               </View>
 
               <View style={styles.metaItem}>
@@ -284,7 +285,7 @@ export default function EditPhasesScreen({ navigation }) {
                   placeholderTextColor={Colors.secondaryText}
                   keyboardType="decimal-pad"
                 />
-                <Text style={[styles.metaLabel, { color: Colors.secondaryText }]}>% budget</Text>
+                <Text style={[styles.metaLabel, { color: Colors.secondaryText }]}>{ts('editPhases.budgetPercent')}</Text>
               </View>
             </View>
 
@@ -292,7 +293,7 @@ export default function EditPhasesScreen({ navigation }) {
             <View style={styles.tasksSection}>
               <View style={styles.tasksSectionHeader}>
                 <Text style={[styles.tasksLabel, { color: Colors.secondaryText }]}>
-                  Common Tasks
+                  {ts('editPhases.commonTasks')}
                 </Text>
                 <TouchableOpacity
                   onPress={() => addTask(phase.id)}
@@ -309,7 +310,7 @@ export default function EditPhasesScreen({ navigation }) {
                     style={[styles.taskInput, { color: Colors.primaryText }]}
                     value={task}
                     onChangeText={(value) => updateTask(phase.id, taskIndex, value)}
-                    placeholder={`Task ${taskIndex + 1}`}
+                    placeholder={ts('editPhases.taskPlaceholder', { number: taskIndex + 1 })}
                     placeholderTextColor={Colors.secondaryText}
                   />
                   {phase.tasks.length > 1 && (
@@ -333,7 +334,7 @@ export default function EditPhasesScreen({ navigation }) {
         >
           <Ionicons name="add-circle-outline" size={24} color={Colors.primaryBlue} />
           <Text style={[styles.addPhaseText, { color: Colors.primaryBlue }]}>
-            Add Another Phase
+            {ts('editPhases.addAnotherPhase')}
           </Text>
         </TouchableOpacity>
 
@@ -358,7 +359,7 @@ export default function EditPhasesScreen({ navigation }) {
             <ActivityIndicator size="small" color="#fff" />
           ) : (
             <>
-              <Text style={styles.saveText}>Save Changes</Text>
+              <Text style={styles.saveText}>{ts('editPhases.saveChanges')}</Text>
               <Ionicons name="checkmark" size={20} color="#fff" />
             </>
           )}

@@ -22,6 +22,7 @@ import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Defs, Rect, Mask, Circle } from 'react-native-svg';
+import { useTranslation } from 'react-i18next';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -102,6 +103,7 @@ const SpotlightWalkthrough = ({
   onCollapseFAB,
   onNavigateToTab,
 }) => {
+  const { t } = useTranslation('common');
   const [visible, setVisible] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [targetLayout, setTargetLayout] = useState(null);
@@ -328,7 +330,7 @@ const SpotlightWalkthrough = ({
           <BlurView intensity={60} tint="light" style={styles.card}>
             {/* Step counter pill */}
             <View style={styles.counterPill}>
-              <Text style={styles.counterText}>{currentStep + 1} of {STEPS.length}</Text>
+              <Text style={styles.counterText}>{t('spotlightWalkthrough.stepCounter', { current: currentStep + 1, total: STEPS.length })}</Text>
             </View>
 
             {/* Icon */}
@@ -337,10 +339,10 @@ const SpotlightWalkthrough = ({
             </View>
 
             {/* Title */}
-            <Text style={styles.title}>{step.title}</Text>
+            <Text style={styles.title}>{t(`spotlightWalkthrough.steps.${step.id}.title`)}</Text>
 
             {/* Description */}
-            <Text style={styles.desc}>{step.description}</Text>
+            <Text style={styles.desc}>{t(`spotlightWalkthrough.steps.${step.id}.description`)}</Text>
 
             {/* Progress dots */}
             <View style={styles.dots}>
@@ -370,13 +372,13 @@ const SpotlightWalkthrough = ({
                   onPress={handleSkip}
                   style={styles.skipBtn}
                 >
-                  <Text style={styles.skipText}>Skip</Text>
+                  <Text style={styles.skipText}>{t('spotlightWalkthrough.skip')}</Text>
                 </TouchableOpacity>
               )}
               {!isLastStep && !isFirstStep && <View style={{ flex: 1 }} />}
               <TouchableOpacity onPress={handleNext} style={styles.nextBtn}>
                 <Text style={styles.nextText}>
-                  {isFirstStep ? "Let's Go" : isLastStep ? 'Get Started' : 'Next'}
+                  {isFirstStep ? t('spotlightWalkthrough.letsGo') : isLastStep ? t('spotlightWalkthrough.getStarted') : t('common:buttons.next')}
                 </Text>
                 {!isLastStep && <Ionicons name="arrow-forward" size={15} color="#fff" />}
               </TouchableOpacity>

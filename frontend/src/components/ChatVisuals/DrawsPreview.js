@@ -13,6 +13,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 
 const C = {
@@ -44,6 +45,7 @@ const TRIGGER_LABEL = {
 };
 
 export default function DrawsPreview({ data, onAction }) {
+  const { t } = useTranslation('chat');
   const projectId = data?.project_id || data?.projectId;
   const projectName = data?.project_name || data?.projectName || '';
   const initialContract = Number(data?.contract_amount ?? data?.contractAmount ?? 0);
@@ -158,7 +160,7 @@ export default function DrawsPreview({ data, onAction }) {
 
   const cyclePhase = (idx) => {
     if (phases.length === 0) {
-      Alert.alert('No phases', 'This project has no phases set up yet. Choose "Send manually" instead.');
+      Alert.alert(t('drawsPreview.noPhases'), t('drawsPreview.noPhasesMessage'));
       return;
     }
     setDraws((prev) => {
@@ -175,7 +177,7 @@ export default function DrawsPreview({ data, onAction }) {
   const addDraw = () => {
     setDraws((prev) => [
       ...prev,
-      { description: `Draw ${prev.length + 1}`, percent_of_contract: 0, trigger_type: 'manual', phase_id: null },
+      { description: t('drawsPreview.drawN', { n: prev.length + 1 }), percent_of_contract: 0, trigger_type: 'manual', phase_id: null },
     ]);
   };
 
@@ -186,30 +188,30 @@ export default function DrawsPreview({ data, onAction }) {
   // ---------- save ----------
   const validate = () => {
     if (!projectId) {
-      Alert.alert('Missing project', 'No project is linked to this draw schedule.');
+      Alert.alert(t('drawsPreview.missingProject'), t('drawsPreview.missingProjectMessage'));
       return false;
     }
     if (draws.length === 0) {
-      Alert.alert('Add a draw', 'A draw schedule needs at least one draw.');
+      Alert.alert(t('drawsPreview.addADraw'), t('drawsPreview.addADrawMessage'));
       return false;
     }
     for (const d of draws) {
       const hasPct = d.percent_of_contract != null && !Number.isNaN(d.percent_of_contract);
       const hasFixed = d.fixed_amount != null && !Number.isNaN(d.fixed_amount);
       if (hasPct === hasFixed) {
-        Alert.alert('Pick one', `"${d.description || 'unnamed'}" needs either a % OR a fixed amount, not both / neither.`);
+        Alert.alert(t('drawsPreview.pickOne'), t('drawsPreview.pickOneMessage', { description: d.description || t('drawsPreview.unnamed') }));
         return false;
       }
       if (d.trigger_type === 'phase_completion' && !d.phase_id) {
-        Alert.alert('Link a phase', `"${d.description || 'unnamed'}" is set to fire on phase completion but no phase is selected.`);
+        Alert.alert(t('drawsPreview.linkPhase'), t('drawsPreview.linkPhaseMessage', { description: d.description || t('drawsPreview.unnamed') }));
         return false;
       }
     }
     if (!percentTotalOk) {
       const msg = totals.fixedSum > 0
-        ? `Right now percent draws (${totals.percentSum}%) plus fixed draws (${fmt$(totals.fixedSum)} ≈ ${Math.round(fixedAsPercent * 10) / 10}%) cover ${Math.round(combinedPercent * 10) / 10}% of the contract. Adjust them to total 100% so the project bills the full contract.`
-        : `Right now percent draws sum to ${totals.percentSum}%. Adjust them to hit exactly 100% so the project bills the full contract.`;
-      Alert.alert('Draws should total the contract', msg);
+        ? t('drawsPreview.totalWarnMixed', { percentSum: totals.percentSum, fixedAmount: fmt$(totals.fixedSum), fixedPct: Math.round(fixedAsPercent * 10) / 10, combined: Math.round(combinedPercent * 10) / 10 })
+        : t('drawsPreview.totalWarnPercentOnly', { percentSum: totals.percentSum });
+      Alert.alert(t('drawsPreview.drawsShouldTotal'), msg);
       return false;
     }
     return true;
@@ -237,12 +239,12 @@ export default function DrawsPreview({ data, onAction }) {
       });
       if (result?.ok) {
         setSaved(true);
-        Alert.alert('Schedule saved', `${result.items?.length || draws.length} draws set up. The next bill will use this schedule.`);
+        Alert.alert(t('drawsPreview.scheduleSaved'), t('drawsPreview.scheduleSavedMessage', { count: result.items?.length || draws.length }));
       } else if (result?.error) {
-        Alert.alert('Save failed', result.error);
+        Alert.alert(t('drawsPreview.saveFailed'), result.error);
       }
     } catch (e) {
-      Alert.alert('Save failed', e?.message || 'Could not save the draw schedule.');
+      Alert.alert(t('drawsPreview.saveFailed'), e?.message || t('drawsPreview.saveFailedMessage'));
     } finally {
       setSaving(false);
     }
@@ -254,13 +256,13 @@ export default function DrawsPreview({ data, onAction }) {
       {/* Header */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.kicker}>PROGRESS DRAWS</Text>
-          <Text style={styles.title} numberOfLines={2}>{projectName || 'Draw schedule'}</Text>
-          <Text style={styles.subtitle}>Contract: {fmt$(contract)}</Text>
+          <Text style={styles.kicker}>{t('drawsPreview.progressDraws')}</Text>
+          <Text style={styles.title} numberOfLines={2}>{projectName || t('drawsPreview.drawSchedule')}</Text>
+          <Text style={styles.subtitle}>{t('drawsPreview.contract', { amount: fmt$(contract) })}</Text>
         </View>
         <View style={[styles.statusPill, saved ? styles.statusSaved : styles.statusDraft]}>
           <Text style={[styles.statusText, saved ? styles.statusTextSaved : styles.statusTextDraft]}>
-            {saved ? 'SAVED' : 'DRAFT'}
+            {saved ? t('drawsPreview.statusSaved') : t('drawsPreview.statusDraft')}
           </Text>
         </View>
       </View>
@@ -268,8 +270,8 @@ export default function DrawsPreview({ data, onAction }) {
       {/* Retainage */}
       <View style={styles.retainageRow}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.sectionLabel}>RETAINAGE</Text>
-          <Text style={styles.hint}>Held back from each draw. Released when project completes. Typical: 10%.</Text>
+          <Text style={styles.sectionLabel}>{t('drawsPreview.retainage')}</Text>
+          <Text style={styles.hint}>{t('drawsPreview.retainageHint')}</Text>
         </View>
         <View style={styles.retainageStepper}>
           <TouchableOpacity onPress={() => setRetainage((p) => Math.max(0, p - 1))} style={styles.stepBtn}>
@@ -285,10 +287,10 @@ export default function DrawsPreview({ data, onAction }) {
       {/* Draws list */}
       <View style={styles.section}>
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionLabel}>DRAWS</Text>
+          <Text style={styles.sectionLabel}>{t('drawsPreview.draws')}</Text>
           <TouchableOpacity onPress={addDraw} style={styles.addLinkBtn}>
             <Ionicons name="add" size={14} color={C.primary} />
-            <Text style={styles.addLinkText}>Add</Text>
+            <Text style={styles.addLinkText}>{t('common:buttons.add')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -308,7 +310,7 @@ export default function DrawsPreview({ data, onAction }) {
                   style={styles.drawDesc}
                   value={d.description}
                   onChangeText={(v) => updateDraw(idx, 'description', v)}
-                  placeholder="Description (e.g. Deposit, Rough-in)"
+                  placeholder={t('drawsPreview.descriptionPlaceholder')}
                   placeholderTextColor={C.textMuted}
                 />
                 <TouchableOpacity onPress={() => removeDraw(idx)} hitSlop={8}>
@@ -353,7 +355,7 @@ export default function DrawsPreview({ data, onAction }) {
                   color={C.textSec}
                 />
                 <Text style={styles.triggerText}>
-                  {TRIGGER_LABEL[d.trigger_type] || 'Send manually'}
+                  {d.trigger_type === 'project_start' ? t('drawsPreview.triggerOnProjectStart') : d.trigger_type === 'phase_completion' ? t('drawsPreview.triggerWhenPhaseCompletes') : t('drawsPreview.triggerSendManually')}
                   {d.trigger_type === 'phase_completion' ? ` · ${phaseLabel}` : ''}
                 </Text>
                 <TouchableOpacity onPress={() => cycleTrigger(idx)} hitSlop={6}>
@@ -368,27 +370,27 @@ export default function DrawsPreview({ data, onAction }) {
       {/* Totals callout */}
       <View style={[styles.totalsBox, percentTotalOk ? null : styles.totalsBoxWarn]}>
         <View style={styles.totalsRow}>
-          <Text style={styles.totalsLabel}>% sum</Text>
+          <Text style={styles.totalsLabel}>{t('drawsPreview.percentSum')}</Text>
           <Text style={[styles.totalsValue, !percentTotalOk && { color: C.amberDark }]}>
             {totals.percentSum}% {percentTotalOk ? '✓' : '⚠︎'}
           </Text>
         </View>
         {totals.fixedSum > 0 && (
           <View style={styles.totalsRow}>
-            <Text style={styles.totalsLabel}>Fixed</Text>
+            <Text style={styles.totalsLabel}>{t('drawsPreview.fixed')}</Text>
             <Text style={styles.totalsValue}>{fmt$(totals.fixedSum)}</Text>
           </View>
         )}
         <View style={styles.totalsRow}>
-          <Text style={styles.totalsLabel}>Gross</Text>
+          <Text style={styles.totalsLabel}>{t('drawsPreview.gross')}</Text>
           <Text style={styles.totalsValue}>{fmt$(totals.grossTotal)}</Text>
         </View>
         <View style={styles.totalsRow}>
-          <Text style={styles.totalsLabel}>Retainage ({retainage}%)</Text>
+          <Text style={styles.totalsLabel}>{t('drawsPreview.retainageLabel', { percent: retainage })}</Text>
           <Text style={styles.totalsValue}>−{fmt$(totals.retained)}</Text>
         </View>
         <View style={[styles.totalsRow, styles.totalsRowFinal]}>
-          <Text style={[styles.totalsLabel, { fontWeight: '700', color: C.text }]}>Net to receive</Text>
+          <Text style={[styles.totalsLabel, { fontWeight: '700', color: C.text }]}>{t('drawsPreview.netToReceive')}</Text>
           <Text style={[styles.totalsValue, { fontWeight: '700', color: C.text, fontSize: 16 }]}>
             {fmt$(totals.net)}
           </Text>
@@ -404,7 +406,7 @@ export default function DrawsPreview({ data, onAction }) {
         {saving ? (
           <ActivityIndicator color="#FFF" />
         ) : (
-          <Text style={styles.ctaText}>{saved ? 'Schedule saved ✓' : 'Save schedule'}</Text>
+          <Text style={styles.ctaText}>{saved ? t('drawsPreview.ctaSaved') : t('drawsPreview.ctaSave')}</Text>
         )}
       </TouchableOpacity>
     </View>

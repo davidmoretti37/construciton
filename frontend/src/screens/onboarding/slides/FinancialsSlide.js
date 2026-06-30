@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions, ScrollView } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -82,6 +83,7 @@ const AnimatedSummaryRow = ({ label, value, style, delay, isActive, showCheckmar
 };
 
 export default function FinancialsSlide({ isActive = true }) {
+  const { t } = useTranslation('onboarding');
   const [cardReady, setCardReady] = useState(false);
   const [showRevenue, setShowRevenue] = useState(false);
   const [showExpenses, setShowExpenses] = useState(false);
@@ -134,8 +136,8 @@ export default function FinancialsSlide({ isActive = true }) {
     >
       {/* Title */}
       <Animated.View style={titleAnim}>
-        <Text style={styles.title}>Know Your Numbers.</Text>
-        <Text style={styles.titleAccent}>Grow Your Business.</Text>
+        <Text style={styles.title}>{t('financialsSlide.title')}</Text>
+        <Text style={styles.titleAccent}>{t('financialsSlide.titleAccent')}</Text>
       </Animated.View>
 
       {/* Financial card */}
@@ -144,9 +146,9 @@ export default function FinancialsSlide({ isActive = true }) {
         <View style={styles.cardHeader}>
           <View style={styles.headerLeft}>
             <Ionicons name="stats-chart" size={18} color="#60A5FA" />
-            <Text style={styles.headerText}>FINANCIALS</Text>
+            <Text style={styles.headerText}>{t('financialsSlide.headerText')}</Text>
           </View>
-          <Text style={styles.period}>November 2024</Text>
+          <Text style={styles.period}>{t('financialsSlide.period')}</Text>
         </View>
 
         {/* Chart with dramatic bounce */}
@@ -156,7 +158,7 @@ export default function FinancialsSlide({ isActive = true }) {
         <View style={styles.summary}>
           {showRevenue && (
             <AnimatedSummaryRow
-              label="Revenue"
+              label={t('financialsSlide.revenue')}
               value={FINANCIALS.revenue}
               style={{ label: styles.summaryLabel, value: styles.revenueValue }}
               delay={0}
@@ -166,7 +168,7 @@ export default function FinancialsSlide({ isActive = true }) {
 
           {showExpenses && (
             <AnimatedSummaryRow
-              label="Expenses"
+              label={t('financialsSlide.expenses')}
               value={FINANCIALS.expenses}
               style={{ label: styles.summaryLabel, value: styles.expenseValue }}
               delay={0}
@@ -178,7 +180,7 @@ export default function FinancialsSlide({ isActive = true }) {
             <>
               <View style={styles.divider} />
               <AnimatedSummaryRow
-                label="PROFIT"
+                label={t('financialsSlide.profit')}
                 value={FINANCIALS.profit}
                 style={{ label: styles.profitLabel, value: styles.profitValue }}
                 delay={0}
@@ -195,24 +197,24 @@ export default function FinancialsSlide({ isActive = true }) {
         <Animated.View style={feature1Anim}>
           <FeatureBullet
             icon="trending-up"
-            title="Real-time profit per project"
-            description="See what's making you money"
+            title={t('financialsSlide.feature1Title')}
+            description={t('financialsSlide.feature1Description')}
             iconColor="#34D399"
           />
         </Animated.View>
         <Animated.View style={feature2Anim}>
           <FeatureBullet
             icon="document-text"
-            title="Create invoices in 30 seconds"
-            description="Professional, branded, done"
+            title={t('financialsSlide.feature2Title')}
+            description={t('financialsSlide.feature2Description')}
             iconColor="#60A5FA"
           />
         </Animated.View>
         <Animated.View style={feature3Anim}>
           <FeatureBullet
             icon="cash"
-            title="Track who owes you"
-            description="Send reminders automatically"
+            title={t('financialsSlide.feature3Title')}
+            description={t('financialsSlide.feature3Description')}
             iconColor="#F59E0B"
           />
         </Animated.View>
@@ -220,7 +222,7 @@ export default function FinancialsSlide({ isActive = true }) {
 
       {/* Quote - types out */}
       <TypewriterText
-        text='"Finally understand where every dollar goes."'
+        text={t('financialsSlide.quote')}
         style={styles.quote}
         speed={30}
         isActive={showFeatures}

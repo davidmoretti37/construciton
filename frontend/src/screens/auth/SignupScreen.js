@@ -103,7 +103,7 @@ export default function SignupScreen({ navigation, route }) {
     }
 
     if (!agreedToTerms) {
-      Alert.alert('Terms Required', 'Please agree to the Terms of Service and Privacy Policy to continue.');
+      Alert.alert(t('signup.termsRequired'), t('signup.termsRequiredMessage'));
       return;
     }
 
@@ -239,19 +239,19 @@ export default function SignupScreen({ navigation, route }) {
                 color={agreedToTerms ? COLORS.primary : COLORS.textMuted}
               />
               <Text style={styles.termsText}>
-                I agree to the{' '}
+                {t('signup.termsAgreePrefix')}
                 <Text
                   style={styles.termsLink}
                   onPress={() => Linking.openURL('https://sylkapp.ai/terms')}
                 >
-                  Terms of Service
+                  {t('signup.termsOfService')}
                 </Text>
-                {' '}and{' '}
+                {t('signup.termsAndSeparator')}
                 <Text
                   style={styles.termsLink}
                   onPress={() => Linking.openURL('https://sylkapp.ai/privacy')}
                 >
-                  Privacy Policy
+                  {t('signup.privacyPolicy')}
                 </Text>
               </Text>
             </TouchableOpacity>

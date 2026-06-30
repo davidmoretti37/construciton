@@ -245,22 +245,22 @@ export default function BankReconciliationScreen() {
               <Text style={[styles.txDate, { color: Colors.secondaryText }]}>{formatDate(item.date)}</Text>
               {isUnknown && (
                 <View style={{ backgroundColor: '#F59E0B20', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
-                  <Text style={{ color: '#F59E0B', fontSize: 9, fontWeight: '700', letterSpacing: 0.5 }}>UNKNOWN</Text>
+                  <Text style={{ color: '#F59E0B', fontSize: 9, fontWeight: '700', letterSpacing: 0.5 }}>{t('bankReconciliation.typeUnknown')}</Text>
                 </View>
               )}
               {txType === 'transfer' && (
                 <View style={{ backgroundColor: '#6B728015', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
-                  <Text style={{ color: '#6B7280', fontSize: 9, fontWeight: '700', letterSpacing: 0.5 }}>TRANSFER</Text>
+                  <Text style={{ color: '#6B7280', fontSize: 9, fontWeight: '700', letterSpacing: 0.5 }}>{t('bankReconciliation.typeTransfer')}</Text>
                 </View>
               )}
               {!isUnknown && isLowConfidence && txType !== 'expense' && (
                 <View style={{ backgroundColor: '#F59E0B15', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
-                  <Text style={{ color: '#F59E0B', fontSize: 9, fontWeight: '600' }}>Verify</Text>
+                  <Text style={{ color: '#F59E0B', fontSize: 9, fontWeight: '600' }}>{t('bankReconciliation.verifyLabel')}</Text>
                 </View>
               )}
               {item.worker_id && (
                 <View style={{ backgroundColor: '#3B82F620', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
-                  <Text style={{ color: '#3B82F6', fontSize: 9, fontWeight: '700', letterSpacing: 0.5 }}>WORKER</Text>
+                  <Text style={{ color: '#3B82F6', fontSize: 9, fontWeight: '700', letterSpacing: 0.5 }}>{t('bankReconciliation.typeWorker')}</Text>
                 </View>
               )}
             </View>
@@ -291,7 +291,7 @@ export default function BankReconciliationScreen() {
             {isOverhead && (
               <View style={styles.linkedProject}>
                 <Ionicons name="business-outline" size={12} color="#F59E0B" />
-                <Text style={[styles.linkedProjectText, { color: '#F59E0B' }]}>Overhead</Text>
+                <Text style={[styles.linkedProjectText, { color: '#F59E0B' }]}>{t('bankReconciliation.overhead')}</Text>
               </View>
             )}
           </View>
@@ -310,9 +310,9 @@ export default function BankReconciliationScreen() {
         {isUnknown && (
           <View style={[styles.txActions, { borderTopColor: Colors.border }]}>
             {[
-              { type: 'expense', label: 'Expense', color: OWNER_COLORS.danger, icon: 'arrow-down-circle-outline' },
-              { type: 'income', label: 'Income', color: OWNER_COLORS.success, icon: 'arrow-up-circle-outline' },
-              { type: 'transfer', label: 'Transfer', color: '#6B7280', icon: 'swap-horizontal-outline' },
+              { type: 'expense', label: t('bankReconciliation.classifyExpense'), color: OWNER_COLORS.danger, icon: 'arrow-down-circle-outline' },
+              { type: 'income', label: t('bankReconciliation.classifyIncome'), color: OWNER_COLORS.success, icon: 'arrow-up-circle-outline' },
+              { type: 'transfer', label: t('bankReconciliation.classifyTransfer'), color: '#6B7280', icon: 'swap-horizontal-outline' },
             ].map(opt => (
               <TouchableOpacity
                 key={opt.type}
@@ -332,7 +332,7 @@ export default function BankReconciliationScreen() {
               onPress={() => handleIgnore(item.id)}
             >
               <Ionicons name="bookmark-outline" size={14} color={Colors.secondaryText} />
-              <Text style={[styles.txActionText, { color: Colors.secondaryText }]}>Register</Text>
+              <Text style={[styles.txActionText, { color: Colors.secondaryText }]}>{t('bankReconciliation.registerAction')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -347,7 +347,7 @@ export default function BankReconciliationScreen() {
               onPress={() => handleAssign(item)}
             >
               <Ionicons name="arrow-forward-circle-outline" size={16} color={OWNER_COLORS.primary} />
-              <Text style={[styles.txActionText, { color: OWNER_COLORS.primary }]}>Project</Text>
+              <Text style={[styles.txActionText, { color: OWNER_COLORS.primary }]}>{t('bankReconciliation.projectAction')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               testID={`bankReconciliation.row.${item.id}.overheadButton`}
@@ -356,7 +356,7 @@ export default function BankReconciliationScreen() {
               onPress={() => navigation.navigate('BankTransactionAssign', { transaction: item, isOverhead: true })}
             >
               <Ionicons name="business-outline" size={16} color="#F59E0B" />
-              <Text style={[styles.txActionText, { color: '#F59E0B' }]}>Overhead</Text>
+              <Text style={[styles.txActionText, { color: '#F59E0B' }]}>{t('bankReconciliation.overhead')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               testID={`bankReconciliation.row.${item.id}.ignoreButton`}
@@ -365,7 +365,7 @@ export default function BankReconciliationScreen() {
               onPress={() => handleIgnore(item.id)}
             >
               <Ionicons name="eye-off-outline" size={16} color={Colors.secondaryText} />
-              <Text style={[styles.txActionText, { color: Colors.secondaryText }]}>Ignore</Text>
+              <Text style={[styles.txActionText, { color: Colors.secondaryText }]}>{t('bankReconciliation.ignoreAction')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -382,7 +382,7 @@ export default function BankReconciliationScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center' }}>
           <Text testID="bankReconciliation.headerTitle" style={[styles.headerTitle, { color: Colors.primaryText }]}>{accountName ? accountName.trim() : t('reconciliation.title')}</Text>
-          {accountName && <Text style={{ fontSize: 11, color: Colors.secondaryText, marginTop: 1 }}>Transactions</Text>}
+          {accountName && <Text style={{ fontSize: 11, color: Colors.secondaryText, marginTop: 1 }}>{t('bankReconciliation.transactionsSubtitle')}</Text>}
         </View>
         <TouchableOpacity testID="bankReconciliation.settingsButton" accessibilityLabel="Bank connection settings" onPress={() => navigation.navigate('BankConnection')} style={styles.settingsButton}>
           <Ionicons name="settings-outline" size={22} color={Colors.secondaryText} />

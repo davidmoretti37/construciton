@@ -1,10 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export default function EstimateList({ data, onAction }) {
+  const { t } = useTranslation('chat');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -49,7 +51,7 @@ export default function EstimateList({ data, onAction }) {
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
+    if (!dateString) return t('estimateList.dateNA');
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
@@ -65,7 +67,7 @@ export default function EstimateList({ data, onAction }) {
       {/* Header */}
       <View style={styles.header}>
         <Text style={[styles.title, { color: Colors.primaryText }]}>
-          📋 Estimates
+          {t('estimateList.title')}
         </Text>
         {summary.total > 0 && (
           <View style={[styles.badge, { backgroundColor: Colors.primaryBlue }]}>
@@ -81,14 +83,14 @@ export default function EstimateList({ data, onAction }) {
             <Text style={[styles.statValue, { color: Colors.primaryText }]}>
               {summary.pending || 0}
             </Text>
-            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>Pending</Text>
+            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>{t('estimateList.statPending')}</Text>
           </View>
           <View style={[styles.statDivider, { backgroundColor: Colors.border }]} />
           <View style={styles.statItem}>
             <Text style={[styles.statValue, { color: Colors.success }]}>
               {summary.accepted || 0}
             </Text>
-            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>Accepted</Text>
+            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>{t('estimateList.statAccepted')}</Text>
           </View>
           {summary.totalValue && (
             <>
@@ -97,7 +99,7 @@ export default function EstimateList({ data, onAction }) {
                 <Text style={[styles.statValue, { color: Colors.primaryBlue }]}>
                   ${(summary.totalValue / 1000).toFixed(1)}K
                 </Text>
-                <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>Total Value</Text>
+                <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>{t('estimateList.statTotalValue')}</Text>
               </View>
             </>
           )}
@@ -115,7 +117,7 @@ export default function EstimateList({ data, onAction }) {
           <View style={styles.emptyState}>
             <Ionicons name="document-outline" size={48} color={Colors.secondaryText} />
             <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-              No estimates yet
+              {t('estimateList.empty')}
             </Text>
           </View>
         ) : (
@@ -139,7 +141,7 @@ export default function EstimateList({ data, onAction }) {
                 <View style={[styles.statusBadge, { backgroundColor: getStatusColor(estimate.status) + '20' }]}>
                   <Ionicons name={getStatusIcon(estimate.status)} size={14} color={getStatusColor(estimate.status)} />
                   <Text style={[styles.statusText, { color: getStatusColor(estimate.status) }]}>
-                    {estimate.status?.charAt(0).toUpperCase() + estimate.status?.slice(1) || 'Draft'}
+                    {t(`estimateList.status.${estimate.status || 'draft'}`)}
                   </Text>
                 </View>
               </View>
@@ -163,7 +165,7 @@ export default function EstimateList({ data, onAction }) {
                   <View style={styles.detailRow}>
                     <Ionicons name="list-outline" size={14} color={Colors.secondaryText} />
                     <Text style={[styles.detailText, { color: Colors.secondaryText }]}>
-                      {estimate.items.length} item{estimate.items.length !== 1 ? 's' : ''}
+                      {t('estimateList.itemCount', { count: estimate.items.length })}
                     </Text>
                   </View>
                 )}
@@ -171,7 +173,7 @@ export default function EstimateList({ data, onAction }) {
 
               {/* Amount */}
               <View style={styles.amountSection}>
-                <Text style={[styles.amountLabel, { color: Colors.secondaryText }]}>Total:</Text>
+                <Text style={[styles.amountLabel, { color: Colors.secondaryText }]}>{t('estimateList.totalLabel')}</Text>
                 <Text style={[styles.amount, { color: Colors.primaryBlue }]}>
                   ${(estimate.total || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </Text>

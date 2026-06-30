@@ -23,7 +23,7 @@ import ProgressStepBar from '../../components/onboarding/ProgressStepBar';
 export default function PricingSetupScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
-  const { t } = useTranslation('common');
+  const { t } = useTranslation('onboarding');
 
   // NEW: Get selected services instead of trades
   const { selectedServices: initialServices, businessInfo, phasesTemplate } = route.params || {};
@@ -99,12 +99,12 @@ export default function PricingSetupScreen({ navigation, route }) {
 
   const handleDeleteItem = (serviceId, itemId) => {
     Alert.alert(
-      t('alerts.confirmDelete'),
-      t('messages.confirmDeleteItem'),
+      t('pricingSetup.confirmDeleteTitle'),
+      t('pricingSetup.confirmDeleteMessage'),
       [
-        { text: t('buttons.cancel'), style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
         {
-          text: t('buttons.delete'),
+          text: t('common:buttons.delete'),
           style: 'destructive',
           onPress: () => {
             const serviceIndex = services.findIndex(s => s.id === serviceId);
@@ -133,7 +133,7 @@ export default function PricingSetupScreen({ navigation, route }) {
 
   const handleSaveItem = () => {
     if (!editItemName.trim()) {
-      Alert.alert(t('alerts.requiredField'), t('messages.pleaseEnterName'));
+      Alert.alert(t('pricingSetup.requiredFieldTitle'), t('pricingSetup.pleaseEnterName'));
       return;
     }
 
@@ -223,7 +223,7 @@ export default function PricingSetupScreen({ navigation, route }) {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primaryBlue} />
           <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>
-            Loading pricing options...
+            {t('pricingSetup.loadingPricing')}
           </Text>
         </View>
       </SafeAreaView>
@@ -237,7 +237,7 @@ export default function PricingSetupScreen({ navigation, route }) {
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Pricing Setup</Text>
+        <Text style={styles.headerTitle}>{t('pricingSetup.headerTitle')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -249,10 +249,10 @@ export default function PricingSetupScreen({ navigation, route }) {
       >
         <View style={{ flex: 1 }}>
           <Text style={[styles.title, { color: Colors.primaryText, paddingHorizontal: Spacing.xl }]}>
-            Set your pricing
+            {t('pricingSetup.title')}
           </Text>
           <Text style={[styles.subtitle, { color: Colors.secondaryText, paddingHorizontal: Spacing.xl }]}>
-            These are your default rates. You can adjust them for each estimate.
+            {t('pricingSetup.defaultRatesSubtitle')}
           </Text>
 
           {/* Service Tabs */}
@@ -317,7 +317,7 @@ export default function PricingSetupScreen({ navigation, route }) {
                           {item.name}
                         </Text>
                         <Text style={[styles.priceItemUnit, { color: Colors.secondaryText }]}>
-                          per {item.unit}
+                          {t('pricingSetup.perUnit', { unit: item.unit })}
                         </Text>
                       </View>
                       <View style={styles.itemActions}>
@@ -343,7 +343,7 @@ export default function PricingSetupScreen({ navigation, route }) {
                         value={currentPrice.toString()}
                         onChangeText={(value) => handlePriceChange(activeService, item.id, value)}
                         keyboardType="decimal-pad"
-                        placeholder="Enter your rate"
+                        placeholder={t('pricingSetup.enterRatePlaceholder')}
                         placeholderTextColor={Colors.secondaryText}
                       />
                       <Text style={[styles.unitText, { color: Colors.secondaryText }]}>
@@ -357,7 +357,7 @@ export default function PricingSetupScreen({ navigation, route }) {
               <View style={styles.emptyState}>
                 <Ionicons name="pricetag-outline" size={48} color={Colors.secondaryText} />
                 <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-                  No pricing items for this service
+                  {t('pricingSetup.noItemsEmpty')}
                 </Text>
               </View>
             )}
@@ -369,7 +369,7 @@ export default function PricingSetupScreen({ navigation, route }) {
             >
               <Ionicons name="add-circle-outline" size={24} color={Colors.primaryBlue} />
               <Text style={[styles.addButtonText, { color: Colors.primaryBlue }]}>
-                Add Service Item
+                {t('pricingSetup.addServiceItem')}
               </Text>
             </TouchableOpacity>
           </ScrollView>
@@ -382,7 +382,7 @@ export default function PricingSetupScreen({ navigation, route }) {
             onPress={handleContinue}
             activeOpacity={0.8}
           >
-            <Text style={styles.buttonText}>Complete Setup</Text>
+            <Text style={styles.buttonText}>{t('pricingSetup.completeSetup')}</Text>
             <Ionicons name="checkmark" size={20} color="#fff" />
           </TouchableOpacity>
 
@@ -403,7 +403,7 @@ export default function PricingSetupScreen({ navigation, route }) {
         <SafeAreaView style={[styles.modalContainer, { backgroundColor: Colors.background }]}>
           <View style={styles.modalHeader}>
             <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>
-              {editingItem?.isNew ? 'Add Service Item' : 'Edit Service Item'}
+              {editingItem?.isNew ? t('pricingSetup.addServiceItem') : t('pricingSetup.editServiceItem')}
             </Text>
             <TouchableOpacity onPress={() => setShowEditModal(false)}>
               <Ionicons name="close" size={28} color={Colors.primaryText} />
@@ -414,11 +414,11 @@ export default function PricingSetupScreen({ navigation, route }) {
             {/* Item Name */}
             <View style={styles.modalInputGroup}>
               <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>
-                Item Name <Text style={{ color: Colors.error }}>*</Text>
+                {t('pricingSetup.itemName')} <Text style={{ color: Colors.error }}>*</Text>
               </Text>
               <TextInput
                 style={[styles.modalInput, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
-                placeholder="e.g., Interior Painting"
+                placeholder={t('pricingSetup.itemNamePlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 value={editItemName}
                 onChangeText={setEditItemName}
@@ -429,11 +429,11 @@ export default function PricingSetupScreen({ navigation, route }) {
             {/* Item Description */}
             <View style={styles.modalInputGroup}>
               <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>
-                Description <Text style={[styles.optional, { color: Colors.secondaryText }]}>(Optional)</Text>
+                {t('pricingSetup.descriptionLabel')} <Text style={[styles.optional, { color: Colors.secondaryText }]}>{t('pricingSetup.optional')}</Text>
               </Text>
               <TextInput
                 style={[styles.modalInput, styles.modalTextArea, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
-                placeholder="Brief description of what's included"
+                placeholder={t('pricingSetup.descriptionPlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 value={editItemDescription}
                 onChangeText={setEditItemDescription}
@@ -444,7 +444,7 @@ export default function PricingSetupScreen({ navigation, route }) {
 
             {/* Unit Selection */}
             <View style={styles.modalInputGroup}>
-              <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>Unit Type</Text>
+              <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>{t('pricingSetup.unitType')}</Text>
               <View style={styles.unitGrid}>
                 {['sq ft', 'linear ft', 'hour', 'job', 'unit', 'room'].map(unit => (
                   <TouchableOpacity
@@ -477,13 +477,13 @@ export default function PricingSetupScreen({ navigation, route }) {
               style={[styles.modalButton, styles.cancelButton, { borderColor: Colors.border }]}
               onPress={() => setShowEditModal(false)}
             >
-              <Text style={[styles.cancelButtonText, { color: Colors.primaryText }]}>Cancel</Text>
+              <Text style={[styles.cancelButtonText, { color: Colors.primaryText }]}>{t('common:buttons.cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.modalButton, styles.saveButton, { backgroundColor: Colors.primaryBlue }]}
               onPress={handleSaveItem}
             >
-              <Text style={styles.saveButtonText}>Save</Text>
+              <Text style={styles.saveButtonText}>{t('common:buttons.save')}</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>

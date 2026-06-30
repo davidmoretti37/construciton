@@ -300,7 +300,7 @@ export default function EditServiceScreen({ route, navigation }) {
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>
-          {service?.service_categories?.name || 'Edit Service'}
+          {service?.service_categories?.name || t('editService.title')}
         </Text>
         <TouchableOpacity
           style={styles.backButton}
@@ -398,7 +398,7 @@ export default function EditServiceScreen({ route, navigation }) {
                     <View style={styles.priceItemHeader}>
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.priceItemLabel, { color: Colors.primaryText }]}>
-                          {value.name || 'Unnamed Item'}
+                          {value.name || t('editService.unnamedItem')}
                         </Text>
                         <Text style={[styles.priceItemUnit, { color: Colors.secondaryText }]}>
                           {t('services.perUnit').replace('unit', value.unit || 'unit')}
@@ -465,7 +465,7 @@ export default function EditServiceScreen({ route, navigation }) {
                         </View>
                         <View style={styles.phaseInfo}>
                           <Text style={[styles.phaseName, { color: Colors.primaryText }]}>
-                            {phase.phase_name || phase.name || phase.title || 'Unnamed Phase'}
+                            {phase.phase_name || phase.name || phase.title || t('editService.unnamedPhase')}
                           </Text>
                           <Text style={[styles.phaseDays, { color: Colors.secondaryText }]}>
                             ~{phase.default_days || 7} {tCommon('units.days')}
@@ -569,11 +569,11 @@ export default function EditServiceScreen({ route, navigation }) {
             {/* Item Name */}
             <View style={styles.modalInputGroup}>
               <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>
-                Item Name <Text style={{ color: Colors.error }}>*</Text>
+                {t('editService.itemName')} <Text style={{ color: Colors.error }}>*</Text>
               </Text>
               <TextInput
                 style={[styles.modalInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
-                placeholder="e.g., Labor, Materials"
+                placeholder={t('editService.itemNamePlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 value={editItemName}
                 onChangeText={setEditItemName}
@@ -583,7 +583,7 @@ export default function EditServiceScreen({ route, navigation }) {
 
             {/* Price */}
             <View style={styles.modalInputGroup}>
-              <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>Price ($)</Text>
+              <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>{t('editService.priceLabel')}</Text>
               <TextInput
                 style={[styles.modalInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
                 placeholder="0.00"
@@ -596,7 +596,7 @@ export default function EditServiceScreen({ route, navigation }) {
 
             {/* Unit Selection */}
             <View style={styles.modalInputGroup}>
-              <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>Unit Type</Text>
+              <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>{t('editService.unitType')}</Text>
               <View style={styles.unitGrid}>
                 {['sq ft', 'linear ft', 'hour', 'job', 'unit', 'room'].map(unit => (
                   <TouchableOpacity
@@ -662,11 +662,11 @@ export default function EditServiceScreen({ route, navigation }) {
             {/* Phase Name */}
             <View style={styles.modalInputGroup}>
               <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>
-                Phase Name <Text style={{ color: Colors.error }}>*</Text>
+                {t('editService.phaseName')} <Text style={{ color: Colors.error }}>*</Text>
               </Text>
               <TextInput
                 style={[styles.modalInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
-                placeholder="e.g., Rough, Finish"
+                placeholder={t('editService.phaseNamePlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 value={editPhaseName}
                 onChangeText={setEditPhaseName}
@@ -676,7 +676,7 @@ export default function EditServiceScreen({ route, navigation }) {
 
             {/* Days */}
             <View style={styles.modalInputGroup}>
-              <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>Estimated Days</Text>
+              <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>{t('editService.estimatedDays')}</Text>
               <TextInput
                 style={[styles.modalInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
                 placeholder="7"

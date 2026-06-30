@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
@@ -30,6 +31,7 @@ const notificationToggles = [
 ];
 
 export default function ClientVisibilityScreen({ route, navigation }) {
+  const { t } = useTranslation('owner');
   const { projectId } = route.params;
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -97,12 +99,12 @@ export default function ClientVisibilityScreen({ route, navigation }) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color="#111827" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Client Visibility</Text>
+        <Text style={styles.headerTitle}>{t('clientVisibility.title')}</Text>
         {saving && <ActivityIndicator size="small" color="#3B82F6" style={{ marginLeft: 8 }} />}
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.sectionLabel}>What your client can see</Text>
+        <Text style={styles.sectionLabel}>{t('clientVisibility.sectionVisibility')}</Text>
         <View style={styles.card}>
           {toggles.map((toggle, i) => (
             <View key={toggle.key} style={[styles.toggleRow, i < toggles.length - 1 && styles.toggleBorder]}>
@@ -123,7 +125,7 @@ export default function ClientVisibilityScreen({ route, navigation }) {
           ))}
         </View>
 
-        <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Notifications</Text>
+        <Text style={[styles.sectionLabel, { marginTop: 24 }]}>{t('clientVisibility.sectionNotifications')}</Text>
         <View style={styles.card}>
           {notificationToggles.map((toggle, i) => (
             <View key={toggle.key} style={[styles.toggleRow, i < notificationToggles.length - 1 && styles.toggleBorder]}>
@@ -145,8 +147,7 @@ export default function ClientVisibilityScreen({ route, navigation }) {
         </View>
 
         <Text style={styles.footerNote}>
-          Project status, estimates, and invoices are always visible to clients.
-          Drafts are never shown.
+          {t('clientVisibility.footerNote')}
         </Text>
       </ScrollView>
     </SafeAreaView>

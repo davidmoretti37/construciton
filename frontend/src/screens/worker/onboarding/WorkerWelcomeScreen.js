@@ -9,6 +9,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../../constants/theme';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -40,6 +41,7 @@ const AnimatedFeature = ({ icon, text, index, isActive, Colors }) => {
 };
 
 export default function WorkerWelcomeScreen({ navigation }) {
+  const { t } = useTranslation('workers');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { refreshProfile } = useAuth();
@@ -69,10 +71,10 @@ export default function WorkerWelcomeScreen({ navigation }) {
   const buttonAnim = useButtonBounce(isScreenActive, 1400);
 
   const features = [
-    { icon: 'time-outline', text: 'Clock in/out with location tracking' },
-    { icon: 'briefcase-outline', text: 'View your project assignments' },
-    { icon: 'calendar-outline', text: 'Track your hours and timesheet' },
-    { icon: 'chatbubble-outline', text: 'Message your contractor' },
+    { icon: 'time-outline', text: t('workerWelcome.featureClockIn') },
+    { icon: 'briefcase-outline', text: t('workerWelcome.featureProjects') },
+    { icon: 'calendar-outline', text: t('workerWelcome.featureHours') },
+    { icon: 'chatbubble-outline', text: t('workerWelcome.featureMessage') },
   ];
 
   const handleInvitesHandled = async () => {
@@ -113,7 +115,7 @@ export default function WorkerWelcomeScreen({ navigation }) {
         <View style={[styles.content, { justifyContent: 'center' }]}>
           <ActivityIndicator size="large" color={WORKER_GREEN} />
           <Text style={[styles.subtitle, { color: Colors.secondaryText, marginTop: 16 }]}>
-            Checking for invitations...
+            {t('workerWelcome.checkingInvitations')}
           </Text>
         </View>
       </SafeAreaView>
@@ -138,7 +140,7 @@ export default function WorkerWelcomeScreen({ navigation }) {
         >
           <Ionicons name="arrow-back" size={22} color={Colors.primaryText} />
           <Text style={[styles.backText, { color: Colors.primaryText }]}>
-            Back
+            {t('common:buttons.back')}
           </Text>
         </TouchableOpacity>
       )}
@@ -152,12 +154,12 @@ export default function WorkerWelcomeScreen({ navigation }) {
         {/* Welcome Text */}
         <View style={styles.textContainer}>
           <Animated.Text style={[styles.title, { color: Colors.primaryText }, titleAnim]}>
-            Welcome, Worker!
+            {t('workerWelcome.title')}
           </Animated.Text>
           <Animated.Text style={[styles.subtitle, { color: Colors.secondaryText }, subtitleAnim]}>
             {hasInvites
-              ? 'You have a pending invitation to join a company!'
-              : 'You need an invitation from a business owner to get started.'}
+              ? t('workerWelcome.subtitleHasInvites')
+              : t('workerWelcome.subtitleNoInvites')}
           </Animated.Text>
         </View>
 
@@ -184,7 +186,7 @@ export default function WorkerWelcomeScreen({ navigation }) {
               activeOpacity={0.8}
             >
               <Ionicons name="mail" size={20} color="#fff" />
-              <Text style={styles.buttonText}>View Invitation</Text>
+              <Text style={styles.buttonText}>{t('workerWelcome.viewInvitation')}</Text>
             </TouchableOpacity>
           ) : (
             <View>
@@ -194,14 +196,14 @@ export default function WorkerWelcomeScreen({ navigation }) {
                 activeOpacity={0.8}
               >
                 <Ionicons name="refresh" size={20} color="#fff" />
-                <Text style={styles.buttonText}>Check for Invitations</Text>
+                <Text style={styles.buttonText}>{t('workerWelcome.checkForInvitations')}</Text>
               </TouchableOpacity>
 
               {/* Info message */}
               <View style={[styles.infoBox, { backgroundColor: WORKER_GREEN + '10' }]}>
                 <Ionicons name="information-circle" size={20} color={WORKER_GREEN} />
                 <Text style={[styles.infoText, { color: Colors.secondaryText }]}>
-                  Ask your business owner to send you an invitation using your email address.
+                  {t('workerWelcome.inviteInfo')}
                 </Text>
               </View>
             </View>

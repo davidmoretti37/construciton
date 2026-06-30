@@ -15,6 +15,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
+import { statusLabel } from '../utils/statusLabel';
 import { useTheme } from '../contexts/ThemeContext';
 import { LightColors, DarkColors } from '../constants/theme';
 import * as api from '../services/subsService';
@@ -62,6 +64,7 @@ function getInitials(name) {
 }
 
 function ScheduleSection({ engagements, navigation, Colors, styles }) {
+  const { t } = useTranslation('common');
   // Bucket by status. The lifecycle goes:
   //   awarded → contracted → mobilized → in_progress → substantially_complete → closed_out
   // Anything before mobilized = Upcoming. mobilized + in_progress = In progress.
@@ -83,9 +86,9 @@ function ScheduleSection({ engagements, navigation, Colors, styles }) {
     return (
       <View style={styles.emptyBig}>
         <Ionicons name="calendar-outline" size={42} color={Colors.secondaryText} />
-        <Text style={[styles.emptyBigTitle, { color: Colors.primaryText }]}>No scheduled work yet</Text>
+        <Text style={[styles.emptyBigTitle, { color: Colors.primaryText }]}>{t('subcontractorDetail.noScheduledWork')}</Text>
         <Text style={[styles.emptyBigBody, { color: Colors.secondaryText }]}>
-          Accept a bid or add this sub to a project to see them on the schedule.
+          {t('subcontractorDetail.noScheduledWorkBody')}
         </Text>
       </View>
     );
@@ -93,15 +96,16 @@ function ScheduleSection({ engagements, navigation, Colors, styles }) {
 
   return (
     <View>
-      <ScheduleGroup title="In progress" items={active} navigation={navigation} Colors={Colors} styles={styles} accent="#10B981" />
-      <ScheduleGroup title="Upcoming"    items={upcoming} navigation={navigation} Colors={Colors} styles={styles} accent="#3B82F6" />
-      <ScheduleGroup title="Completed"   items={completed} navigation={navigation} Colors={Colors} styles={styles} accent="#6B7280" muted />
-      <ScheduleGroup title="Cancelled"   items={cancelled} navigation={navigation} Colors={Colors} styles={styles} accent="#DC2626" muted />
+      <ScheduleGroup title={t('subcontractorDetail.scheduleGroups.inProgress')} items={active} navigation={navigation} Colors={Colors} styles={styles} accent="#10B981" />
+      <ScheduleGroup title={t('subcontractorDetail.scheduleGroups.upcoming')}    items={upcoming} navigation={navigation} Colors={Colors} styles={styles} accent="#3B82F6" />
+      <ScheduleGroup title={t('subcontractorDetail.scheduleGroups.completed')}   items={completed} navigation={navigation} Colors={Colors} styles={styles} accent="#6B7280" muted />
+      <ScheduleGroup title={t('subcontractorDetail.scheduleGroups.cancelled')}   items={cancelled} navigation={navigation} Colors={Colors} styles={styles} accent="#DC2626" muted />
     </View>
   );
 }
 
 function ScheduleGroup({ title, items, navigation, Colors, styles, accent, muted }) {
+  const { t } = useTranslation('common');
   if (!items?.length) return null;
   return (
     <View style={{ marginTop: 14 }}>
@@ -115,16 +119,16 @@ function ScheduleGroup({ title, items, navigation, Colors, styles, accent, muted
         >
           <View style={[styles.scheduleAccent, { backgroundColor: accent }]} />
           <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.scheduleTitle}>{e.trade || 'Job'}</Text>
+            <Text style={styles.scheduleTitle}>{e.trade || t('subcontractorDetail.jobFallback')}</Text>
             <Text style={styles.scheduleProject} numberOfLines={1}>
-              {e.project?.name || 'Project'}
+              {e.project?.name || t('subcontractorDetail.projectFallback')}
               {e.project?.location ? `  ·  ${e.project.location}` : ''}
             </Text>
             <View style={styles.scheduleMetaRow}>
-              {formatScheduleDates(e) ? (
+              {formatScheduleDates(e, t) ? (
                 <View style={styles.scheduleMetaChip}>
                   <Ionicons name="calendar-outline" size={12} color={Colors.secondaryText} />
-                  <Text style={styles.scheduleMetaText}>{formatScheduleDates(e)}</Text>
+                  <Text style={styles.scheduleMetaText}>{formatScheduleDates(e, t)}</Text>
                 </View>
               ) : null}
               {e.contract_amount ? (
@@ -144,41 +148,42 @@ function ScheduleGroup({ title, items, navigation, Colors, styles, accent, muted
   );
 }
 
-function formatScheduleDates(e) {
+function formatScheduleDates(e, t) {
   // Prefer engagement-level timestamps; fall back to project dates.
   const start = e.mobilized_at || e.contracted_at || e.awarded_at || e.project?.start_date || null;
   const end = e.completed_at || e.closed_out_at || e.project?.end_date || null;
   if (!start && !end) return null;
   const fmt = (s) => s ? new Date(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '?';
   if (start && end) return `${fmt(start)} → ${fmt(end)}`;
-  if (start) return `Started ${fmt(start)}`;
-  return `Due ${fmt(end)}`;
+  if (start) return t('subcontractorDetail.startedDate', { date: fmt(start) });
+  return t('subcontractorDetail.dueDate', { date: fmt(end) });
 }
 
-function bidPill(status) {
+function bidPill(status, t) {
   switch (status) {
-    case 'submitted':  return { label: 'Submitted',  bg: '#3B82F620', fg: '#3B82F6' };
-    case 'accepted':   return { label: 'Accepted',   bg: '#10B98120', fg: '#10B981' };
+    case 'submitted':  return { label: t('subcontractorDetail.bidStatus.submitted'),  bg: '#3B82F620', fg: '#3B82F6' };
+    case 'accepted':   return { label: t('subcontractorDetail.bidStatus.accepted'),   bg: '#10B98120', fg: '#10B981' };
     case 'declined':
-    case 'rejected':   return { label: 'Declined',   bg: '#DC262620', fg: '#DC2626' };
-    case 'withdrawn':  return { label: 'Withdrawn',  bg: '#6B728020', fg: '#6B7280' };
-    case 'open':       return { label: 'Awaiting',   bg: '#F59E0B20', fg: '#F59E0B' };
-    case 'closed':     return { label: 'Closed',     bg: '#6B728020', fg: '#6B7280' };
-    case 'cancelled':  return { label: 'Cancelled',  bg: '#6B728020', fg: '#6B7280' };
+    case 'rejected':   return { label: t('subcontractorDetail.bidStatus.declined'),   bg: '#DC262620', fg: '#DC2626' };
+    case 'withdrawn':  return { label: t('subcontractorDetail.bidStatus.withdrawn'),  bg: '#6B728020', fg: '#6B7280' };
+    case 'open':       return { label: t('subcontractorDetail.bidStatus.awaiting'),   bg: '#F59E0B20', fg: '#F59E0B' };
+    case 'closed':     return { label: t('subcontractorDetail.bidStatus.closed'),     bg: '#6B728020', fg: '#6B7280' };
+    case 'cancelled':  return { label: t('subcontractorDetail.bidStatus.cancelled'),  bg: '#6B728020', fg: '#6B7280' };
     default:           return { label: status || '—', bg: '#6B728020', fg: '#6B7280' };
   }
 }
 
-function statusForDoc(d, Colors) {
-  if (!d.expires_at) return { label: 'Active', color: Colors.successGreen, bg: Colors.successGreen + '15' };
+function statusForDoc(d, Colors, t) {
+  if (!d.expires_at) return { label: t('subcontractorDetail.docStatus.active'), color: Colors.successGreen, bg: Colors.successGreen + '15' };
   const now = new Date();
   const days = Math.floor((new Date(d.expires_at) - now) / 86400000);
-  if (days < 0) return { label: `Expired ${Math.abs(days)}d ago`, color: Colors.errorRed, bg: Colors.errorRed + '15' };
-  if (days <= 30) return { label: `${days}d left`, color: Colors.warningOrange, bg: Colors.warningOrange + '15' };
-  return { label: 'Active', color: Colors.successGreen, bg: Colors.successGreen + '15' };
+  if (days < 0) return { label: t('subcontractorDetail.docStatus.expiredAgo', { count: Math.abs(days) }), color: Colors.errorRed, bg: Colors.errorRed + '15' };
+  if (days <= 30) return { label: t('subcontractorDetail.docStatus.daysLeft', { count: days }), color: Colors.warningOrange, bg: Colors.warningOrange + '15' };
+  return { label: t('subcontractorDetail.docStatus.active'), color: Colors.successGreen, bg: Colors.successGreen + '15' };
 }
 
 export default function SubcontractorDetailScreen({ route, navigation }) {
+  const { t } = useTranslation('common');
   const { sub_organization_id } = route.params || {};
   const { isDark = false } = useTheme() || {};
   const Colors = isDark ? DarkColors : LightColors;
@@ -211,11 +216,13 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
       if (!res?.url) throw new Error('No URL');
       navigation.navigate('DocumentViewer', {
         fileUrl: res.url,
-        fileName: inv.invoice_number ? `Invoice ${inv.invoice_number}` : `Invoice #${inv.id.slice(0, 6)}`,
+        fileName: inv.invoice_number
+          ? t('subcontractorDetail.invoiceLabel', { number: inv.invoice_number })
+          : t('subcontractorDetail.invoiceShort', { id: inv.id.slice(0, 6) }),
         fileType: 'pdf',
       });
     } catch (e) {
-      Alert.alert('Could not open', e.message || 'Try again');
+      Alert.alert(t('subcontractorDetail.couldNotOpen'), e.message || t('subcontractorDetail.tryAgain'));
     } finally {
       setOpeningInvId(null);
     }
@@ -223,18 +230,18 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
 
   const onMarkPaid = (inv) => {
     Alert.alert(
-      'Mark as paid?',
-      `Mark this $${Number(inv.total_amount).toLocaleString()} invoice paid? The sub will be notified.`,
+      t('subcontractorDetail.markAsPaidTitle'),
+      t('subcontractorDetail.markAsPaidBody', { amount: `$${Number(inv.total_amount).toLocaleString()}` }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
         {
-          text: 'Mark paid',
+          text: t('subcontractorDetail.markPaid'),
           onPress: async () => {
             try {
               await api.markInvoicePaid(inv.engagement_id, inv.id);
               await load();
             } catch (e) {
-              Alert.alert('Could not mark paid', e.message || 'Try again');
+              Alert.alert(t('subcontractorDetail.couldNotMarkPaid'), e.message || t('subcontractorDetail.tryAgain'));
             }
           },
         },
@@ -261,7 +268,7 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
         fileType: isPDF ? 'pdf' : isImage ? 'image' : 'document',
       });
     } catch (e) {
-      Alert.alert('Could not open', e.message || 'Try again.');
+      Alert.alert(t('subcontractorDetail.couldNotOpen'), e.message || t('subcontractorDetail.tryAgain'));
     } finally {
       setOpeningDocId(null);
     }
@@ -309,11 +316,14 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
       setRequestingType(null);
       setRequestingNote('');
       Alert.alert(
-        'Request sent',
-        `${DOC_TYPE_META[requestingType]?.label || requestingType} request emailed to ${sub?.primary_email || 'the sub'}.`,
+        t('subcontractorDetail.requestSent'),
+        t('subcontractorDetail.requestSentBody', {
+          doc: DOC_TYPE_META[requestingType]?.label || requestingType,
+          email: sub?.primary_email || t('subcontractorDetail.theSub'),
+        }),
       );
     } catch (e) {
-      Alert.alert('Failed', e.message);
+      Alert.alert(t('subcontractorDetail.failed'), e.message);
     } finally {
       setSending(false);
     }
@@ -351,18 +361,18 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
     return (
       <SafeAreaView style={[styles.root, styles.center, { backgroundColor: Colors.background }]}>
         <Ionicons name="alert-circle-outline" size={40} color={Colors.secondaryText} />
-        <Text style={{ color: Colors.primaryText, marginTop: 12 }}>Subcontractor not found</Text>
+        <Text style={{ color: Colors.primaryText, marginTop: 12 }}>{t('subcontractorDetail.subcontractorNotFound')}</Text>
       </SafeAreaView>
     );
   }
 
   const accountState = sub.upgraded_at
-    ? { label: 'Sylk Owner', color: Colors.accent || '#8B5CF6' }
+    ? { label: t('subcontractorDetail.accountState.sylkOwner'), color: Colors.accent || '#8B5CF6' }
     : sub.auth_user_id
-    ? { label: 'Active on Sylk', color: Colors.successGreen }
+    ? { label: t('subcontractorDetail.accountState.activeOnSylk'), color: Colors.successGreen }
     : sub.claimed_at
-    ? { label: 'Email-invited', color: Colors.warningOrange }
-    : { label: 'Pending invite', color: Colors.secondaryText };
+    ? { label: t('subcontractorDetail.accountState.emailInvited'), color: Colors.warningOrange }
+    : { label: t('subcontractorDetail.accountState.pendingInvite'), color: Colors.secondaryText };
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: Colors.background }]}>
@@ -384,17 +394,17 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tabStrip}
         >
-          {TABS.map((t) => {
-            const isActive = activeTab === t.key;
+          {TABS.map((tab) => {
+            const isActive = activeTab === tab.key;
             return (
               <TouchableOpacity
-                key={t.key}
-                onPress={() => setActiveTab(t.key)}
+                key={tab.key}
+                onPress={() => setActiveTab(tab.key)}
                 style={[styles.tab, isActive && { backgroundColor: Colors.primaryBlue }]}
                 activeOpacity={0.7}
               >
                 <Ionicons
-                  name={isActive ? t.activeIcon : t.icon}
+                  name={isActive ? tab.activeIcon : tab.icon}
                   size={15}
                   color={isActive ? '#fff' : Colors.primaryText}
                 />
@@ -402,7 +412,7 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
                   styles.tabText,
                   { color: isActive ? '#fff' : Colors.primaryText, fontWeight: isActive ? '700' : '500' },
                 ]}>
-                  {t.key}
+                  {t(`subcontractorDetail.tabs.${tab.key.toLowerCase()}`)}
                 </Text>
               </TouchableOpacity>
             );
@@ -423,7 +433,7 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
             </View>
             <View style={{ flex: 1, marginLeft: 14 }}>
               <Text style={styles.heroName}>{sub.legal_name}</Text>
-              {sub.dba ? <Text style={styles.heroDba}>DBA {sub.dba}</Text> : null}
+              {sub.dba ? <Text style={styles.heroDba}>{t('subcontractorDetail.dbaPrefix', { value: sub.dba })}</Text> : null}
               <View style={styles.heroChips}>
                 <View style={[styles.statusPill, { backgroundColor: accountState.color + '15' }]}>
                   <View style={[styles.statusDot, { backgroundColor: accountState.color }]} />
@@ -452,7 +462,7 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
                   <View style={[styles.actionIcon, { backgroundColor: Colors.primaryBlue + '15' }]}>
                     <Ionicons name="mail-outline" size={18} color={Colors.primaryBlue} />
                   </View>
-                  <Text style={[styles.actionLabel, { color: Colors.primaryText }]}>Email</Text>
+                  <Text style={[styles.actionLabel, { color: Colors.primaryText }]}>{t('subcontractorDetail.actions.email')}</Text>
                 </TouchableOpacity>
               )}
               {sub.primary_phone && (
@@ -464,7 +474,7 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
                   <View style={[styles.actionIcon, { backgroundColor: Colors.successGreen + '15' }]}>
                     <Ionicons name="call-outline" size={18} color={Colors.successGreen} />
                   </View>
-                  <Text style={[styles.actionLabel, { color: Colors.primaryText }]}>Call</Text>
+                  <Text style={[styles.actionLabel, { color: Colors.primaryText }]}>{t('subcontractorDetail.actions.call')}</Text>
                 </TouchableOpacity>
               )}
               {sub.primary_phone && (
@@ -476,7 +486,7 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
                   <View style={[styles.actionIcon, { backgroundColor: '#06B6D4' + '15' }]}>
                     <Ionicons name="chatbubble-outline" size={18} color="#06B6D4" />
                   </View>
-                  <Text style={[styles.actionLabel, { color: Colors.primaryText }]}>Text</Text>
+                  <Text style={[styles.actionLabel, { color: Colors.primaryText }]}>{t('subcontractorDetail.actions.text')}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -486,34 +496,34 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
         {/* Tab content */}
         {activeTab === 'Overview' && (
           <View>
-            <Text style={styles.sectionLabel}>Contact</Text>
+            <Text style={styles.sectionLabel}>{t('subcontractorDetail.sections.contact')}</Text>
             <View style={styles.card}>
-              {dataRow('Legal name', sub.legal_name, Colors)}
-              {sub.dba ? dataRow('DBA', sub.dba, Colors) : null}
-              {sub.primary_email ? dataRow('Email', sub.primary_email, Colors) : null}
-              {sub.primary_phone ? dataRow('Phone', sub.primary_phone, Colors) : null}
+              {dataRow(t('subcontractorDetail.fields.legalName'), sub.legal_name, Colors)}
+              {sub.dba ? dataRow(t('subcontractorDetail.fields.dba'), sub.dba, Colors) : null}
+              {sub.primary_email ? dataRow(t('subcontractorDetail.fields.email'), sub.primary_email, Colors) : null}
+              {sub.primary_phone ? dataRow(t('subcontractorDetail.fields.phone'), sub.primary_phone, Colors) : null}
             </View>
 
-            <Text style={styles.sectionLabel}>Business</Text>
+            <Text style={styles.sectionLabel}>{t('subcontractorDetail.sections.business')}</Text>
             <View style={styles.card}>
-              {sub.tax_id ? dataRow('EIN', sub.tax_id, Colors) : null}
-              {sub.entity_type ? dataRow('Entity', sub.entity_type, Colors) : null}
-              {(sub.trades || []).length > 0 ? dataRow('Trades', (sub.trades || []).join(', '), Colors) : null}
-              {(sub.service_states || []).length > 0 ? dataRow('Service states', (sub.service_states || []).join(', '), Colors) : null}
+              {sub.tax_id ? dataRow(t('subcontractorDetail.fields.ein'), sub.tax_id, Colors) : null}
+              {sub.entity_type ? dataRow(t('subcontractorDetail.fields.entity'), sub.entity_type, Colors) : null}
+              {(sub.trades || []).length > 0 ? dataRow(t('subcontractorDetail.fields.trades'), (sub.trades || []).join(', '), Colors) : null}
+              {(sub.service_states || []).length > 0 ? dataRow(t('subcontractorDetail.fields.serviceStates'), (sub.service_states || []).join(', '), Colors) : null}
               {!sub.tax_id && !sub.entity_type && !(sub.trades || []).length && !(sub.service_states || []).length && (
                 <Text style={[styles.emptyMini, { color: Colors.secondaryText }]}>
-                  No business details on file yet.
+                  {t('subcontractorDetail.noBusinessDetails')}
                 </Text>
               )}
             </View>
 
             {(sub.address_line1 || sub.city) && (
               <>
-                <Text style={styles.sectionLabel}>Address</Text>
+                <Text style={styles.sectionLabel}>{t('subcontractorDetail.sections.address')}</Text>
                 <View style={styles.card}>
-                  {sub.address_line1 ? dataRow('Street', sub.address_line1, Colors) : null}
-                  {sub.address_line2 ? dataRow('Unit', sub.address_line2, Colors) : null}
-                  {sub.city ? dataRow('City', `${sub.city}${sub.state_code ? `, ${sub.state_code}` : ''} ${sub.postal_code || ''}`, Colors) : null}
+                  {sub.address_line1 ? dataRow(t('subcontractorDetail.fields.street'), sub.address_line1, Colors) : null}
+                  {sub.address_line2 ? dataRow(t('subcontractorDetail.fields.unit'), sub.address_line2, Colors) : null}
+                  {sub.city ? dataRow(t('subcontractorDetail.fields.city'), `${sub.city}${sub.state_code ? `, ${sub.state_code}` : ''} ${sub.postal_code || ''}`, Colors) : null}
                 </View>
               </>
             )}
@@ -532,9 +542,9 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
                 <Ionicons name="paper-plane-outline" size={20} color="#fff" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.requestCtaTitle}>Request a document</Text>
+                <Text style={styles.requestCtaTitle}>{t('subcontractorDetail.requestDocument')}</Text>
                 <Text style={styles.requestCtaBody}>
-                  We email {sub.primary_email || 'the sub'} a one-tap upload link.
+                  {t('subcontractorDetail.requestCtaBody', { email: sub.primary_email || t('subcontractorDetail.theSub') })}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#fff" />
@@ -542,15 +552,15 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
 
             {presentTypes.length > 0 && (
               <>
-                <Text style={styles.sectionLabel}>On file</Text>
-                {presentTypes.map((t) => {
-                  const d = bestByType[t];
-                  const meta = DOC_TYPE_META[t] || { label: t.toUpperCase(), icon: 'document-outline', color: Colors.primaryBlue };
-                  const status = statusForDoc(d, Colors);
+                <Text style={styles.sectionLabel}>{t('subcontractorDetail.onFile')}</Text>
+                {presentTypes.map((docType) => {
+                  const d = bestByType[docType];
+                  const meta = DOC_TYPE_META[docType] || { label: docType.toUpperCase(), icon: 'document-outline', color: Colors.primaryBlue };
+                  const status = statusForDoc(d, Colors, t);
                   const isOpening = openingDocId === d.id;
                   return (
                     <TouchableOpacity
-                      key={t}
+                      key={docType}
                       style={styles.docCard}
                       activeOpacity={0.7}
                       onPress={() => onOpenDoc(d)}
@@ -562,7 +572,7 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
                       <View style={{ flex: 1 }}>
                         <Text style={styles.docTitle}>{meta.label}</Text>
                         <Text style={styles.docMeta}>
-                          {d.expires_at ? `Expires ${d.expires_at}` : 'No expiration'}
+                          {d.expires_at ? t('subcontractorDetail.expiresDate', { date: d.expires_at }) : t('subcontractorDetail.noExpiration')}
                           {d.policy_number ? ` · ${d.policy_number}` : ''}
                         </Text>
                       </View>
@@ -582,26 +592,26 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
 
             {missingRequestable.length > 0 && (
               <>
-                <Text style={styles.sectionLabel}>Missing</Text>
-                {missingRequestable.map((t) => {
-                  const meta = DOC_TYPE_META[t] || { label: t.toUpperCase(), icon: 'document-outline', color: Colors.primaryBlue };
+                <Text style={styles.sectionLabel}>{t('subcontractorDetail.missing')}</Text>
+                {missingRequestable.map((docType) => {
+                  const meta = DOC_TYPE_META[docType] || { label: docType.toUpperCase(), icon: 'document-outline', color: Colors.primaryBlue };
                   return (
                     <TouchableOpacity
-                      key={t}
+                      key={docType}
                       style={[styles.docCard, styles.docCardMissing]}
                       activeOpacity={0.7}
-                      onPress={() => { setRequestingType(t); setRequestModalOpen(true); }}
+                      onPress={() => { setRequestingType(docType); setRequestModalOpen(true); }}
                     >
                       <View style={[styles.docIcon, { backgroundColor: Colors.lightGray }]}>
                         <Ionicons name={meta.icon} size={20} color={Colors.secondaryText} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.docTitle, { color: Colors.primaryText }]}>{meta.label}</Text>
-                        <Text style={[styles.docMeta, { color: Colors.secondaryText }]}>Not uploaded yet</Text>
+                        <Text style={[styles.docMeta, { color: Colors.secondaryText }]}>{t('subcontractorDetail.notUploadedYet')}</Text>
                       </View>
                       <View style={styles.requestInline}>
                         <Ionicons name="paper-plane-outline" size={14} color={Colors.primaryBlue} />
-                        <Text style={[styles.requestInlineText, { color: Colors.primaryBlue }]}>Request</Text>
+                        <Text style={[styles.requestInlineText, { color: Colors.primaryBlue }]}>{t('subcontractorDetail.request')}</Text>
                       </View>
                     </TouchableOpacity>
                   );
@@ -611,13 +621,13 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
 
             {presentTypes.length === 0 && missingRequestable.length === 0 && projectFiles.length === 0 && (
               <Text style={[styles.emptyMini, { color: Colors.secondaryText, paddingVertical: 32, textAlign: 'center' }]}>
-                Loading documents…
+                {t('subcontractorDetail.loadingDocuments')}
               </Text>
             )}
 
             {projectFiles.length > 0 && (
               <>
-                <Text style={[styles.sectionLabel, { marginTop: 24 }]}>From sub</Text>
+                <Text style={[styles.sectionLabel, { marginTop: 24 }]}>{t('subcontractorDetail.fromSub')}</Text>
                 {projectFiles.map((d) => {
                   const meta = PROJECT_FILE_META[d.doc_type] || { label: d.doc_type, icon: 'document-outline', color: Colors.primaryBlue };
                   const isOpening = openingDocId === d.id;
@@ -661,9 +671,9 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
                 <Ionicons name="paper-plane" size={22} color="#fff" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.getBidsTitle}>Send bid invitation</Text>
+                <Text style={styles.getBidsTitle}>{t('subcontractorDetail.sendBidInvitation')}</Text>
                 <Text style={styles.getBidsBody}>
-                  Pick a project + trade, AI drafts the scope, attach plans/photos, send.
+                  {t('subcontractorDetail.sendBidInvitationBody')}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#fff" />
@@ -672,17 +682,17 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
             {bidHistory.length === 0 ? (
               <View style={[styles.emptyBig, { paddingTop: 28 }]}>
                 <Ionicons name="mail-outline" size={42} color={Colors.secondaryText} />
-                <Text style={[styles.emptyBigTitle, { color: Colors.primaryText }]}>No bids sent yet</Text>
+                <Text style={[styles.emptyBigTitle, { color: Colors.primaryText }]}>{t('subcontractorDetail.noBidsSent')}</Text>
                 <Text style={[styles.emptyBigBody, { color: Colors.secondaryText }]}>
-                  Bid invitations and responses will show here.
+                  {t('subcontractorDetail.noBidsSentBody')}
                 </Text>
               </View>
             ) : (
               <>
-                <Text style={[styles.sectionLabel, { marginTop: 18 }]}>History</Text>
+                <Text style={[styles.sectionLabel, { marginTop: 18 }]}>{t('subcontractorDetail.history')}</Text>
                 {bidHistory.map((br) => {
                   const status = br.my_bid?.status || br.status; // sub's bid status takes precedence
-                  const pill = bidPill(status);
+                  const pill = bidPill(status, t);
                   return (
                     <TouchableOpacity
                       key={br.id}
@@ -704,13 +714,13 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
                             </Text>
                             {br.originated_by_role === 'sub' && (
                               <View style={styles.fromSubBadge}>
-                                <Text style={styles.fromSubBadgeText}>From sub</Text>
+                                <Text style={styles.fromSubBadgeText}>{t('subcontractorDetail.fromSub')}</Text>
                               </View>
                             )}
                           </View>
                           <Text style={styles.bidCardMeta} numberOfLines={1}>
-                            {br.project?.name || (br.originated_by_role === 'sub' ? 'Unsolicited proposal' : 'Project')}
-                            {br.due_at ? ` · due ${new Date(br.due_at).toLocaleDateString()}` : ''}
+                            {br.project?.name || (br.originated_by_role === 'sub' ? t('subcontractorDetail.unsolicitedProposal') : t('subcontractorDetail.projectFallback'))}
+                            {br.due_at ? ` · ${t('subcontractorDetail.due', { date: new Date(br.due_at).toLocaleDateString() })}` : ''}
                           </Text>
                         </View>
                         <View style={[styles.bidStatusPill, { backgroundColor: pill.bg }]}>
@@ -735,10 +745,10 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
                             </Text>
                           </View>
                         ) : (
-                          <Text style={styles.awaitingText}>Awaiting response</Text>
+                          <Text style={styles.awaitingText}>{t('subcontractorDetail.awaitingResponse')}</Text>
                         )}
                         <Text style={styles.bidSentDate}>
-                          Sent {new Date(br.created_at).toLocaleDateString()}
+                          {t('subcontractorDetail.sentDate', { date: new Date(br.created_at).toLocaleDateString() })}
                         </Text>
                       </View>
                     </TouchableOpacity>
@@ -763,9 +773,9 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
             {subInvoices.length === 0 ? (
               <View style={styles.emptyBig}>
                 <Ionicons name="cash-outline" size={42} color={Colors.secondaryText} />
-                <Text style={[styles.emptyBigTitle, { color: Colors.primaryText }]}>No invoices yet</Text>
+                <Text style={[styles.emptyBigTitle, { color: Colors.primaryText }]}>{t('subcontractorDetail.noInvoices')}</Text>
                 <Text style={[styles.emptyBigBody, { color: Colors.secondaryText }]}>
-                  When this sub uploads invoices from their Jobs tab, they'll appear here.
+                  {t('subcontractorDetail.noInvoicesBody')}
                 </Text>
               </View>
             ) : (
@@ -778,17 +788,17 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
                   return (
                     <View style={styles.invOverview}>
                       <View style={styles.invStat}>
-                        <Text style={styles.invStatLabel}>Invoiced</Text>
+                        <Text style={styles.invStatLabel}>{t('subcontractorDetail.invoiced')}</Text>
                         <Text style={styles.invStatValue}>${totalInvoiced.toLocaleString()}</Text>
                       </View>
                       <View style={styles.invStatSep} />
                       <View style={styles.invStat}>
-                        <Text style={styles.invStatLabel}>Paid</Text>
+                        <Text style={styles.invStatLabel}>{t('subcontractorDetail.paid')}</Text>
                         <Text style={[styles.invStatValue, { color: '#10B981' }]}>${totalPaid.toLocaleString()}</Text>
                       </View>
                       <View style={styles.invStatSep} />
                       <View style={styles.invStat}>
-                        <Text style={styles.invStatLabel}>Outstanding</Text>
+                        <Text style={styles.invStatLabel}>{t('subcontractorDetail.outstanding')}</Text>
                         <Text style={[styles.invStatValue, outstanding > 0 && { color: '#F59E0B' }]}>${outstanding.toLocaleString()}</Text>
                       </View>
                     </View>
@@ -816,7 +826,7 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
                         <View style={styles.invTopRow}>
                           <Text style={styles.invAmount}>${total.toLocaleString()}</Text>
                           <View style={[styles.invPill, { backgroundColor: pillColor + '15' }]}>
-                            <Text style={[styles.invPillText, { color: pillColor }]}>{status.replace(/_/g, ' ')}</Text>
+                            <Text style={[styles.invPillText, { color: pillColor }]}>{statusLabel(status)}</Text>
                           </View>
                         </View>
                         <Text style={styles.invMeta} numberOfLines={1}>
@@ -824,9 +834,9 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
                           {inv.project_name ? `${inv.trade ? '  ·  ' : ''}${inv.project_name}` : ''}
                         </Text>
                         <Text style={styles.invDate} numberOfLines={1}>
-                          {inv.submitted_at ? `Sent ${new Date(inv.submitted_at).toLocaleDateString()}` : ''}
-                          {inv.due_at ? `  ·  Due ${new Date(inv.due_at).toLocaleDateString()}` : ''}
-                          {inv.paid_at ? `  ·  Paid ${new Date(inv.paid_at).toLocaleDateString()}` : ''}
+                          {inv.submitted_at ? t('subcontractorDetail.sentDate', { date: new Date(inv.submitted_at).toLocaleDateString() }) : ''}
+                          {inv.due_at ? `  ·  ${t('subcontractorDetail.dueDate', { date: new Date(inv.due_at).toLocaleDateString() })}` : ''}
+                          {inv.paid_at ? `  ·  ${t('subcontractorDetail.paidDate', { date: new Date(inv.paid_at).toLocaleDateString() })}` : ''}
                         </Text>
                         {inv.status !== 'paid' && (
                           <TouchableOpacity
@@ -835,7 +845,7 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
                             onPress={(e) => { e.stopPropagation?.(); onMarkPaid(inv); }}
                           >
                             <Ionicons name="checkmark-circle-outline" size={14} color="#10B981" />
-                            <Text style={styles.markPaidBtnText}>Mark paid</Text>
+                            <Text style={styles.markPaidBtnText}>{t('subcontractorDetail.markPaid')}</Text>
                           </TouchableOpacity>
                         )}
                       </View>
@@ -863,24 +873,24 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalSheet, { backgroundColor: Colors.cardBackground || '#fff' }]}>
             <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Request a document</Text>
+            <Text style={styles.modalTitle}>{t('subcontractorDetail.requestDocument')}</Text>
             <Text style={styles.modalSub}>
-              We'll email {sub.primary_email || 'the sub'} a one-tap upload link.
+              {t('subcontractorDetail.requestModalSubtitle', { email: sub.primary_email || t('subcontractorDetail.theSub') })}
             </Text>
 
-            <Text style={styles.modalLabel}>Document type</Text>
+            <Text style={styles.modalLabel}>{t('subcontractorDetail.documentType')}</Text>
             <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
-              {REQUESTABLE_DOCS.map((t) => {
-                const meta = DOC_TYPE_META[t];
-                const isSelected = requestingType === t;
+              {REQUESTABLE_DOCS.map((docType) => {
+                const meta = DOC_TYPE_META[docType];
+                const isSelected = requestingType === docType;
                 return (
                   <TouchableOpacity
-                    key={t}
+                    key={docType}
                     style={[
                       styles.docPickerRow,
                       isSelected && { borderColor: Colors.primaryBlue, backgroundColor: Colors.primaryBlue + '08' },
                     ]}
-                    onPress={() => setRequestingType(t)}
+                    onPress={() => setRequestingType(docType)}
                     activeOpacity={0.7}
                   >
                     <View style={[styles.docPickerIcon, { backgroundColor: meta.color + '15' }]}>
@@ -899,7 +909,7 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
                 onPress={() => setRequestModalOpen(false)}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.modalBtnCancelText, { color: Colors.primaryText }]}>Cancel</Text>
+                <Text style={[styles.modalBtnCancelText, { color: Colors.primaryText }]}>{t('common:buttons.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
@@ -915,7 +925,7 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
                 ) : (
                   <>
                     <Ionicons name="paper-plane" size={16} color="#fff" />
-                    <Text style={styles.modalBtnSendText}>Send request</Text>
+                    <Text style={styles.modalBtnSendText}>{t('subcontractorDetail.sendRequest')}</Text>
                   </>
                 )}
               </TouchableOpacity>

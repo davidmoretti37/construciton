@@ -15,6 +15,7 @@ import {
   Modal, FlatList, Dimensions,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -35,6 +36,7 @@ const ATTACHMENT_TYPE_LABELS = {
 };
 
 export default function SubBidSubmitPage({ route, navigation }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = isDark ? DarkColors : LightColors;
   const styles = makeStyles(Colors);
@@ -92,7 +94,7 @@ export default function SubBidSubmitPage({ route, navigation }) {
         setGalleryUrls((m) => ({ ...m, ...urlMap }));
       }
     } catch (e) {
-      Alert.alert('Could not load bid', e.message || 'Try again');
+      Alert.alert(t('subBidSubmitPage.couldNotLoad'), e.message || t('subBidSubmitPage.tryAgain'));
     } finally {
       setLoading(false);
     }
@@ -136,18 +138,18 @@ export default function SubBidSubmitPage({ route, navigation }) {
     setOpeningId(att.id);
     try {
       const res = await api.getBidAttachmentSignedUrlForSub(bidRequestId, att.id);
-      if (!res?.url) throw new Error('No URL');
+      if (!res?.url) throw new Error(t('subBidSubmitPage.noUrl'));
       const ext = (att.file_name || '').split('.').pop()?.toLowerCase();
       const isPDF = (att.file_mime || '').includes('pdf') || ext === 'pdf';
       const isImage = (att.file_mime || '').startsWith('image/') ||
         ['jpg','jpeg','png','gif','webp','bmp','heic'].includes(ext);
       navigation.navigate('DocumentViewer', {
         fileUrl: res.url,
-        fileName: att.file_name || 'Attachment',
+        fileName: att.file_name || t('subBidSubmitPage.attachment'),
         fileType: isPDF ? 'pdf' : isImage ? 'image' : 'document',
       });
     } catch (e) {
-      Alert.alert('Could not open', e.message || 'Try again.');
+      Alert.alert(t('subBidSubmitPage.couldNotOpen'), e.message || t('subBidSubmitPage.tryAgain'));
     } finally {
       setOpeningId(null);
     }
@@ -195,7 +197,7 @@ export default function SubBidSubmitPage({ route, navigation }) {
         attachment_type: isImage ? 'photo' : 'spec',
       }]);
     } catch (e) {
-      Alert.alert('Could not read file', e.message);
+      Alert.alert(t('subBidSubmitPage.couldNotReadFile'), e.message);
     }
   };
 
@@ -212,7 +214,7 @@ export default function SubBidSubmitPage({ route, navigation }) {
         for (const a of (result.assets || [])) await addPickedFile(a);
       }
     } catch (e) {
-      Alert.alert('Could not pick file', e.message);
+      Alert.alert(t('subBidSubmitPage.couldNotPickFile'), e.message);
     } finally {
       pickerBusyRef.current = false;
     }
@@ -232,7 +234,7 @@ export default function SubBidSubmitPage({ route, navigation }) {
         for (const a of (result.assets || [])) await addPickedFile(a, 'image/jpeg');
       }
     } catch (e) {
-      Alert.alert('Could not pick photo', e.message);
+      Alert.alert(t('subBidSubmitPage.couldNotPickPhoto'), e.message);
     } finally {
       pickerBusyRef.current = false;
     }
@@ -245,12 +247,12 @@ export default function SubBidSubmitPage({ route, navigation }) {
     // Strip $, grouping commas, and spaces so pasted/formatted figures parse.
     const raw = String(amount).replace(/[$,\s]/g, '');
     if (!raw) {
-      Alert.alert('Add an amount', 'Enter your bid amount before submitting.');
+      Alert.alert(t('subBidSubmitPage.addAnAmountTitle'), t('subBidSubmitPage.addAnAmountBody'));
       return;
     }
     const parsed = Number(raw);
     if (!Number.isFinite(parsed) || parsed <= 0) {
-      Alert.alert('Check the amount', 'Enter a valid number for your bid amount.');
+      Alert.alert(t('subBidSubmitPage.checkAmountTitle'), t('subBidSubmitPage.checkAmountBody'));
       return;
     }
     // Round to cents — submit the same sanitized value we validated.
@@ -285,29 +287,42 @@ export default function SubBidSubmitPage({ route, navigation }) {
           });
         } catch (e) {
           console.warn('Sub bid attachment failed:', att.name, e.message);
-          failures.push({ name: att.name, error: e.message || 'upload error' });
+          failures.push({ name: att.name, error: e.message || t('subBidSubmitPage.uploadError') });
         }
       }
 
       if (failures.length > 0) {
+        const header = t(
+          failures.length === 1
+            ? 'subBidSubmitPage.bidSentSomeFailedHeaderOne'
+            : 'subBidSubmitPage.bidSentSomeFailedHeaderOther',
+          { amount: `$${amt.toLocaleString()}`, count: failures.length },
+        );
+        const list = failures.map((f) => `• ${f.name}: ${f.error}`).join('\n');
+        const footer = t('subBidSubmitPage.bidSentSomeFailedFooter');
         Alert.alert(
-          'Bid sent — some files failed',
-          `Your $${amt.toLocaleString()} bid was sent, but ${failures.length} file${failures.length === 1 ? '' : 's'} could not upload:\n\n` +
-            failures.map((f) => `• ${f.name}: ${f.error}`).join('\n') +
-            `\n\nPlease retry the upload from Documents → Other files.`,
-          [{ text: 'OK', onPress: () => navigation.goBack() }],
+          t('subBidSubmitPage.bidSentSomeFailedTitle'),
+          `${header}\n\n${list}\n\n${footer}`,
+          [{ text: t('subBidSubmitPage.ok'), onPress: () => navigation.goBack() }],
         );
       } else {
+        const recipient = senderName || t('subBidSubmitPage.theContractor');
+        const body = pendingAttachments.length > 0
+          ? t(
+              pendingAttachments.length === 1
+                ? 'subBidSubmitPage.bidSubmittedWithAttachmentsOne'
+                : 'subBidSubmitPage.bidSubmittedWithAttachmentsOther',
+              { amount: `$${amt.toLocaleString()}`, count: pendingAttachments.length, recipient },
+            )
+          : t('subBidSubmitPage.bidSubmittedBody', { amount: `$${amt.toLocaleString()}`, recipient });
         Alert.alert(
-          'Bid submitted',
-          pendingAttachments.length > 0
-            ? `Your bid of $${amt.toLocaleString()} and ${pendingAttachments.length} attachment${pendingAttachments.length === 1 ? '' : 's'} were sent to ${senderName || 'the contractor'}.`
-            : `Your bid of $${amt.toLocaleString()} was sent to ${senderName || 'the contractor'}.`,
-          [{ text: 'OK', onPress: () => navigation.goBack() }],
+          t('subBidSubmitPage.bidSubmittedTitle'),
+          body,
+          [{ text: t('subBidSubmitPage.ok'), onPress: () => navigation.goBack() }],
         );
       }
     } catch (e) {
-      Alert.alert('Could not submit', e.message || 'Try again');
+      Alert.alert(t('subBidSubmitPage.couldNotSubmit'), e.message || t('subBidSubmitPage.tryAgain'));
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -316,12 +331,12 @@ export default function SubBidSubmitPage({ route, navigation }) {
 
   const onDecline = () => {
     Alert.alert(
-      'Decline this bid?',
-      'Are you sure? You can always submit later if the request is still open.',
+      t('subBidSubmitPage.declineTitle'),
+      t('subBidSubmitPage.declineBody'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
         {
-          text: 'Decline',
+          text: t('subBidSubmitPage.decline'),
           style: 'destructive',
           onPress: async () => {
             setDeclining(true);
@@ -329,7 +344,7 @@ export default function SubBidSubmitPage({ route, navigation }) {
               await api.declineBidRequest(bidRequestId);
               navigation.goBack();
             } catch (e) {
-              Alert.alert('Could not decline', e.message || 'Try again');
+              Alert.alert(t('subBidSubmitPage.couldNotDecline'), e.message || t('subBidSubmitPage.tryAgain'));
             } finally {
               setDeclining(false);
             }
@@ -351,10 +366,10 @@ export default function SubBidSubmitPage({ route, navigation }) {
     return (
       <SafeAreaView style={[styles.center, { backgroundColor: Colors.background }]}>
         <Ionicons name="alert-circle-outline" size={48} color="#DC2626" />
-        <Text style={styles.errorTitle}>Bid not found</Text>
-        <Text style={styles.errorBody}>This invitation may have expired or been withdrawn.</Text>
+        <Text style={styles.errorTitle}>{t('subBidSubmitPage.bidNotFound')}</Text>
+        <Text style={styles.errorBody}>{t('subBidSubmitPage.bidNotFoundBody')}</Text>
         <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.primaryBtn, { paddingHorizontal: 32, marginTop: 20 }]}>
-          <Text style={styles.primaryBtnText}>Go back</Text>
+          <Text style={styles.primaryBtnText}>{t('subBidSubmitPage.goBack')}</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
@@ -371,9 +386,9 @@ export default function SubBidSubmitPage({ route, navigation }) {
           <Ionicons name="chevron-back" size={26} color={Colors.primaryText} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Bid invitation</Text>
+          <Text style={styles.headerTitle}>{t('subBidSubmitPage.bidInvitation')}</Text>
           <Text style={styles.headerSub} numberOfLines={1}>
-            {senderName ? `from ${senderName}` : 'New bid request'}
+            {senderName ? t('subBidSubmitPage.fromSender', { name: senderName }) : t('subBidSubmitPage.newBidRequest')}
           </Text>
         </View>
       </View>
@@ -386,7 +401,7 @@ export default function SubBidSubmitPage({ route, navigation }) {
             <Text style={styles.tradeChipText}>{br.trade}</Text>
           </View>
           <Text style={styles.projectName} numberOfLines={2}>
-            {project?.project_name || 'Untitled project'}
+            {project?.project_name || t('subBidSubmitPage.untitledProject')}
           </Text>
           {project?.project_type ? (
             <Text style={styles.projectType}>{project.project_type}</Text>
@@ -394,14 +409,14 @@ export default function SubBidSubmitPage({ route, navigation }) {
           {br.due_at ? (
             <View style={styles.metaRow}>
               <Ionicons name="time-outline" size={14} color={Colors.secondaryText} />
-              <Text style={styles.metaText}>Bid due {new Date(br.due_at).toLocaleDateString()}</Text>
+              <Text style={styles.metaText}>{t('subBidSubmitPage.bidDue', { date: new Date(br.due_at).toLocaleDateString() })}</Text>
             </View>
           ) : null}
         </View>
 
         {/* Site location */}
         {siteAddress ? (
-          <Section title="Job site" Colors={Colors}>
+          <Section title={t('subBidSubmitPage.jobSite')} Colors={Colors}>
             <TouchableOpacity style={styles.siteCard} onPress={openMap} activeOpacity={0.8}>
               <View style={styles.siteIconWrap}>
                 <Ionicons name="location-outline" size={20} color={Colors.primaryText} />
@@ -410,7 +425,7 @@ export default function SubBidSubmitPage({ route, navigation }) {
                 <Text style={styles.siteAddress}>{siteAddress}</Text>
                 <View style={styles.mapLinkRow}>
                   <Ionicons name="map" size={13} color={SUB_VIOLET} />
-                  <Text style={styles.mapLink}>Open in maps</Text>
+                  <Text style={styles.mapLink}>{t('subBidSubmitPage.openInMaps')}</Text>
                 </View>
               </View>
             </TouchableOpacity>
@@ -419,7 +434,7 @@ export default function SubBidSubmitPage({ route, navigation }) {
 
         {/* Site visit notes */}
         {br.site_visit_notes ? (
-          <Section title="Site visit" Colors={Colors}>
+          <Section title={t('subBidSubmitPage.siteVisit')} Colors={Colors}>
             <View style={styles.noteCard}>
               <Ionicons name="information-circle-outline" size={18} color={Colors.secondaryText} />
               <Text style={styles.noteText}>{br.site_visit_notes}</Text>
@@ -428,7 +443,7 @@ export default function SubBidSubmitPage({ route, navigation }) {
         ) : null}
 
         {/* Scope of work */}
-        <Section title="Scope of work" Colors={Colors}>
+        <Section title={t('subBidSubmitPage.scopeOfWork')} Colors={Colors}>
           <View style={styles.scopeCard}>
             <Text style={styles.scopeText}>{br.scope_summary}</Text>
           </View>
@@ -436,7 +451,7 @@ export default function SubBidSubmitPage({ route, navigation }) {
 
         {/* Photo attachments — swipeable gallery */}
         {photoAttachments.length > 0 && (
-          <Section title="Site photos" Colors={Colors}>
+          <Section title={t('subBidSubmitPage.sitePhotos')} Colors={Colors}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
               {photoAttachments.map((a, idx) => (
                 <TouchableOpacity
@@ -455,13 +470,13 @@ export default function SubBidSubmitPage({ route, navigation }) {
                 </TouchableOpacity>
               ))}
             </ScrollView>
-            <Text style={styles.galleryHint}>Tap a photo to swipe through full-size</Text>
+            <Text style={styles.galleryHint}>{t('subBidSubmitPage.galleryHint')}</Text>
           </Section>
         )}
 
         {/* Document attachments — list */}
         {docAttachments.length > 0 && (
-          <Section title="Plans & documents" Colors={Colors}>
+          <Section title={t('subBidSubmitPage.plansAndDocuments')} Colors={Colors}>
             {docAttachments.map((a) => {
               const isLoading = openingId === a.id;
               return (
@@ -492,15 +507,15 @@ export default function SubBidSubmitPage({ route, navigation }) {
         )}
 
         {/* Submit form */}
-        <Section title={myBid ? 'Update your bid' : 'Submit your bid'} Colors={Colors}>
+        <Section title={myBid ? t('subBidSubmitPage.updateYourBid') : t('subBidSubmitPage.submitYourBid')} Colors={Colors}>
           {myBid && myBid.status === 'submitted' && (
             <View style={styles.alreadyBanner}>
               <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-              <Text style={styles.alreadyText}>You've already submitted ${Number(myBid.amount).toLocaleString()} — edit and resubmit if needed.</Text>
+              <Text style={styles.alreadyText}>{t('subBidSubmitPage.alreadySubmitted', { amount: `$${Number(myBid.amount).toLocaleString()}` })}</Text>
             </View>
           )}
 
-          <Text style={styles.fieldLabel}>Bid amount</Text>
+          <Text style={styles.fieldLabel}>{t('subBidSubmitPage.bidAmount')}</Text>
           <View style={styles.amountWrap}>
             <Text style={styles.dollarSign}>$</Text>
             <TextInput
@@ -513,30 +528,30 @@ export default function SubBidSubmitPage({ route, navigation }) {
             />
           </View>
 
-          <Text style={styles.fieldLabel}>Timeline (days)</Text>
+          <Text style={styles.fieldLabel}>{t('subBidSubmitPage.timelineDays')}</Text>
           <TextInput
             style={styles.textInput}
-            placeholder="e.g. 14"
+            placeholder={t('subBidSubmitPage.timelinePlaceholder')}
             placeholderTextColor={Colors.placeholder || '#9CA3AF'}
             value={timelineDays}
             onChangeText={setTimelineDays}
             keyboardType="numeric"
           />
 
-          <Text style={styles.fieldLabel}>Exclusions (optional)</Text>
+          <Text style={styles.fieldLabel}>{t('subBidSubmitPage.exclusionsOptional')}</Text>
           <TextInput
             style={[styles.textInput, styles.multilineInput]}
-            placeholder="e.g. Excludes fixtures, excludes permits"
+            placeholder={t('subBidSubmitPage.exclusionsPlaceholder')}
             placeholderTextColor={Colors.placeholder || '#9CA3AF'}
             value={exclusions}
             onChangeText={setExclusions}
             multiline
           />
 
-          <Text style={styles.fieldLabel}>Notes (optional)</Text>
+          <Text style={styles.fieldLabel}>{t('subBidSubmitPage.notesOptional')}</Text>
           <TextInput
             style={[styles.textInput, styles.multilineInput]}
-            placeholder="Anything else the contractor should know"
+            placeholder={t('subBidSubmitPage.notesPlaceholder')}
             placeholderTextColor={Colors.placeholder || '#9CA3AF'}
             value={notes}
             onChangeText={setNotes}
@@ -544,18 +559,18 @@ export default function SubBidSubmitPage({ route, navigation }) {
           />
 
           {/* Attach files / photos */}
-          <Text style={styles.fieldLabel}>Attach files (optional)</Text>
+          <Text style={styles.fieldLabel}>{t('subBidSubmitPage.attachFilesOptional')}</Text>
           <Text style={styles.attachHint}>
-            Send a counter-proposal, signed agreement, photos of the existing conditions, etc.
+            {t('subBidSubmitPage.attachHint')}
           </Text>
           <View style={styles.attachBtnRow}>
             <TouchableOpacity style={styles.attachBtn} onPress={pickAttachment} activeOpacity={0.7}>
               <Ionicons name="document-attach-outline" size={18} color={Colors.primaryText} />
-              <Text style={styles.attachBtnText}>Pick a file</Text>
+              <Text style={styles.attachBtnText}>{t('subBidSubmitPage.pickAFile')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.attachBtn} onPress={pickPhoto} activeOpacity={0.7}>
               <Ionicons name="images-outline" size={18} color={Colors.primaryText} />
-              <Text style={styles.attachBtnText}>Pick photos</Text>
+              <Text style={styles.attachBtnText}>{t('subBidSubmitPage.pickPhotos')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -575,7 +590,7 @@ export default function SubBidSubmitPage({ route, navigation }) {
                     <View style={{ flex: 1, marginLeft: 10 }}>
                       <Text style={styles.attachName} numberOfLines={1}>{a.name}</Text>
                       <Text style={styles.attachMeta}>
-                        {isImage ? 'Photo' : 'Document'}
+                        {isImage ? t('subBidSubmitPage.photo') : t('subBidSubmitPage.document')}
                         {a.size ? ` · ${(a.size / 1024).toFixed(0)} KB` : ''}
                       </Text>
                     </View>
@@ -599,7 +614,7 @@ export default function SubBidSubmitPage({ route, navigation }) {
             ) : (
               <>
                 <Ionicons name="paper-plane" size={18} color="#fff" />
-                <Text style={styles.primaryBtnText}>{myBid ? 'Resubmit bid' : 'Submit bid'}</Text>
+                <Text style={styles.primaryBtnText}>{myBid ? t('subBidSubmitPage.resubmitBid') : t('subBidSubmitPage.submitBid')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -613,7 +628,7 @@ export default function SubBidSubmitPage({ route, navigation }) {
             {declining ? (
               <ActivityIndicator size="small" color="#DC2626" />
             ) : (
-              <Text style={styles.declineText}>Decline this bid</Text>
+              <Text style={styles.declineText}>{t('subBidSubmitPage.declineThisBid')}</Text>
             )}
           </TouchableOpacity>
         </Section>

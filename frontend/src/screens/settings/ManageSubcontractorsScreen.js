@@ -24,7 +24,7 @@ import {
 import SubcontractorQuoteCard from '../../components/SubcontractorQuoteCard';
 
 export default function ManageSubcontractorsScreen({ navigation }) {
-  const { t } = useTranslation('common');
+  const { t } = useTranslation(['settings', 'common']);
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -140,7 +140,7 @@ export default function ManageSubcontractorsScreen({ navigation }) {
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>
-          Subcontractor Quotes
+          {t('manageSubcontractors.title')}
         </Text>
         <View style={{ width: 40 }} />
       </View>
@@ -152,7 +152,7 @@ export default function ManageSubcontractorsScreen({ navigation }) {
             {getTotalQuotesCount()}
           </Text>
           <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>
-            Total Quotes
+            {t('manageSubcontractors.totalQuotes')}
           </Text>
         </View>
         <View style={[styles.statDivider, { backgroundColor: Colors.border }]} />
@@ -161,7 +161,7 @@ export default function ManageSubcontractorsScreen({ navigation }) {
             {getPreferredQuotesCount()}
           </Text>
           <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>
-            Preferred
+            {t('manageSubcontractors.preferred')}
           </Text>
         </View>
         <View style={[styles.statDivider, { backgroundColor: Colors.border }]} />
@@ -170,7 +170,7 @@ export default function ManageSubcontractorsScreen({ navigation }) {
             {tradesWithQuotes.length}
           </Text>
           <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>
-            Trades
+            {t('manageSubcontractors.trades')}
           </Text>
         </View>
       </View>
@@ -187,10 +187,10 @@ export default function ManageSubcontractorsScreen({ navigation }) {
           <View style={styles.emptyState}>
             <Ionicons name="document-text-outline" size={64} color={Colors.lightGray} />
             <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>
-              No Quotes Yet
+              {t('manageSubcontractors.emptyTitle')}
             </Text>
             <Text style={[styles.emptySubtitle, { color: Colors.secondaryText }]}>
-              Upload subcontractor quotes during General Contractor setup or add them anytime.
+              {t('manageSubcontractors.emptySubtitle')}
             </Text>
           </View>
         ) : (
@@ -218,14 +218,14 @@ export default function ManageSubcontractorsScreen({ navigation }) {
                       </Text>
                       <View style={styles.tradeStats}>
                         <Text style={[styles.tradeStatsText, { color: Colors.secondaryText }]}>
-                          {quotes.length} quote{quotes.length > 1 ? 's' : ''}
+                          {t('manageSubcontractors.quoteCount', { count: quotes.length })}
                         </Text>
                         {preferredCount > 0 && (
                           <>
                             <View style={[styles.dot, { backgroundColor: Colors.secondaryText }]} />
                             <Ionicons name="star" size={12} color="#F59E0B" />
                             <Text style={[styles.tradeStatsText, { color: '#F59E0B' }]}>
-                              {preferredCount} preferred
+                              {t('manageSubcontractors.preferredCount', { count: preferredCount })}
                             </Text>
                           </>
                         )}
@@ -267,7 +267,7 @@ export default function ManageSubcontractorsScreen({ navigation }) {
             activeOpacity={0.8}
           >
             <Ionicons name="add-circle-outline" size={20} color="#fff" />
-            <Text style={styles.addButtonText}>Add More Quotes</Text>
+            <Text style={styles.addButtonText}>{t('manageSubcontractors.addMoreQuotes')}</Text>
           </TouchableOpacity>
         </View>
       )}

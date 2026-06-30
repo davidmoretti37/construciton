@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Recent time history widget. Replaces the old collapsible dropdown — widgets
@@ -19,6 +20,7 @@ export default function TimeHistoryWidget({
   formatHistoryDate,
   formatHoursMinutes,
 }) {
+  const { t } = useTranslation('common');
   const cardBg = Colors?.white || Colors?.cardBackground || '#FFFFFF';
   const textPrimary = Colors?.primaryText || '#111827';
   const textSecondary = Colors?.secondaryText || '#6B7280';
@@ -32,12 +34,12 @@ export default function TimeHistoryWidget({
     <View style={[styles.card, { backgroundColor: cardBg }]} pointerEvents={editMode ? 'none' : 'auto'}>
       <View style={styles.header}>
         <Ionicons name="time-outline" size={16} color={textSecondary} />
-        <Text style={[styles.headerLabel, { color: textSecondary }]}>Recent Time</Text>
+        <Text style={[styles.headerLabel, { color: textSecondary }]}>{t('timeHistoryWidget.recentTime')}</Text>
       </View>
 
       {list.length === 0 ? (
         <View style={styles.emptyWrap}>
-          <Text style={[styles.emptyText, { color: textSecondary }]}>No time records yet</Text>
+          <Text style={[styles.emptyText, { color: textSecondary }]}>{t('timeHistoryWidget.noRecords')}</Text>
         </View>
       ) : (
         <View style={styles.list}>
@@ -57,7 +59,7 @@ export default function TimeHistoryWidget({
                   {formatHistoryDate ? formatHistoryDate(entry.clock_in) : new Date(entry.clock_in).toLocaleDateString()}
                 </Text>
                 <Text style={[styles.project, { color: textSecondary }]} numberOfLines={1}>
-                  {entry.projects?.name || entry.service_plans?.name || 'Unknown project'}
+                  {entry.projects?.name || entry.service_plans?.name || t('timeHistoryWidget.unknownProject')}
                 </Text>
               </View>
               <Text style={[styles.hours, { color: accent }]}>

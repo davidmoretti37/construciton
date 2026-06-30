@@ -20,6 +20,7 @@ export default function PnLWaterfall({ revenue, costBreakdown, totalCosts, gross
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { t } = useTranslation('owner');
+  const { t: tc } = useTranslation('common');
   const [expanded, setExpanded] = useState(false);
 
   const maxAmount = Math.max(revenue, totalCosts, 1);
@@ -50,7 +51,7 @@ export default function PnLWaterfall({ revenue, costBreakdown, totalCosts, gross
       {/* Connector */}
       <View style={styles.connector}>
         <View style={[styles.connectorLine, { backgroundColor: Colors.border }]} />
-        <Text style={[styles.connectorText, { color: Colors.secondaryText }]}>less</Text>
+        <Text style={[styles.connectorText, { color: Colors.secondaryText }]}>{tc('pnLWaterfall.less')}</Text>
         <View style={[styles.connectorLine, { backgroundColor: Colors.border }]} />
       </View>
 
@@ -88,7 +89,7 @@ export default function PnLWaterfall({ revenue, costBreakdown, totalCosts, gross
       {/* Connector */}
       <View style={styles.connector}>
         <View style={[styles.connectorLine, { backgroundColor: Colors.border }]} />
-        <Text style={[styles.connectorText, { color: Colors.secondaryText }]}>equals</Text>
+        <Text style={[styles.connectorText, { color: Colors.secondaryText }]}>{tc('pnLWaterfall.equals')}</Text>
         <View style={[styles.connectorLine, { backgroundColor: Colors.border }]} />
       </View>
 

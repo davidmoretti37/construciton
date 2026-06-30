@@ -28,7 +28,7 @@ import ProgressStepBar from '../../components/onboarding/ProgressStepBar';
 export default function ServiceSelectionScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
-  const { t } = useTranslation('common');
+  const { t } = useTranslation('onboarding');
 
   const [selectedServices, setSelectedServices] = useState([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
@@ -72,7 +72,7 @@ export default function ServiceSelectionScreen({ navigation, route }) {
       setFilteredServices(data || []);
     } catch (error) {
       console.error('Error loading services:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToLoad'));
+      Alert.alert(t('common:alerts.error'), t('serviceSelection.failedToLoad'));
     } finally {
       setLoadingServices(false);
     }
@@ -82,7 +82,7 @@ export default function ServiceSelectionScreen({ navigation, route }) {
     // Check if already selected
     const isAlreadySelected = selectedServices.some(s => s.id === service.id);
     if (isAlreadySelected) {
-      Alert.alert(t('alerts.alreadyAdded'), `${service.name} ${t('messages.alreadyInList')}`);
+      Alert.alert(t('serviceSelection.alreadyAddedAlert'), `${service.name} ${t('serviceSelection.alreadyInListMessage')}`);
       return;
     }
 
@@ -100,7 +100,7 @@ export default function ServiceSelectionScreen({ navigation, route }) {
       setSelectedServices([...selectedServices, fullService]);
     } catch (error) {
       console.error('Error loading service details:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToLoad'));
+      Alert.alert(t('common:alerts.error'), t('serviceSelection.failedToLoad'));
     } finally {
       setLoadingDetails(false);
     }
@@ -145,13 +145,13 @@ export default function ServiceSelectionScreen({ navigation, route }) {
         loadAllServices();
       } else {
         Alert.alert(
-          t('alerts.error'),
-          `Could not create "${serviceName}". Please try a different service name.`
+          t('common:alerts.error'),
+          t('serviceSelection.couldNotCreate', { name: serviceName })
         );
       }
     } catch (error) {
       console.error('Error creating service:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToSave'));
+      Alert.alert(t('common:alerts.error'), t('serviceSelection.failedToSave'));
     } finally {
       setLoadingDetails(false);
       setIsCreatingService(false);
@@ -160,7 +160,7 @@ export default function ServiceSelectionScreen({ navigation, route }) {
 
   const handleContinue = () => {
     if (selectedServices.length === 0) {
-      Alert.alert(t('alerts.selectServices'), t('messages.atLeastOne'));
+      Alert.alert(t('serviceSelection.selectServicesAlert'), t('serviceSelection.atLeastOne'));
       return;
     }
 
@@ -179,14 +179,14 @@ export default function ServiceSelectionScreen({ navigation, route }) {
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Your Services</Text>
+        <Text style={styles.headerTitle}>{t('serviceSelection.headerTitle')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
       {/* Fixed Header Content - Outside ScrollView */}
       <View style={styles.headerContent}>
         <Text style={[styles.title, { color: Colors.primaryText }]}>
-          Your Services
+          {t('serviceSelection.headerTitle')}
         </Text>
 
         {/* Search Input */}
@@ -198,7 +198,7 @@ export default function ServiceSelectionScreen({ navigation, route }) {
           <TextInput
             ref={searchInputRef}
             style={[styles.searchInput, { color: Colors.primaryText }]}
-            placeholder="Search services..."
+            placeholder={t('serviceSelection.searchPlaceholder')}
             placeholderTextColor={Colors.secondaryText}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -232,10 +232,10 @@ export default function ServiceSelectionScreen({ navigation, route }) {
               <ActivityIndicator size="large" color={Colors.primaryBlue} style={{ marginVertical: Spacing.lg }} />
 
               <Text style={[styles.creatingTitle, { color: Colors.primaryText }]}>
-                Creating Service...
+                {t('serviceSelection.creatingTitle')}
               </Text>
               <Text style={[styles.creatingSubtitle, { color: Colors.secondaryText }]}>
-                AI is generating items and phases
+                {t('serviceSelection.creatingSubtitle')}
               </Text>
 
               <View style={styles.creatingDots}>
@@ -255,7 +255,7 @@ export default function ServiceSelectionScreen({ navigation, route }) {
               <View style={[styles.loadingBanner, { backgroundColor: Colors.primaryBlue + '15' }]}>
                 <ActivityIndicator size="small" color={Colors.primaryBlue} />
                 <Text style={[styles.loadingText, { color: Colors.primaryBlue }]}>
-                  Loading service details...
+                  {t('serviceSelection.loadingDetails')}
                 </Text>
               </View>
             )}
@@ -265,7 +265,7 @@ export default function ServiceSelectionScreen({ navigation, route }) {
         {selectedServices.length > 0 && (
           <View style={styles.selectedSection}>
             <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-              Selected Services ({selectedServices.length})
+              {t('serviceSelection.selectedServicesTitle', { count: selectedServices.length })}
             </Text>
 
             {selectedServices.map((service) => (
@@ -307,13 +307,13 @@ export default function ServiceSelectionScreen({ navigation, route }) {
                   <View style={styles.statItem}>
                     <Ionicons name="list-outline" size={16} color={Colors.secondaryText} />
                     <Text style={[styles.statText, { color: Colors.secondaryText }]}>
-                      {service.items?.length || 0} items
+                      {t('serviceSelection.itemsCount', { count: service.items?.length || 0 })}
                     </Text>
                   </View>
                   <View style={styles.statItem}>
                     <Ionicons name="git-network-outline" size={16} color={Colors.secondaryText} />
                     <Text style={[styles.statText, { color: Colors.secondaryText }]}>
-                      {service.phases?.length || 0} phases
+                      {t('serviceSelection.phasesCount', { count: service.phases?.length || 0 })}
                     </Text>
                   </View>
                 </View>
@@ -337,10 +337,10 @@ export default function ServiceSelectionScreen({ navigation, route }) {
 
                 <View style={styles.serviceInfo}>
                   <Text style={[styles.serviceName, { color: Colors.primaryBlue }]}>
-                    Add custom service
+                    {t('serviceSelection.addCustomService')}
                   </Text>
                   <Text style={[styles.createHint, { color: Colors.secondaryText }]}>
-                    Search to create a new service with AI
+                    {t('serviceSelection.searchToCreate')}
                   </Text>
                 </View>
 
@@ -365,10 +365,10 @@ export default function ServiceSelectionScreen({ navigation, route }) {
 
                 <View style={styles.serviceInfo}>
                   <Text style={[styles.serviceName, { color: Colors.primaryBlue }]}>
-                    Create "{searchQuery.trim()}"
+                    {t('serviceSelection.createService', { name: searchQuery.trim() })}
                   </Text>
                   <Text style={[styles.createHint, { color: Colors.secondaryText }]}>
-                    AI will generate a template for this service
+                    {t('serviceSelection.aiWillGenerate')}
                   </Text>
                 </View>
 
@@ -382,7 +382,7 @@ export default function ServiceSelectionScreen({ navigation, route }) {
         {filteredServices.length > 0 && (
           <View style={styles.availableSection}>
             <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-              {searchQuery ? 'Search Results' : 'Available Services'}
+              {searchQuery ? t('serviceSelection.searchResults') : t('serviceSelection.availableServices')}
             </Text>
 
             {filteredServices.map((service) => {
@@ -433,7 +433,7 @@ export default function ServiceSelectionScreen({ navigation, route }) {
           <View style={styles.emptyState}>
             <ActivityIndicator size="large" color={Colors.primaryBlue} />
             <Text style={[styles.emptyTitle, { color: Colors.secondaryText }]}>
-              Loading services...
+              {t('serviceSelection.loadingServices')}
             </Text>
           </View>
         )}
@@ -456,7 +456,7 @@ export default function ServiceSelectionScreen({ navigation, route }) {
           activeOpacity={0.8}
         >
           <Text style={[styles.buttonText, { opacity: selectedServices.length > 0 ? 1 : 0.5 }]}>
-            Continue
+            {t('common:buttons.continue')}
           </Text>
           <Ionicons
             name="arrow-forward"

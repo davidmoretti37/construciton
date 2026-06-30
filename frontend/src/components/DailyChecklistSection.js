@@ -24,6 +24,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
@@ -48,6 +49,7 @@ export default function DailyChecklistSection({
   // merge this section's progress into a combined header count.
   onCountsChange,
 }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { isOnline } = useNetwork();
@@ -426,7 +428,7 @@ export default function DailyChecklistSection({
       await loadData(); // Refresh
     } catch (e) {
       console.warn('Save templates error:', e);
-      Alert.alert('Error', 'Failed to save changes');
+      Alert.alert(t('common:alerts.error'), t('dailyChecklistSection.failedToSave'));
     } finally {
       setSaving(false);
     }
@@ -478,7 +480,7 @@ export default function DailyChecklistSection({
       <View style={styles.sectionHeader}>
         <Ionicons name="checkbox-outline" size={20} color="#8B5CF6" />
         <Text style={[styles.sectionTitle, { color: Colors.primaryText, flex: 1 }]}>
-          Daily Checklist
+          {t('dailyChecklistSection.title')}
           {totalCount > 0 && !isEditingTemplates && (
             <Text style={{ color: Colors.secondaryText, fontWeight: '400' }}>
               {' '}({completedCount}/{totalCount})
@@ -512,7 +514,7 @@ export default function DailyChecklistSection({
 
       {externalEditMode === null && !isEditingTemplates && (
         <Text style={{ fontSize: 11, color: '#94A3B8', marginBottom: 8, fontStyle: 'italic' }}>
-          Edit checklist items here directly — changes save independently from the project Edit button.
+          {t('dailyChecklistSection.editHint')}
         </Text>
       )}
 
@@ -525,25 +527,25 @@ export default function DailyChecklistSection({
         <View>
           {/* Checklist items */}
           <View style={styles.editSectionHeader}>
-            <Text style={[styles.editSectionLabel, { color: Colors.secondaryText }]}>Checklist Items</Text>
+            <Text style={[styles.editSectionLabel, { color: Colors.secondaryText }]}>{t('dailyChecklistSection.checklistItemsLabel')}</Text>
             <TouchableOpacity onPress={handleAddTemplate} style={[styles.addBtn, { backgroundColor: '#8B5CF615' }]}>
               <Ionicons name="add" size={14} color="#8B5CF6" />
-              <Text style={{ color: '#8B5CF6', fontSize: 12, fontWeight: '600' }}>Add Item</Text>
+              <Text style={{ color: '#8B5CF6', fontSize: 12, fontWeight: '600' }}>{t('dailyChecklistSection.addItem')}</Text>
             </TouchableOpacity>
           </View>
-          {editedTemplates.map((t, i) => (
-            <View key={t.id || `new-${i}`} style={[styles.editCard, { backgroundColor: Colors.background || Colors.lightGray, borderColor: Colors.border }]}>
+          {editedTemplates.map((tmpl, i) => (
+            <View key={tmpl.id || `new-${i}`} style={[styles.editCard, { backgroundColor: Colors.background || Colors.lightGray, borderColor: Colors.border }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <Ionicons name="reorder-three-outline" size={18} color={Colors.secondaryText + '50'} />
                 <TextInput
                   style={[styles.editCardInput, { color: Colors.primaryText, flex: 1 }]}
-                  value={t.title}
+                  value={tmpl.title}
                   onChangeText={v => {
                     const updated = [...editedTemplates];
                     updated[i] = { ...updated[i], title: v };
                     setEditedTemplates(updated);
                   }}
-                  placeholder="Item name"
+                  placeholder={t('dailyChecklistSection.itemNamePlaceholder')}
                   placeholderTextColor={Colors.secondaryText + '50'}
                 />
                 <TouchableOpacity
@@ -568,24 +570,24 @@ export default function DailyChecklistSection({
                   }}
                 >
                   <Ionicons
-                    name={t.item_type === 'quantity' ? 'checkbox' : 'square-outline'}
+                    name={tmpl.item_type === 'quantity' ? 'checkbox' : 'square-outline'}
                     size={18}
-                    color={t.item_type === 'quantity' ? '#3B82F6' : Colors.secondaryText + '60'}
+                    color={tmpl.item_type === 'quantity' ? '#3B82F6' : Colors.secondaryText + '60'}
                   />
-                  <Text style={{ fontSize: 13, color: t.item_type === 'quantity' ? Colors.primaryText : Colors.secondaryText }}>
-                    Track a number
+                  <Text style={{ fontSize: 13, color: tmpl.item_type === 'quantity' ? Colors.primaryText : Colors.secondaryText }}>
+                    {t('dailyChecklistSection.trackANumber')}
                   </Text>
                 </TouchableOpacity>
-                {t.item_type === 'quantity' && (
+                {tmpl.item_type === 'quantity' && (
                   <TextInput
                     style={[styles.editUnitInput, { color: Colors.primaryText, borderColor: Colors.border }]}
-                    value={t.quantity_unit || ''}
+                    value={tmpl.quantity_unit || ''}
                     onChangeText={v => {
                       const updated = [...editedTemplates];
                       updated[i] = { ...updated[i], quantity_unit: v };
                       setEditedTemplates(updated);
                     }}
-                    placeholder="unit (ft, oz)"
+                    placeholder={t('dailyChecklistSection.unitPlaceholder')}
                     placeholderTextColor={Colors.secondaryText + '50'}
                   />
                 )}
@@ -599,9 +601,9 @@ export default function DailyChecklistSection({
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <Ionicons
-                    name={t.requires_photo ? 'camera' : 'camera-outline'}
+                    name={tmpl.requires_photo ? 'camera' : 'camera-outline'}
                     size={18}
-                    color={t.requires_photo ? '#3B82F6' : Colors.secondaryText + '40'}
+                    color={tmpl.requires_photo ? '#3B82F6' : Colors.secondaryText + '40'}
                   />
                 </TouchableOpacity>
               </View>
@@ -609,16 +611,16 @@ export default function DailyChecklistSection({
           ))}
           {editedTemplates.length === 0 && (
             <Text style={{ color: Colors.secondaryText, fontStyle: 'italic', fontSize: 13, paddingVertical: 8 }}>
-              No items yet — tap "Add Item" above
+              {t('dailyChecklistSection.noItemsYet')}
             </Text>
           )}
 
           {/* Labor roles */}
           <View style={[styles.editSectionHeader, { marginTop: 16 }]}>
-            <Text style={[styles.editSectionLabel, { color: Colors.secondaryText }]}>Crew Roles</Text>
+            <Text style={[styles.editSectionLabel, { color: Colors.secondaryText }]}>{t('dailyChecklistSection.crewRoles')}</Text>
             <TouchableOpacity onPress={handleAddRole} style={[styles.addBtn, { backgroundColor: '#10B98115' }]}>
               <Ionicons name="add" size={14} color="#10B981" />
-              <Text style={{ color: '#10B981', fontSize: 12, fontWeight: '600' }}>Add Role</Text>
+              <Text style={{ color: '#10B981', fontSize: 12, fontWeight: '600' }}>{t('dailyChecklistSection.addRole')}</Text>
             </TouchableOpacity>
           </View>
           {editedRoles.map((r, i) => (
@@ -633,7 +635,7 @@ export default function DailyChecklistSection({
                     updated[i] = { ...updated[i], role_name: v };
                     setEditedRoles(updated);
                   }}
-                  placeholder="Role name (e.g. Technician)"
+                  placeholder={t('dailyChecklistSection.roleNamePlaceholder')}
                   placeholderTextColor={Colors.secondaryText + '60'}
                 />
                 <View style={styles.editQtyWrap}>
@@ -674,7 +676,7 @@ export default function DailyChecklistSection({
           ))}
           {editedRoles.length === 0 && (
             <Text style={{ color: Colors.secondaryText, fontStyle: 'italic', fontSize: 13, paddingVertical: 8 }}>
-              No roles yet — tap "Add Role" above
+              {t('dailyChecklistSection.noRolesYet')}
             </Text>
           )}
         </View>
@@ -683,10 +685,10 @@ export default function DailyChecklistSection({
         <View style={styles.emptyWrap}>
           <Ionicons name="list-outline" size={32} color={Colors.secondaryText + '60'} />
           <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-            No daily checks set up yet
+            {t('dailyChecklistSection.emptyTitle')}
           </Text>
           <Text style={[styles.emptySubtext, { color: Colors.secondaryText }]}>
-            Tap the edit button to add recurring daily items
+            {t('dailyChecklistSection.emptySubtext')}
           </Text>
         </View>
       ) : (
@@ -730,7 +732,7 @@ export default function DailyChecklistSection({
                 </Text>
                 {template.specific_date && (
                   <View style={[styles.oneOffBadge, { backgroundColor: '#F59E0B18' }]}>
-                    <Text style={{ color: '#F59E0B', fontSize: 9, fontWeight: '700' }}>ONE-OFF</Text>
+                    <Text style={{ color: '#F59E0B', fontSize: 9, fontWeight: '700' }}>{t('dailyChecklistSection.oneOff')}</Text>
                   </View>
                 )}
                 {template.item_type === 'quantity' && (
@@ -766,7 +768,7 @@ export default function DailyChecklistSection({
             <View style={styles.laborSection}>
               <View style={styles.laborHeader}>
                 <Ionicons name="people-outline" size={16} color="#10B981" />
-                <Text style={[styles.laborLabel, { color: Colors.secondaryText }]}>Crew Roles</Text>
+                <Text style={[styles.laborLabel, { color: Colors.secondaryText }]}>{t('dailyChecklistSection.crewRoles')}</Text>
               </View>
               {laborRoles.map(role => (
                 <View key={role.id} style={[styles.laborRow, { borderBottomColor: Colors.border }]}>

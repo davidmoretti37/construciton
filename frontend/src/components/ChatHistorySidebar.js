@@ -13,6 +13,7 @@ import {
   Easing,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SIDEBAR_WIDTH = SCREEN_WIDTH * 0.75; // 75% of screen width
@@ -50,6 +51,7 @@ export default function ChatHistorySidebar({
   onSelectSession,
   onNewChat
 }) {
+  const { t } = useTranslation('chat');
   const { isDark } = useTheme();
   const Colors = getColors(isDark);
   const styles = createStyles(Colors);
@@ -114,7 +116,7 @@ export default function ChatHistorySidebar({
       setSessions(data);
     } catch (error) {
       console.error('Error loading sessions:', error);
-      Alert.alert('Error', 'Failed to load chat history');
+      Alert.alert(t('common:alerts.error'), t('chatHistorySidebar.loadError'));
     } finally {
       setLoading(false);
     }
@@ -122,12 +124,12 @@ export default function ChatHistorySidebar({
 
   const handleDeleteSession = async (sessionId) => {
     Alert.alert(
-      'Delete Chat',
-      'Are you sure you want to delete this chat? This cannot be undone.',
+      t('chatHistorySidebar.deleteTitle'),
+      t('chatHistorySidebar.deleteMessage'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common:buttons.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -140,7 +142,7 @@ export default function ChatHistorySidebar({
               }
             } catch (error) {
               console.error('Error deleting session:', error);
-              Alert.alert('Error', 'Failed to delete chat');
+              Alert.alert(t('common:alerts.error'), t('chatHistorySidebar.deleteError'));
             }
           }
         }
@@ -220,7 +222,7 @@ export default function ChatHistorySidebar({
                 <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                   <Ionicons name="close" size={24} color={Colors.text} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Chat History</Text>
+                <Text style={styles.headerTitle}>{t('chatHistorySidebar.headerTitle')}</Text>
               </View>
               <TouchableOpacity
                 style={styles.newChatButton}
@@ -241,8 +243,8 @@ export default function ChatHistorySidebar({
         ) : sessions.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="chatbubbles-outline" size={64} color={Colors.textSecondary} />
-            <Text style={styles.emptyText}>No chat history yet</Text>
-            <Text style={styles.emptySubtext}>Start a new conversation to begin</Text>
+            <Text style={styles.emptyText}>{t('chatHistorySidebar.emptyText')}</Text>
+            <Text style={styles.emptySubtext}>{t('chatHistorySidebar.emptySubtext')}</Text>
           </View>
         ) : (
           <FlatList

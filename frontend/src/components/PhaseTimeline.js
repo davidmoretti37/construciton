@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
 import Slider from '@react-native-community/slider';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius, TASK_STATUSES, getTaskStatus } from '../constants/theme';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
 
 export default function PhaseTimeline({
@@ -44,6 +45,7 @@ export default function PhaseTimeline({
 }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('projects');
 
   if (!phases || phases.length === 0) {
     return null;
@@ -92,10 +94,10 @@ export default function PhaseTimeline({
         </View>
         <View style={styles.compactLabels}>
           <Text style={[styles.compactLabel, { color: Colors.secondaryText }]}>
-            {phases.length} sections
+            {t('phaseTimeline.sectionsCount', { count: phases.length })}
           </Text>
           <Text style={[styles.compactLabel, { color: Colors.primaryText, fontWeight: '600' }]}>
-            {overallCompletion}% complete
+            {t('phaseTimeline.percentComplete', { percent: overallCompletion })}
           </Text>
         </View>
       </View>
@@ -113,14 +115,14 @@ export default function PhaseTimeline({
     if (otherPhases.length === 0) return;
 
     Alert.alert(
-      'Move Task',
-      `Move "${task.description || task.name}" to:`,
+      t('phaseTimeline.moveTaskTitle'),
+      t('phaseTimeline.moveTaskBody', { taskName: task.description || task.name }),
       [
         ...otherPhases.map(targetPhase => ({
           text: targetPhase.name,
           onPress: () => onTaskMove && onTaskMove(task, sourcePhase, targetPhase),
         })),
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
       ]
     );
   }, [phases, onTaskMove]);
@@ -191,7 +193,7 @@ export default function PhaseTimeline({
     <View style={styles.container}>
       {/* Overall Progress */}
       <View style={styles.overallLabelRow}>
-        <Text style={[styles.overallLabel, { color: Colors.secondaryText }]}>Overall Progress</Text>
+        <Text style={[styles.overallLabel, { color: Colors.secondaryText }]}>{t('phaseTimeline.overallProgress')}</Text>
         <Text style={[styles.overallPercentage, { color: Colors.primaryText }]}>{overallCompletion}%</Text>
       </View>
       <View style={[styles.overallProgressBar, { backgroundColor: '#E5E7EB' }]}>
@@ -202,7 +204,7 @@ export default function PhaseTimeline({
       {phases.map((phase, index) => {
         const isExpanded = expandedPhaseIds.has(phase.id);
         const phaseTasks = phase.tasks || [];
-        const completedCount = phaseTasks.filter(t => t.completed).length;
+        const completedCount = phaseTasks.filter(task => task.completed).length;
         const completion = phase.completion_percentage || (phaseTasks.length > 0 ? Math.round((completedCount / phaseTasks.length) * 100) : 0);
         // Derive status color from actual completion, not stored status
         const dotColor = completion >= 100 ? '#22C55E' : completion > 0 ? '#3B82F6' : Colors.lightGray;
@@ -234,11 +236,11 @@ export default function PhaseTimeline({
                   <View style={styles.sectionMeta}>
                     {phase.planned_days && (
                       <Text style={[styles.sectionDays, { color: Colors.secondaryText }]}>
-                        {phase.planned_days} {phase.planned_days === 1 ? 'day' : 'days'}
+                        {phase.planned_days} {phase.planned_days === 1 ? t('phaseTimeline.day') : t('phaseTimeline.days')}
                       </Text>
                     )}
                     <Text style={[styles.sectionTaskCount, { color: Colors.secondaryText }]}>
-                      {completedCount}/{phaseTasks.length} tasks
+                      {t('phaseTimeline.tasksCount', { completed: completedCount, total: phaseTasks.length })}
                     </Text>
                     {(parseFloat(phase.budget) || 0) > 0 && !isEditing && (
                       <Text style={{ fontSize: 12, fontWeight: '600', color: '#16A34A', marginLeft: 8 }}>
@@ -295,7 +297,7 @@ export default function PhaseTimeline({
                 progress slider above can't overlap the TextInput. Full-width. */}
             {isEditing && onPhaseBudgetChange && (
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.border, gap: 12 }}>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Phase Budget</Text>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>{t('phaseTimeline.phaseBudget')}</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'flex-end' }}>
                   <Text style={{ fontSize: 16, fontWeight: '700', color: '#16A34A' }}>$</Text>
                   <TextInput
@@ -314,9 +316,9 @@ export default function PhaseTimeline({
             {showSpentLine && (
               <View style={{ paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: Colors.border }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Spent</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>{t('phaseTimeline.spent')}</Text>
                   <Text style={{ fontSize: 12, fontWeight: '700', color: isOverBudget ? '#EF4444' : Colors.primaryText }}>
-                    ${phaseSpent.toLocaleString('en-US')}{phaseBudget > 0 ? ` of $${phaseBudget.toLocaleString('en-US')}` : ''}
+                    ${phaseSpent.toLocaleString('en-US')}{phaseBudget > 0 ? t('phaseTimeline.ofBudget', { budget: phaseBudget.toLocaleString('en-US') }) : ''}
                   </Text>
                 </View>
                 {phaseBudget > 0 && (
@@ -327,8 +329,8 @@ export default function PhaseTimeline({
                 {phaseBudget > 0 && (
                   <Text style={{ fontSize: 11, color: isOverBudget ? '#EF4444' : '#94A3B8', marginTop: 4 }}>
                     {isOverBudget
-                      ? `Over by $${(phaseSpent - phaseBudget).toLocaleString('en-US')}`
-                      : `$${(phaseBudget - phaseSpent).toLocaleString('en-US')} left · ${spentPct}%`}
+                      ? t('phaseTimeline.overBudgetBy', { amount: (phaseSpent - phaseBudget).toLocaleString('en-US') })
+                      : t('phaseTimeline.budgetRemaining', { amount: (phaseBudget - phaseSpent).toLocaleString('en-US'), percent: spentPct })}
                   </Text>
                 )}
               </View>
@@ -350,7 +352,7 @@ export default function PhaseTimeline({
 
             {isExpanded && phaseTasks.length === 0 && (
               <View style={[styles.emptyTasks, { borderTopColor: Colors.border }]}>
-                <Text style={[styles.emptyTasksText, { color: Colors.secondaryText }]}>No tasks yet</Text>
+                <Text style={[styles.emptyTasksText, { color: Colors.secondaryText }]}>{t('phaseTimeline.noTasksYet')}</Text>
               </View>
             )}
 
@@ -361,7 +363,7 @@ export default function PhaseTimeline({
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.border }}
               >
                 <Ionicons name="add-circle-outline" size={16} color="#7C3AED" />
-                <Text style={{ color: '#7C3AED', fontSize: 13, fontWeight: '700' }}>Add Task</Text>
+                <Text style={{ color: '#7C3AED', fontSize: 13, fontWeight: '700' }}>{t('phaseTimeline.addTask')}</Text>
               </TouchableOpacity>
             )}
 
@@ -377,7 +379,7 @@ export default function PhaseTimeline({
                     style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#EFF6FF', paddingVertical: 10, borderRadius: 10 }}
                   >
                     <Ionicons name="receipt-outline" size={14} color="#3B82F6" />
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#3B82F6' }}>View Transactions</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#3B82F6' }}>{t('phaseTimeline.viewTransactions')}</Text>
                   </TouchableOpacity>
                 )}
                 {onQuickAddTask && (
@@ -386,7 +388,7 @@ export default function PhaseTimeline({
                     style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#F0FDF4', paddingVertical: 10, borderRadius: 10 }}
                   >
                     <Ionicons name="add-circle-outline" size={14} color="#16A34A" />
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#16A34A' }}>Add Task</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#16A34A' }}>{t('phaseTimeline.addTask')}</Text>
                   </TouchableOpacity>
                 )}
               </View>

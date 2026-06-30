@@ -47,7 +47,7 @@ const toMonthly = (amount, frequency) => {
 export default function SubscriptionOverheadScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
-  const { t } = useTranslation('common');
+  const { t } = useTranslation('onboarding');
   const { selectedTrades, selectedServices, businessInfo, pricing, phasesTemplate, profitMargin, invoiceInfo } = route.params;
 
   // Bank connection state
@@ -112,7 +112,7 @@ export default function SubscriptionOverheadScreen({ navigation, route }) {
       await Linking.openURL(url);
     } catch (error) {
       setConnecting(false);
-      Alert.alert('Error', error.message || 'Failed to start bank connection. You can do this later in Settings.');
+      Alert.alert(t('subscriptionOverhead.errorTitle'), error.message || t('subscriptionOverhead.bankConnectionError'));
     }
   };
 
@@ -135,8 +135,8 @@ export default function SubscriptionOverheadScreen({ navigation, route }) {
   };
 
   const handleSave = async () => {
-    if (!formDesc.trim()) { Alert.alert('Required', 'Enter a name for this expense'); return; }
-    if (!formAmount || parseFloat(formAmount) <= 0) { Alert.alert('Required', 'Enter an amount'); return; }
+    if (!formDesc.trim()) { Alert.alert(t('subscriptionOverhead.requiredTitle'), t('subscriptionOverhead.enterExpenseName')); return; }
+    if (!formAmount || parseFloat(formAmount) <= 0) { Alert.alert(t('subscriptionOverhead.requiredTitle'), t('subscriptionOverhead.enterAmount')); return; }
 
     try {
       setSaving(true);
@@ -157,16 +157,16 @@ export default function SubscriptionOverheadScreen({ navigation, route }) {
       resetForm();
       loadOverhead();
     } catch (error) {
-      Alert.alert('Error', 'Failed to save');
+      Alert.alert(t('subscriptionOverhead.errorTitle'), t('subscriptionOverhead.failedToSave'));
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = (item) => {
-    Alert.alert('Delete', `Remove "${item.description}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => {
+    Alert.alert(t('subscriptionOverhead.deleteTitle'), t('subscriptionOverhead.deleteConfirm', { name: item.description }), [
+      { text: t('common:buttons.cancel'), style: 'cancel' },
+      { text: t('common:buttons.delete'), style: 'destructive', onPress: () => {
         setItems(prev => prev.filter(i => i.id !== item.id));
         deleteRecurringExpense(item.id).catch(() => {
           setItems(prev => [...prev, item]);
@@ -197,7 +197,7 @@ export default function SubscriptionOverheadScreen({ navigation, route }) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: '#1F2937' }]}>Almost Done</Text>
+        <Text style={[styles.headerTitle, { color: '#1F2937' }]}>{t('subscriptionOverhead.headerTitle')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -214,9 +214,9 @@ export default function SubscriptionOverheadScreen({ navigation, route }) {
               <Ionicons name="wallet-outline" size={22} color="#10B981" />
             </View>
             <View style={styles.sectionHeaderText}>
-              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Connect Your Bank</Text>
+              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('subscriptionOverhead.connectBankTitle')}</Text>
               <Text style={[styles.sectionSubtitle, { color: Colors.secondaryText }]}>
-                Auto-track expenses and income
+                {t('subscriptionOverhead.connectBankSubtitle')}
               </Text>
             </View>
           </View>
@@ -225,7 +225,7 @@ export default function SubscriptionOverheadScreen({ navigation, route }) {
           <View style={[styles.importantCard, { backgroundColor: '#ECFDF5' }]}>
             <Ionicons name="shield-checkmark" size={18} color="#059669" />
             <Text style={[styles.importantText, { color: '#065F46' }]}>
-              Connecting your bank lets Sylk automatically import transactions, match them to projects, and give you real-time financial insights. Your credentials are never stored — we use Teller, a bank-grade secure connection.
+              {t('subscriptionOverhead.bankSecurityNotice')}
             </Text>
           </View>
 
@@ -235,11 +235,11 @@ export default function SubscriptionOverheadScreen({ navigation, route }) {
               <Ionicons name="checkmark-circle" size={24} color="#10B981" />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.connectedTitle, { color: Colors.primaryText }]}>
-                  {connectedAccounts.length} account{connectedAccounts.length !== 1 ? 's' : ''} connected
+                  {t('subscriptionOverhead.accountsConnected', { count: connectedAccounts.length })}
                 </Text>
                 {connectedAccounts.map((acc, i) => (
                   <Text key={i} style={[styles.connectedName, { color: Colors.secondaryText }]}>
-                    {acc.institution_name || acc.name || 'Bank Account'}
+                    {acc.institution_name || acc.name || t('subscriptionOverhead.bankAccountDefault')}
                   </Text>
                 ))}
               </View>
@@ -258,14 +258,14 @@ export default function SubscriptionOverheadScreen({ navigation, route }) {
               <>
                 <Ionicons name={connectedAccounts.length > 0 ? 'add-circle-outline' : 'link-outline'} size={20} color="#fff" />
                 <Text style={styles.connectText}>
-                  {connectedAccounts.length > 0 ? 'Connect Another Account' : 'Connect Bank Account'}
+                  {connectedAccounts.length > 0 ? t('subscriptionOverhead.connectAnotherAccount') : t('subscriptionOverhead.connectBankAccount')}
                 </Text>
               </>
             )}
           </TouchableOpacity>
 
           <Text style={[styles.skipNote, { color: Colors.secondaryText }]}>
-            You can also do this later in Settings
+            {t('subscriptionOverhead.skipNote')}
           </Text>
         </View>
 
@@ -276,9 +276,9 @@ export default function SubscriptionOverheadScreen({ navigation, route }) {
               <Ionicons name="trending-down-outline" size={22} color="#EF4444" />
             </View>
             <View style={styles.sectionHeaderText}>
-              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Company Overhead</Text>
+              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('subscriptionOverhead.overheadTitle')}</Text>
               <Text style={[styles.sectionSubtitle, { color: Colors.secondaryText }]}>
-                Track fixed costs for accurate profit calculations
+                {t('subscriptionOverhead.overheadSubtitle')}
               </Text>
             </View>
           </View>
@@ -287,17 +287,17 @@ export default function SubscriptionOverheadScreen({ navigation, route }) {
           <View style={[styles.importantCard, { backgroundColor: '#FEF3C7' }]}>
             <Ionicons name="warning" size={18} color="#D97706" />
             <Text style={styles.importantText}>
-              Adding your overhead costs (rent, insurance, vehicle payments, etc.) is how Sylk calculates your real profit. Without this, your profit numbers won't be accurate.
+              {t('subscriptionOverhead.overheadImportanceNotice')}
             </Text>
           </View>
 
           {/* Summary if items exist */}
           {items.length > 0 && (
             <View style={[styles.overheadSummary, { backgroundColor: Colors.cardBackground }]}>
-              <Text style={[styles.overheadLabel, { color: Colors.secondaryText }]}>Monthly Overhead</Text>
+              <Text style={[styles.overheadLabel, { color: Colors.secondaryText }]}>{t('subscriptionOverhead.monthlyOverhead')}</Text>
               <Text style={[styles.overheadAmount, { color: '#EF4444' }]}>{formatCurrency(totalMonthly)}</Text>
               <Text style={[styles.overheadCount, { color: Colors.secondaryText }]}>
-                {items.length} expense{items.length !== 1 ? 's' : ''} added
+                {t('subscriptionOverhead.expensesAdded', { count: items.length })}
               </Text>
             </View>
           )}
@@ -319,7 +319,7 @@ export default function SubscriptionOverheadScreen({ navigation, route }) {
               <View style={styles.overheadItemFooter}>
                 <Text style={[styles.overheadItemFreq, { color: Colors.secondaryText }]}>
                   {getFreqLabel(item.frequency)}
-                  {item.frequency !== 'monthly' && ` · ${formatCurrency(toMonthly(item.amount, item.frequency))}/mo`}
+                  {item.frequency !== 'monthly' && t('subscriptionOverhead.perMonthSuffix', { amount: formatCurrency(toMonthly(item.amount, item.frequency)) })}
                 </Text>
                 <TouchableOpacity onPress={() => handleDelete(item)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                   <Ionicons name="trash-outline" size={16} color="#EF4444" />
@@ -336,13 +336,13 @@ export default function SubscriptionOverheadScreen({ navigation, route }) {
           >
             <Ionicons name="add-circle-outline" size={20} color={ACCENT} />
             <Text style={[styles.addOverheadText, { color: ACCENT }]}>
-              {items.length === 0 ? 'Add Your First Overhead Expense' : 'Add Another Expense'}
+              {items.length === 0 ? t('subscriptionOverhead.addFirstExpense') : t('subscriptionOverhead.addAnotherExpense')}
             </Text>
           </TouchableOpacity>
 
           {items.length === 0 && (
             <Text style={[styles.examplesText, { color: Colors.secondaryText }]}>
-              Examples: Office rent, truck payment, insurance, tools, software subscriptions, fuel
+              {t('subscriptionOverhead.expenseExamples')}
             </Text>
           )}
         </View>
@@ -357,7 +357,7 @@ export default function SubscriptionOverheadScreen({ navigation, route }) {
           onPress={handleContinue}
           activeOpacity={0.8}
         >
-          <Text style={styles.continueText}>Complete Setup</Text>
+          <Text style={styles.continueText}>{t('subscriptionOverhead.completeSetup')}</Text>
           <Ionicons name="checkmark" size={20} color="#fff" />
         </TouchableOpacity>
 
@@ -374,28 +374,28 @@ export default function SubscriptionOverheadScreen({ navigation, route }) {
               <Ionicons name="close" size={24} color={Colors.primaryText} />
             </TouchableOpacity>
             <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>
-              {editingItem ? 'Edit Expense' : 'Add Expense'}
+              {editingItem ? t('subscriptionOverhead.editExpense') : t('subscriptionOverhead.addExpense')}
             </Text>
             <TouchableOpacity onPress={handleSave} disabled={saving}>
-              <Text style={[styles.saveText, saving && { opacity: 0.4 }]}>{saving ? '...' : 'Save'}</Text>
+              <Text style={[styles.saveText, saving && { opacity: 0.4 }]}>{saving ? '...' : t('common:buttons.save')}</Text>
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
             <View style={styles.formSection}>
-              <Text style={[styles.formLabel, { color: Colors.primaryText }]}>Expense Name</Text>
+              <Text style={[styles.formLabel, { color: Colors.primaryText }]}>{t('subscriptionOverhead.expenseName')}</Text>
               <TextInput
                 style={[styles.formInput, { backgroundColor: Colors.cardBackground, color: Colors.primaryText, borderColor: Colors.border }]}
                 value={formDesc}
                 onChangeText={setFormDesc}
-                placeholder="e.g., Office Rent, Truck Payment, Insurance"
+                placeholder={t('subscriptionOverhead.expenseNamePlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 autoFocus={!editingItem}
               />
             </View>
 
             <View style={styles.formSection}>
-              <Text style={[styles.formLabel, { color: Colors.primaryText }]}>Amount</Text>
+              <Text style={[styles.formLabel, { color: Colors.primaryText }]}>{t('subscriptionOverhead.amount')}</Text>
               <View style={[styles.amountRow, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
                 <Text style={[styles.currencySign, { color: Colors.secondaryText }]}>$</Text>
                 <TextInput
@@ -410,7 +410,7 @@ export default function SubscriptionOverheadScreen({ navigation, route }) {
             </View>
 
             <View style={styles.formSection}>
-              <Text style={[styles.formLabel, { color: Colors.primaryText }]}>How Often</Text>
+              <Text style={[styles.formLabel, { color: Colors.primaryText }]}>{t('subscriptionOverhead.howOften')}</Text>
               <View style={styles.freqRow}>
                 {FREQUENCIES.map(f => {
                   const selected = formFrequency === f.value;
@@ -431,7 +431,7 @@ export default function SubscriptionOverheadScreen({ navigation, route }) {
               <View style={[styles.hintCard, { backgroundColor: ACCENT + '08' }]}>
                 <Ionicons name="information-circle-outline" size={16} color={ACCENT} />
                 <Text style={[styles.hintText, { color: ACCENT }]}>
-                  That's {formatCurrency(toMonthly(formAmount, formFrequency))} per month
+                  {t('subscriptionOverhead.perMonthHint', { amount: formatCurrency(toMonthly(formAmount, formFrequency)) })}
                 </Text>
               </View>
             )}

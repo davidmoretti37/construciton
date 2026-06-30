@@ -93,7 +93,7 @@ export default function InvoicePreview({ data, onAction }) {
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
+    if (!dateString) return t('invoicePreview.notAvailable');
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
@@ -115,7 +115,7 @@ export default function InvoicePreview({ data, onAction }) {
       setShowPreview(true);
     } catch (error) {
       console.error('Error previewing invoice:', error);
-      Alert.alert('Error', 'Failed to preview invoice. Please try again.');
+      Alert.alert(t('invoicePreview.errorTitle'), t('invoicePreview.errorPreviewFailed'));
     }
   }, [data]);
 
@@ -198,7 +198,7 @@ export default function InvoicePreview({ data, onAction }) {
             </View>
             <View style={styles.itemDetails}>
               <Text style={[styles.itemCalc, { color: Colors.secondaryText }]}>
-                {item.quantity} {item.unit || 'unit'}{item.quantity > 1 ? 's' : ''} × ${item.price?.toFixed(2)}
+                {item.quantity} {item.unit || t('invoicePreview.unitFallback')}{item.quantity > 1 ? 's' : ''} × ${item.price?.toFixed(2)}
               </Text>
               <Text style={[styles.itemTotal, { color: Colors.primaryText }]}>
                 ${item.total?.toFixed(2)}
@@ -337,7 +337,7 @@ export default function InvoicePreview({ data, onAction }) {
               onPress={handleSendToClient}
             >
               <Ionicons name="send-outline" size={18} color="#fff" />
-              <Text style={styles.buttonText}>Send to Client</Text>
+              <Text style={styles.buttonText}>{t('invoicePreview.sendToClient')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, styles.successButton, { backgroundColor: '#22C55E' }]}
@@ -365,7 +365,7 @@ export default function InvoicePreview({ data, onAction }) {
             >
               <Ionicons name="close-circle" size={32} color={Colors.primaryText} />
             </TouchableOpacity>
-            <Text style={[styles.previewTitle, { color: Colors.primaryText }]}>Invoice Preview</Text>
+            <Text style={[styles.previewTitle, { color: Colors.primaryText }]}>{t('invoicePreview.modalTitle')}</Text>
             <View style={{ width: 48 }} />
           </View>
           <WebView

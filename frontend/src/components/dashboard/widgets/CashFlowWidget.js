@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import VerticalBarGroup from './svg/VerticalBarGroup';
 
 function fmtK(amount) {
@@ -11,6 +12,7 @@ function fmtK(amount) {
 }
 
 export default function CashFlowWidget({ cashFlowData, maxCashFlowVal, totalNet, size, editMode, onPress }) {
+  const { t } = useTranslation('common');
   const barData = cashFlowData.map((month) => ({
     label: month.label,
     values: [
@@ -33,10 +35,10 @@ export default function CashFlowWidget({ cashFlowData, maxCashFlowVal, totalNet,
         style={styles.gradient}
       >
         <View style={styles.header}>
-          <Text style={styles.title}>Cash Flow</Text>
+          <Text style={styles.title}>{t('cashFlowWidget.title')}</Text>
           <View style={styles.netPill}>
             <Text style={[styles.netText, { color: totalNet >= 0 ? '#34D399' : '#FB7185' }]}>
-              Net: {fmtK(totalNet)}
+              {t('cashFlowWidget.net', { amount: fmtK(totalNet) })}
             </Text>
           </View>
         </View>
@@ -55,11 +57,11 @@ export default function CashFlowWidget({ cashFlowData, maxCashFlowVal, totalNet,
         <View style={styles.legend}>
           <View style={styles.legendItem}>
             <View style={[styles.legendBar, { backgroundColor: '#34D399' }]} />
-            <Text style={styles.legendText}>In</Text>
+            <Text style={styles.legendText}>{t('cashFlowWidget.legendIn')}</Text>
           </View>
           <View style={styles.legendItem}>
             <View style={[styles.legendBar, { backgroundColor: 'rgba(251,113,133,0.8)' }]} />
-            <Text style={styles.legendText}>Out</Text>
+            <Text style={styles.legendText}>{t('cashFlowWidget.legendOut')}</Text>
           </View>
         </View>
       </LinearGradient>

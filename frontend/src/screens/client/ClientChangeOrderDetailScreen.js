@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { respondToChangeOrder, fetchChangeOrderSigningLink } from '../../services/clientPortalApi';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -60,6 +61,7 @@ const fmtDate = (value) => {
 export default function ClientChangeOrderDetailScreen({ route, navigation }) {
   const { changeOrder, project } = route.params;
   const { profile } = useAuth();
+  const { t } = useTranslation('common');
   const [submitting, setSubmitting] = useState(false);
   const [showDecline, setShowDecline] = useState(false);
   const [showApprove, setShowApprove] = useState(false);
@@ -113,12 +115,12 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
           approved_at: co.approved_at || new Date().toISOString(),
           approved_by_name: approvalName.trim() || profile?.full_name || co.approved_by_name || null,
         });
-        Alert.alert('Already signed', 'This change order has already been signed.');
+        Alert.alert(t('clientChangeOrderDetail.alreadySignedTitle'), t('clientChangeOrderDetail.alreadySignedBody'));
       } else {
-        Alert.alert('Cannot sign', res?.error || 'No active signing link. Ask your contractor to resend it.');
+        Alert.alert(t('clientChangeOrderDetail.cannotSignTitle'), res?.error || t('clientChangeOrderDetail.noActiveSigningLink'));
       }
     } catch (e) {
-      Alert.alert('Sign failed', e?.message || 'Could not start signing.');
+      Alert.alert(t('clientChangeOrderDetail.signFailedTitle'), e?.message || t('clientChangeOrderDetail.couldNotStartSigning'));
     } finally {
       setSubmitting(false);
     }
@@ -130,7 +132,7 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
       return handleSign();
     }
     if (!approvalName.trim()) {
-      Alert.alert('Name Required', 'Please type your name to approve.');
+      Alert.alert(t('clientChangeOrderDetail.nameRequiredTitle'), t('clientChangeOrderDetail.nameRequiredBody'));
       return;
     }
     try {
@@ -143,11 +145,11 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
         approved_by_name: approvalName.trim(),
       });
       setShowApprove(false);
-      Alert.alert('Approved', 'Change order has been approved.', [
-        { text: 'OK', onPress: () => navigation.goBack() },
+      Alert.alert(t('clientChangeOrderDetail.approved'), t('clientChangeOrderDetail.approvedBody'), [
+        { text: t('clientChangeOrderDetail.ok'), onPress: () => navigation.goBack() },
       ]);
     } catch (e) {
-      Alert.alert('Error', e.message || 'Failed to approve');
+      Alert.alert(t('common:alerts.error'), e.message || t('clientChangeOrderDetail.failedToApprove'));
     } finally {
       setSubmitting(false);
     }
@@ -161,11 +163,11 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
       setResponded(true);
       setLocalStatus('rejected');
       setShowDecline(false);
-      Alert.alert('Declined', 'Change order has been declined.', [
-        { text: 'OK', onPress: () => navigation.goBack() },
+      Alert.alert(t('clientChangeOrderDetail.declinedTitle'), t('clientChangeOrderDetail.declinedBody'), [
+        { text: t('clientChangeOrderDetail.ok'), onPress: () => navigation.goBack() },
       ]);
     } catch (e) {
-      Alert.alert('Error', e.message || 'Failed to decline');
+      Alert.alert(t('common:alerts.error'), e.message || t('clientChangeOrderDetail.failedToDecline'));
     } finally {
       setSubmitting(false);
     }
@@ -192,7 +194,7 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
             accessibilityLabel="clientChangeOrderDetail.headerTitle"
             style={styles.headerTitle}
           >
-            Change Order
+            {t('clientChangeOrderDetail.changeOrder')}
           </Text>
           <View style={{ width: 26 }} />
         </View>
@@ -227,14 +229,14 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
           <View style={styles.expiryBanner}>
             <Ionicons name="time-outline" size={16} color={C.amberDark} />
             <Text style={styles.expiryText}>
-              {daysUntilExpiry <= 0 ? 'Expired' : `Expires in ${daysUntilExpiry} day${daysUntilExpiry !== 1 ? 's' : ''}`}
+              {daysUntilExpiry <= 0 ? t('clientChangeOrderDetail.expired') : t('clientChangeOrderDetail.expiresIn', { count: daysUntilExpiry })}
             </Text>
           </View>
         )}
 
         {/* Cost Breakdown */}
         <View style={styles.costCard}>
-          <Text style={styles.costLabel}>{parseFloat(co.total_amount) < 0 ? 'CREDIT' : 'CHANGE AMOUNT'}</Text>
+          <Text style={styles.costLabel}>{parseFloat(co.total_amount) < 0 ? t('clientChangeOrderDetail.credit') : t('clientChangeOrderDetail.changeAmount')}</Text>
           <Text
             testID="clientChangeOrderDetail.totalAmount"
             accessibilityLabel="clientChangeOrderDetail.totalAmount"
@@ -244,7 +246,7 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
           </Text>
           {scheduleDays !== 0 && (
             <Text style={styles.costDays}>
-              {scheduleDays > 0 ? '+' : ''}{scheduleDays} day{Math.abs(scheduleDays) !== 1 ? 's' : ''} to schedule
+              {t('clientChangeOrderDetail.daysToSchedule', { count: Math.abs(scheduleDays), days: `${scheduleDays > 0 ? '+' : ''}${scheduleDays}` })}
             </Text>
           )}
         </View>
@@ -254,8 +256,10 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
           <View style={styles.scheduleCallout}>
             <Ionicons name="calendar-outline" size={16} color={C.amberDark} />
             <Text style={styles.scheduleCalloutText}>
-              {scheduleDays > 0 ? 'Adds' : 'Reduces'} {Math.abs(scheduleDays)} day{Math.abs(scheduleDays) !== 1 ? 's' : ''} —
-              new estimated completion: <Text style={{ fontWeight: '700' }}>
+              {scheduleDays > 0
+                ? t('clientChangeOrderDetail.scheduleAdds', { count: Math.abs(scheduleDays) })
+                : t('clientChangeOrderDetail.scheduleReduces', { count: Math.abs(scheduleDays) })}{' '}
+              {t('clientChangeOrderDetail.newCompletion')}{' '}<Text style={{ fontWeight: '700' }}>
                 {newEndDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
               </Text>
             </Text>
@@ -267,7 +271,7 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
           <View style={styles.signatureNotice}>
             <Ionicons name="shield-checkmark-outline" size={16} color={C.blue} />
             <Text style={styles.signatureNoticeText}>
-              This change order requires your signature. Tap "Review & Sign" below to sign it securely in the app.
+              {t('clientChangeOrderDetail.signatureNotice')}
             </Text>
           </View>
         )}
@@ -280,7 +284,7 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
               accessibilityLabel="clientChangeOrderDetail.lineItemsHeader"
               style={styles.sectionLabel}
             >
-              LINE ITEMS
+              {t('clientChangeOrderDetail.lineItems')}
             </Text>
             <View style={styles.lineItemsCard}>
               {lineItems.map((item, i) => {
@@ -304,7 +308,7 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
                 );
               })}
               <View style={[styles.lineItem, styles.lineItemTotal]}>
-                <Text style={styles.lineItemTotalLabel}>Total</Text>
+                <Text style={styles.lineItemTotalLabel}>{t('clientChangeOrderDetail.total')}</Text>
                 <Text style={styles.lineItemTotalAmount}>{fmtSigned(co.total_amount)}</Text>
               </View>
             </View>
@@ -314,7 +318,7 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
         {/* Reason */}
         {co.reason && (
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>REASON</Text>
+            <Text style={styles.sectionLabel}>{t('clientChangeOrderDetail.reasonLabel')}</Text>
             <View style={styles.reasonCard}>
               <Text style={styles.reasonText}>
                 {co.reason.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
@@ -325,26 +329,26 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
 
         {/* Info */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>DETAILS</Text>
+          <Text style={styles.sectionLabel}>{t('clientChangeOrderDetail.details')}</Text>
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Submitted</Text>
+            <Text style={styles.detailLabel}>{t('clientChangeOrderDetail.submitted')}</Text>
             <Text style={styles.detailValue}>{fmtDate(co.created_at)}</Text>
           </View>
           {co.approved_at && (
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Approved</Text>
+              <Text style={styles.detailLabel}>{t('clientChangeOrderDetail.approved')}</Text>
               <Text style={[styles.detailValue, { color: C.green }]}>{fmtDate(co.approved_at)}</Text>
             </View>
           )}
           {co.approved_by_name && (
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Approved by</Text>
+              <Text style={styles.detailLabel}>{t('clientChangeOrderDetail.approvedBy')}</Text>
               <Text style={styles.detailValue}>{co.approved_by_name}</Text>
             </View>
           )}
           {co.client_response_reason && (
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Decline reason</Text>
+              <Text style={styles.detailLabel}>{t('clientChangeOrderDetail.declineReason')}</Text>
               <Text style={[styles.detailValue, { color: C.red }]}>{co.client_response_reason}</Text>
             </View>
           )}
@@ -353,26 +357,26 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
         {/* Approve Flow */}
         {showApprove && (
           <View style={styles.actionSheet}>
-            <Text style={styles.actionTitle}>Approve Change Order</Text>
+            <Text style={styles.actionTitle}>{t('clientChangeOrderDetail.approveChangeOrder')}</Text>
             <Text style={styles.actionSubtitle}>
               {parseFloat(co.total_amount) < 0
-                ? `This will credit ${fmtUnsigned(co.total_amount)} to your project total`
-                : `This will add ${fmtUnsigned(co.total_amount)} to your project total`}
+                ? t('clientChangeOrderDetail.willCredit', { amount: fmtUnsigned(co.total_amount) })
+                : t('clientChangeOrderDetail.willAdd', { amount: fmtUnsigned(co.total_amount) })}
             </Text>
             <TextInput
               style={styles.nameInput}
-              placeholder="Type your full name to approve"
+              placeholder={t('clientChangeOrderDetail.typeNameToApprove')}
               placeholderTextColor={C.textMuted}
               value={approvalName}
               onChangeText={setApprovalName}
               autoCapitalize="words"
             />
-            <Text style={styles.legalText}>By approving, you authorize the contractor to proceed with this work and agree to the additional cost.</Text>
+            <Text style={styles.legalText}>{t('clientChangeOrderDetail.approveLegal')}</Text>
             <TouchableOpacity style={styles.approveBtn} onPress={handleApprove} disabled={submitting}>
-              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.approveBtnText}>Confirm Approval</Text>}
+              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.approveBtnText}>{t('clientChangeOrderDetail.confirmApproval')}</Text>}
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowApprove(false)} style={styles.cancelLink}>
-              <Text style={styles.cancelLinkText}>Cancel</Text>
+              <Text style={styles.cancelLinkText}>{t('common:buttons.cancel')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -380,8 +384,8 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
         {/* Decline Flow */}
         {showDecline && (
           <View style={styles.actionSheet}>
-            <Text style={styles.actionTitle}>Decline Change Order</Text>
-            <Text style={styles.actionSubtitle}>Please share your reason</Text>
+            <Text style={styles.actionTitle}>{t('clientChangeOrderDetail.declineChangeOrder')}</Text>
+            <Text style={styles.actionSubtitle}>{t('clientChangeOrderDetail.shareReason')}</Text>
             <View style={styles.chipRow}>
               {REASON_CHIPS.map((chip) => (
                 <TouchableOpacity
@@ -396,7 +400,7 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
             {selectedChip === 'Other' && (
               <TextInput
                 style={styles.reasonInput}
-                placeholder="Add details..."
+                placeholder={t('clientChangeOrderDetail.addDetails')}
                 placeholderTextColor={C.textMuted}
                 value={declineReason}
                 onChangeText={setDeclineReason}
@@ -404,10 +408,10 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
               />
             )}
             <TouchableOpacity style={styles.declineBtn} onPress={handleDecline} disabled={submitting || !selectedChip}>
-              {submitting ? <ActivityIndicator color={C.red} /> : <Text style={styles.declineBtnText}>Decline Change Order</Text>}
+              {submitting ? <ActivityIndicator color={C.red} /> : <Text style={styles.declineBtnText}>{t('clientChangeOrderDetail.declineChangeOrder')}</Text>}
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowDecline(false)} style={styles.cancelLink}>
-              <Text style={styles.cancelLinkText}>Cancel</Text>
+              <Text style={styles.cancelLinkText}>{t('common:buttons.cancel')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -419,7 +423,7 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
       {isPending && !showApprove && !showDecline && (
         <SafeAreaView edges={['bottom']} style={styles.bottomBar}>
           <TouchableOpacity style={styles.declineAction} onPress={() => setShowDecline(true)}>
-            <Text style={styles.declineActionText}>Decline</Text>
+            <Text style={styles.declineActionText}>{t('clientChangeOrderDetail.decline')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.approveAction}
@@ -427,7 +431,7 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
             disabled={submitting}
           >
             <Ionicons name={requiresSignature ? 'create-outline' : 'checkmark-circle'} size={18} color="#fff" />
-            <Text style={styles.approveActionText}>{requiresSignature ? 'Review & Sign' : 'Review & Approve'}</Text>
+            <Text style={styles.approveActionText}>{requiresSignature ? t('clientChangeOrderDetail.reviewAndSign') : t('clientChangeOrderDetail.reviewAndApprove')}</Text>
           </TouchableOpacity>
         </SafeAreaView>
       )}

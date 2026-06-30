@@ -1,17 +1,19 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export default function ContractList({ data, onAction }) {
+  const { t } = useTranslation('chat');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
   const { contracts = [] } = data;
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
+    if (!dateString) return t('contractList.noDate');
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
@@ -25,12 +27,12 @@ export default function ContractList({ data, onAction }) {
 
   const getFileTypeBadge = (fileType, fileName) => {
     if (fileType === 'image' || /\.(jpg|jpeg|png|gif)$/i.test(fileName || '')) {
-      return 'Image';
+      return t('contractList.fileType.image');
     }
     if (/\.pdf$/i.test(fileName || '')) {
       return 'PDF';
     }
-    return 'Document';
+    return t('contractList.fileType.document');
   };
 
   const handleContractTap = (contract) => {
@@ -50,7 +52,7 @@ export default function ContractList({ data, onAction }) {
       {/* Header */}
       <View style={styles.header}>
         <Text style={[styles.title, { color: Colors.primaryText }]}>
-          Contracts
+          {t('contractList.title')}
         </Text>
         <View style={[styles.badge, { backgroundColor: Colors.primaryBlue }]}>
           <Text style={styles.badgeText}>{contracts.length}</Text>
@@ -68,7 +70,7 @@ export default function ContractList({ data, onAction }) {
           <View style={styles.emptyState}>
             <Ionicons name="document-outline" size={48} color={Colors.secondaryText} />
             <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-              No contracts uploaded yet
+              {t('contractList.emptyText')}
             </Text>
           </View>
         ) : (
@@ -91,7 +93,7 @@ export default function ContractList({ data, onAction }) {
 
                 <View style={styles.contractInfo}>
                   <Text style={[styles.fileName, { color: Colors.primaryText }]} numberOfLines={2}>
-                    {contract.file_name || `Contract ${index + 1}`}
+                    {contract.file_name || t('contractList.fallbackName', { number: index + 1 })}
                   </Text>
                   <View style={styles.metaRow}>
                     <Ionicons name="calendar-outline" size={12} color={Colors.secondaryText} />
@@ -116,7 +118,7 @@ export default function ContractList({ data, onAction }) {
                   onPress={() => handleContractTap(contract)}
                 >
                   <Ionicons name="eye-outline" size={16} color="#fff" />
-                  <Text style={styles.actionButtonText}>View</Text>
+                  <Text style={styles.actionButtonText}>{t('contractList.view')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -124,7 +126,7 @@ export default function ContractList({ data, onAction }) {
                   onPress={() => handleShareTap(contract)}
                 >
                   <Ionicons name="share-outline" size={16} color={Colors.primaryBlue} />
-                  <Text style={[styles.actionButtonText, { color: Colors.primaryBlue }]}>Share</Text>
+                  <Text style={[styles.actionButtonText, { color: Colors.primaryBlue }]}>{t('contractList.share')}</Text>
                 </TouchableOpacity>
               </View>
             </TouchableOpacity>

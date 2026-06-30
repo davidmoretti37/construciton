@@ -12,6 +12,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
@@ -23,6 +24,7 @@ import { getCurrentUserId } from '../utils/storage';
 // amount, if provided, writes a project_transactions row linked to the new
 // phase so the Spent-vs-Budget math stays in sync.
 export default function AddTradePhaseModal({ visible, onClose, projectId, onAdded }) {
+  const { t } = useTranslation('projects');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -63,12 +65,12 @@ export default function AddTradePhaseModal({ visible, onClose, projectId, onAdde
   const handleSubmit = async () => {
     const name = tradeName.trim();
     if (!name) {
-      Alert.alert('Missing trade name', 'Enter a trade name (e.g. Electrical).');
+      Alert.alert(t('addTradePhaseModal.alertMissingNameTitle'), t('addTradePhaseModal.alertMissingNameBody'));
       return;
     }
     const budget = parseFloat(budgetAmount);
     if (!Number.isFinite(budget) || budget <= 0) {
-      Alert.alert('Missing budget', 'Enter a budget amount greater than 0.');
+      Alert.alert(t('addTradePhaseModal.alertMissingBudgetTitle'), t('addTradePhaseModal.alertMissingBudgetBody'));
       return;
     }
     const paid = parseFloat(paidAmount) || 0;
@@ -156,7 +158,7 @@ export default function AddTradePhaseModal({ visible, onClose, projectId, onAdde
       resetAndClose();
     } catch (e) {
       console.error('Add trade phase failed:', e);
-      Alert.alert('Could not add trade', e?.message || 'Please try again.');
+      Alert.alert(t('addTradePhaseModal.alertErrorTitle'), e?.message || t('addTradePhaseModal.alertErrorRetry'));
       setSubmitting(false);
     }
   };
@@ -169,45 +171,45 @@ export default function AddTradePhaseModal({ visible, onClose, projectId, onAdde
       >
         <View style={[styles.sheet, { backgroundColor: Colors.cardBackground || '#FFFFFF' }]}>
           <View style={styles.header}>
-            <Text style={[styles.title, { color: Colors.primaryText }]}>Add Trade</Text>
+            <Text style={[styles.title, { color: Colors.primaryText }]}>{t('addTradePhaseModal.title')}</Text>
             <TouchableOpacity onPress={resetAndClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Ionicons name="close" size={22} color={Colors.secondaryText} />
             </TouchableOpacity>
           </View>
 
           <ScrollView style={{ maxHeight: 480 }} keyboardShouldPersistTaps="handled">
-            <Text style={[styles.label, { color: Colors.secondaryText }]}>Trade name</Text>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('addTradePhaseModal.labelTradeName')}</Text>
             <TextInput
               style={[styles.input, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.lightBackground }]}
-              placeholder="e.g. Electrical"
+              placeholder={t('addTradePhaseModal.placeholderTradeName')}
               placeholderTextColor={Colors.secondaryText}
               value={tradeName}
               onChangeText={setTradeName}
             />
 
-            <Text style={[styles.label, { color: Colors.secondaryText }]}>Budget amount</Text>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('addTradePhaseModal.labelBudgetAmount')}</Text>
             <TextInput
               style={[styles.input, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.lightBackground }]}
               placeholder="0.00"
               placeholderTextColor={Colors.secondaryText}
               value={budgetAmount}
-              onChangeText={(t) => setBudgetAmount(t.replace(/[^0-9.]/g, ''))}
+              onChangeText={(val) => setBudgetAmount(val.replace(/[^0-9.]/g, ''))}
               keyboardType="decimal-pad"
             />
 
-            <Text style={[styles.label, { color: Colors.secondaryText }]}>Already paid (optional)</Text>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('addTradePhaseModal.labelAlreadyPaid')}</Text>
             <TextInput
               style={[styles.input, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.lightBackground }]}
               placeholder="0.00"
               placeholderTextColor={Colors.secondaryText}
               value={paidAmount}
-              onChangeText={(t) => setPaidAmount(t.replace(/[^0-9.]/g, ''))}
+              onChangeText={(val) => setPaidAmount(val.replace(/[^0-9.]/g, ''))}
               keyboardType="decimal-pad"
             />
 
             <View style={styles.tasksHeaderRow}>
               <Text style={[styles.label, { color: Colors.secondaryText, marginTop: 0 }]}>
-                Tasks ({tasks.length})
+                {t('addTradePhaseModal.labelTasks', { count: tasks.length })}
               </Text>
             </View>
 
@@ -233,7 +235,7 @@ export default function AddTradePhaseModal({ visible, onClose, projectId, onAdde
               <TextInput
                 ref={taskInputRef}
                 style={[styles.input, { flex: 1, color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.lightBackground, marginTop: 0 }]}
-                placeholder="Add a task…"
+                placeholder={t('addTradePhaseModal.placeholderAddTask')}
                 placeholderTextColor={Colors.secondaryText}
                 value={newTaskText}
                 onChangeText={setNewTaskText}
@@ -256,7 +258,7 @@ export default function AddTradePhaseModal({ visible, onClose, projectId, onAdde
               onPress={resetAndClose}
               disabled={submitting}
             >
-              <Text style={{ color: Colors.secondaryText, fontWeight: '600', fontSize: 14 }}>Cancel</Text>
+              <Text style={{ color: Colors.secondaryText, fontWeight: '600', fontSize: 14 }}>{t('common:buttons.cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.btn, { backgroundColor: Colors.primaryBlue || '#3B82F6', opacity: submitting ? 0.6 : 1 }]}
@@ -264,7 +266,7 @@ export default function AddTradePhaseModal({ visible, onClose, projectId, onAdde
               disabled={submitting}
             >
               <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
-                {submitting ? 'Adding…' : 'Add Trade'}
+                {submitting ? t('addTradePhaseModal.buttonAdding') : t('addTradePhaseModal.buttonAddTrade')}
               </Text>
             </TouchableOpacity>
           </View>

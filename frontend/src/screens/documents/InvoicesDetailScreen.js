@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { statusLabel } from '../../utils/statusLabel';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchInvoices, deleteInvoice } from '../../utils/storage';
@@ -68,18 +69,18 @@ export default function InvoicesDetailScreen({ navigation }) {
 
   const onMarkSubInvoicePaid = (inv) => {
     Alert.alert(
-      'Mark as paid?',
-      `Mark this $${Number(inv.total_amount).toLocaleString()} invoice paid? The sub will be notified.`,
+      t('invoicesDetail.markAsPaidTitle'),
+      t('invoicesDetail.markAsPaidMessage', { amount: Number(inv.total_amount).toLocaleString() }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: tCommon('buttons.cancel'), style: 'cancel' },
         {
-          text: 'Mark paid',
+          text: t('invoicesDetail.markPaid'),
           onPress: async () => {
             try {
               await markInvoicePaid(inv.engagement_id, inv.id);
               await loadInvoices();
             } catch (e) {
-              Alert.alert('Could not mark paid', e.message || 'Try again');
+              Alert.alert(t('invoicesDetail.errorMarkPaid'), e.message || t('invoicesDetail.tryAgain'));
             }
           },
         },
@@ -95,11 +96,11 @@ export default function InvoicesDetailScreen({ navigation }) {
       if (!res?.url) throw new Error('No URL');
       navigation.navigate('DocumentViewer', {
         fileUrl: res.url,
-        fileName: inv.invoice_number ? `Invoice ${inv.invoice_number}` : `Invoice #${inv.id.slice(0, 6)}`,
+        fileName: inv.invoice_number ? t('invoicesDetail.invoiceFileName', { number: inv.invoice_number }) : t('invoicesDetail.invoiceFileNameId', { id: inv.id.slice(0, 6) }),
         fileType: 'pdf',
       });
     } catch (e) {
-      Alert.alert('Could not open', e.message || 'Try again');
+      Alert.alert(t('invoicesDetail.errorCouldNotOpen'), e.message || t('invoicesDetail.tryAgain'));
     } finally {
       setOpeningSubInvId(null);
     }
@@ -185,7 +186,7 @@ export default function InvoicesDetailScreen({ navigation }) {
           <View style={styles.subInvoicesSection}>
             <View style={styles.subInvoicesHeader}>
               <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
-                FROM SUBCONTRACTORS
+                {t('invoicesDetail.fromSubcontractors')}
               </Text>
               <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
                 {subInvoices.length}
@@ -217,19 +218,19 @@ export default function InvoicesDetailScreen({ navigation }) {
                       </Text>
                       <View style={[styles.subInvPill, { backgroundColor: pillColor + '15' }]}>
                         <Text style={[styles.subInvPillText, { color: pillColor }]} testID={`invoicesDetail.subInvoiceStatus.${inv.id}`}>
-                          {status.replace(/_/g, ' ')}
+                          {statusLabel(status)}
                         </Text>
                       </View>
                     </View>
                     <Text style={[styles.subInvMeta, { color: Colors.secondaryText }]} numberOfLines={1}>
-                      {inv.sub_legal_name || 'Subcontractor'}
+                      {inv.sub_legal_name || t('invoicesDetail.subcontractorFallback')}
                       {inv.trade ? `  ·  ${inv.trade}` : ''}
                       {inv.project_name ? `  ·  ${inv.project_name}` : ''}
                     </Text>
                     <Text style={[styles.subInvDate, { color: Colors.secondaryText }]} numberOfLines={1}>
-                      {inv.submitted_at ? `Sent ${new Date(inv.submitted_at).toLocaleDateString()}` : ''}
-                      {inv.due_at ? `  ·  Due ${new Date(inv.due_at).toLocaleDateString()}` : ''}
-                      {inv.paid_at ? `  ·  Paid ${new Date(inv.paid_at).toLocaleDateString()}` : ''}
+                      {inv.submitted_at ? t('invoicesDetail.sentDate', { date: new Date(inv.submitted_at).toLocaleDateString() }) : ''}
+                      {inv.due_at ? `  ·  ${t('invoicesDetail.dueDate', { date: new Date(inv.due_at).toLocaleDateString() })}` : ''}
+                      {inv.paid_at ? `  ·  ${t('invoicesDetail.paidDate', { date: new Date(inv.paid_at).toLocaleDateString() })}` : ''}
                     </Text>
                     {inv.status !== 'paid' && (
                       <TouchableOpacity
@@ -240,7 +241,7 @@ export default function InvoicesDetailScreen({ navigation }) {
                         accessibilityLabel="Mark invoice paid"
                       >
                         <Ionicons name="checkmark-circle-outline" size={14} color="#10B981" />
-                        <Text style={styles.markPaidPillText}>Mark paid</Text>
+                        <Text style={styles.markPaidPillText}>{t('invoicesDetail.markPaid')}</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -278,12 +279,7 @@ export default function InvoicesDetailScreen({ navigation }) {
               const actualStatus = isOverdue(due, status) ? 'overdue' : status;
               const remaining = (totalAmt || 0) - (paid || 0);
 
-              const STATUS_LABELS = { unpaid: 'Unpaid', paid: 'Paid', partial: 'Partial', overdue: 'Overdue', draft: 'Draft' };
-              // Try the i18n key first; if it falls back to the key itself
-              // (missing translation), use the human label so we don't
-              // surface raw "Status.Unpaid" strings in the UI.
-              const i18nLabel = t(`status.${actualStatus}`);
-              const statusLabel = i18nLabel.startsWith('status.') ? (STATUS_LABELS[actualStatus] || 'Unpaid') : i18nLabel;
+              const statusText = statusLabel(actualStatus);
 
               const dueLabel = due
                 ? new Date(due).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -304,7 +300,7 @@ export default function InvoicesDetailScreen({ navigation }) {
                   <View style={styles.cardHeader}>
                     <View style={styles.cardHeaderLeft}>
                       <Text style={[styles.clientName, { color: Colors.primaryText }]} numberOfLines={1} testID={`invoicesDetail.invoiceClientName.${invoice.id}`}>
-                        {clientName || (number ? `Invoice #${number}` : 'Invoice')}
+                        {clientName || (number ? t('invoicesDetail.invoiceNumberLabel', { number }) : t('invoicesDetail.invoiceLabel'))}
                       </Text>
                       <Text style={[styles.invoiceNumber, { color: Colors.secondaryText }]} numberOfLines={1}>
                         {number ? `#${number}` : ''}{projectName ? ` · ${projectName}` : ''}
@@ -317,7 +313,7 @@ export default function InvoicesDetailScreen({ navigation }) {
                       ]}
                     >
                       <Text style={[styles.statusText, { color: getStatusColor(actualStatus) }]} testID={`invoicesDetail.invoiceStatus.${invoice.id}`}>
-                        {statusLabel}
+                        {statusText}
                       </Text>
                     </View>
                   </View>

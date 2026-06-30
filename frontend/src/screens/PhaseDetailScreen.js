@@ -23,7 +23,7 @@ import WorkerAssignmentModal from '../components/WorkerAssignmentModal';
 import { useCachedFetch } from '../hooks/useCachedFetch';
 
 export default function PhaseDetailScreen({ navigation, route }) {
-  const { t } = useTranslation('common');
+  const { t } = useTranslation('projects');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { phaseId, phaseName, phase: initialPhase } = route.params;
@@ -135,7 +135,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
       .catch((error) => {
         console.error('Error updating task:', error);
         setTasks(previousTasks); // Rollback
-        Alert.alert(t('alerts.error'), t('messages.failedToUpdate', { item: 'task' }));
+        Alert.alert(t('common:alerts.error'), t('common:messages.failedToUpdate', { item: 'task' }));
       });
   };
 
@@ -174,13 +174,13 @@ export default function PhaseDetailScreen({ navigation, route }) {
       .catch((error) => {
         console.error('Error cycling task status:', error);
         setTasks(previousTasks);
-        Alert.alert(t('alerts.error'), t('messages.failedToUpdate', { item: 'task' }));
+        Alert.alert(t('common:alerts.error'), t('common:messages.failedToUpdate', { item: 'task' }));
       });
   };
 
   const handleAddTask = () => {
     if (!taskInput.trim()) {
-      Alert.alert(t('alerts.error'), t('messages.enterTaskDescription'));
+      Alert.alert(t('common:alerts.error'), t('common:messages.enterTaskDescription'));
       return;
     }
 
@@ -211,13 +211,13 @@ export default function PhaseDetailScreen({ navigation, route }) {
       .catch((error) => {
         console.error('Error adding task:', error);
         setTasks(previousTasks);
-        Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'task' }));
+        Alert.alert(t('common:alerts.error'), t('common:messages.failedToSave', { item: 'task' }));
       });
   };
 
   const handleEditTask = () => {
     if (!taskInput.trim()) {
-      Alert.alert(t('alerts.error'), t('messages.enterTaskDescription'));
+      Alert.alert(t('common:alerts.error'), t('common:messages.enterTaskDescription'));
       return;
     }
 
@@ -242,18 +242,18 @@ export default function PhaseDetailScreen({ navigation, route }) {
       .catch((error) => {
         console.error('Error editing task:', error);
         setTasks(previousTasks);
-        Alert.alert(t('alerts.error'), t('messages.failedToUpdate', { item: 'task' }));
+        Alert.alert(t('common:alerts.error'), t('common:messages.failedToUpdate', { item: 'task' }));
       });
   };
 
   const handleDeleteTask = async (taskId) => {
     Alert.alert(
-      t('alerts.confirm'),
-      t('alerts.deleteConfirm'),
+      t('common:alerts.confirm'),
+      t('common:alerts.deleteConfirm'),
       [
-        { text: t('buttons.cancel'), style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
         {
-          text: t('buttons.delete'),
+          text: t('common:buttons.delete'),
           style: 'destructive',
           onPress: () => {
             const previousTasks = [...tasks];
@@ -275,7 +275,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
               .catch((error) => {
                 console.error('Error deleting task:', error);
                 setTasks(previousTasks);
-                Alert.alert(t('alerts.error'), t('messages.failedToDelete', { item: 'task' }));
+                Alert.alert(t('common:alerts.error'), t('common:messages.failedToDelete', { item: 'task' }));
               });
           }
         }
@@ -302,7 +302,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
     const newPaymentAmount = paymentAmountInput ? parseFloat(paymentAmountInput) : null;
 
     if (budgetInput && isNaN(newBudget)) {
-      Alert.alert(t('alerts.error'), 'Please enter a valid budget amount');
+      Alert.alert(t('common:alerts.error'), t('phaseDetail.invalidBudgetAmount'));
       return;
     }
 
@@ -320,7 +320,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
       })
       .catch((error) => {
         console.error('Error saving budget:', error);
-        Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'budget' }));
+        Alert.alert(t('common:alerts.error'), t('common:messages.failedToSave', { item: 'budget' }));
       });
   };
 
@@ -348,7 +348,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         <View style={styles.loadingContainer}>
-          <Text style={[styles.errorText, { color: Colors.secondaryText }]}>Phase not found</Text>
+          <Text style={[styles.errorText, { color: Colors.secondaryText }]}>{t('phaseDetail.phaseNotFound')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -383,7 +383,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
               <Ionicons name={statusIcon.name} size={28} color={statusIcon.color} />
             </View>
             <View style={styles.statusInfo}>
-              <Text style={[styles.statusLabel, { color: Colors.secondaryText }]}>Status</Text>
+              <Text style={[styles.statusLabel, { color: Colors.secondaryText }]}>{t('phaseDetail.statusLabel')}</Text>
               <Text style={[styles.statusValue, { color: Colors.primaryText }]}>
                 {phase.status?.replace('_', ' ').toUpperCase()}
               </Text>
@@ -395,7 +395,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
           {/* Progress Bar */}
           <View style={styles.progressSection}>
             <View style={styles.progressHeader}>
-              <Text style={[styles.progressLabel, { color: Colors.secondaryText }]}>Progress</Text>
+              <Text style={[styles.progressLabel, { color: Colors.secondaryText }]}>{t('phaseDetail.progress')}</Text>
               <Text style={[styles.progressPercent, { color: Colors.primaryBlue }]}>
                 {progressPercent}%
               </Text>
@@ -412,7 +412,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
               />
             </View>
             <Text style={[styles.progressTasks, { color: Colors.secondaryText }]}>
-              {completedTasks} of {totalTasks} tasks completed
+              {t('phaseDetail.tasksCompleted', { completed: completedTasks, total: totalTasks })}
             </Text>
           </View>
         </View>
@@ -420,13 +420,13 @@ export default function PhaseDetailScreen({ navigation, route }) {
         {/* Timeline Info */}
         {(phase.start_date || phase.end_date || phase.planned_days) && (
           <View style={[styles.card, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-            <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Timeline</Text>
+            <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>{t('phaseDetail.timeline')}</Text>
 
             {phase.start_date && (
               <View style={styles.infoRow}>
                 <Ionicons name="play-outline" size={18} color={Colors.successGreen} />
                 <View style={styles.infoContent}>
-                  <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Start Date</Text>
+                  <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>{t('phaseDetail.startDate')}</Text>
                   <Text style={[styles.infoValue, { color: Colors.primaryText }]}>
                     {new Date(phase.start_date + 'T00:00:00').toLocaleDateString('en-US', {
                       month: 'long',
@@ -442,7 +442,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
               <View style={styles.infoRow}>
                 <Ionicons name="flag-outline" size={18} color={Colors.errorRed} />
                 <View style={styles.infoContent}>
-                  <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>End Date</Text>
+                  <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>{t('phaseDetail.endDate')}</Text>
                   <Text style={[styles.infoValue, { color: Colors.primaryText }]}>
                     {new Date(phase.end_date + 'T00:00:00').toLocaleDateString('en-US', {
                       month: 'long',
@@ -458,9 +458,9 @@ export default function PhaseDetailScreen({ navigation, route }) {
               <View style={styles.infoRow}>
                 <Ionicons name="time-outline" size={18} color={Colors.warningOrange} />
                 <View style={styles.infoContent}>
-                  <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Duration</Text>
+                  <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>{t('phaseDetail.duration')}</Text>
                   <Text style={[styles.infoValue, { color: Colors.primaryText }]}>
-                    {phase.planned_days} days
+                    {t('phaseDetail.daysCount', { count: phase.planned_days })}
                   </Text>
                 </View>
               </View>
@@ -470,9 +470,9 @@ export default function PhaseDetailScreen({ navigation, route }) {
               <View style={styles.infoRow}>
                 <Ionicons name="alert-circle-outline" size={18} color={Colors.warningOrange} />
                 <View style={styles.infoContent}>
-                  <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Time Extensions</Text>
+                  <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>{t('phaseDetail.timeExtensions')}</Text>
                   <Text style={[styles.infoValue, { color: Colors.warningOrange }]}>
-                    +{phase.time_extensions.reduce((sum, ext) => sum + ext.days, 0)} days
+                    {t('phaseDetail.daysExtension', { count: phase.time_extensions.reduce((sum, ext) => sum + ext.days, 0) })}
                   </Text>
                 </View>
               </View>
@@ -488,11 +488,11 @@ export default function PhaseDetailScreen({ navigation, route }) {
         >
           <View style={styles.cardHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.cardTitle, { color: Colors.primaryText, marginBottom: 0 }]}>Budget</Text>
+              <Text style={[styles.cardTitle, { color: Colors.primaryText, marginBottom: 0 }]}>{t('phaseDetail.budget')}</Text>
             </View>
             <View style={[styles.editBudgetHint, { backgroundColor: Colors.primaryBlue + '15' }]}>
               <Ionicons name="pencil" size={14} color={Colors.primaryBlue} />
-              <Text style={{ fontSize: 12, color: Colors.primaryBlue, fontWeight: '500', marginLeft: 4 }}>Edit</Text>
+              <Text style={{ fontSize: 12, color: Colors.primaryBlue, fontWeight: '500', marginLeft: 4 }}>{t('common:buttons.edit')}</Text>
             </View>
           </View>
 
@@ -501,7 +501,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
               <View style={styles.infoRow}>
                 <Ionicons name="wallet-outline" size={18} color={Colors.infoBlue} />
                 <View style={styles.infoContent}>
-                  <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Allocated</Text>
+                  <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>{t('phaseDetail.allocated')}</Text>
                   <Text style={[styles.infoValue, { color: Colors.primaryText }]}>
                     ${Number(phase.budget).toLocaleString()}
                   </Text>
@@ -512,7 +512,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
                 <View style={styles.infoRow}>
                   <Ionicons name="cash-outline" size={18} color={Colors.successGreen} />
                   <View style={styles.infoContent}>
-                    <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Payment Amount</Text>
+                    <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>{t('phaseDetail.paymentAmount')}</Text>
                     <Text style={[styles.infoValue, { color: Colors.primaryText }]}>
                       ${Number(phase.payment_amount).toLocaleString()}
                     </Text>
@@ -522,7 +522,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
             </>
           ) : (
             <View style={{ alignItems: 'center', paddingVertical: 12 }}>
-              <Text style={{ fontSize: 13, color: Colors.secondaryText }}>Tap to set phase budget</Text>
+              <Text style={{ fontSize: 13, color: Colors.secondaryText }}>{t('phaseDetail.tapToSetBudget')}</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -532,7 +532,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
           <View style={styles.cardHeader}>
             <View style={{ flex: 1 }}>
               <Text style={[styles.cardTitle, { color: Colors.primaryText, marginBottom: 0 }]}>
-                Assigned Workers ({workers.length})
+                {t('phaseDetail.assignedWorkers', { count: workers.length })}
               </Text>
             </View>
             <TouchableOpacity
@@ -540,7 +540,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
               onPress={() => setShowWorkerAssignment(true)}
             >
               <Ionicons name="add" size={16} color="#FFFFFF" />
-              <Text style={styles.assignButtonText}>Assign</Text>
+              <Text style={styles.assignButtonText}>{t('phaseDetail.assign')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -548,7 +548,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
             <View style={styles.emptyWorkersState}>
               <Ionicons name="people-outline" size={36} color={Colors.secondaryText} />
               <Text style={[styles.emptyWorkersText, { color: Colors.secondaryText }]}>
-                No workers assigned to this phase yet
+                {t('phaseDetail.noWorkersAssigned')}
               </Text>
             </View>
           ) : (
@@ -581,7 +581,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
         <View style={[styles.card, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
           <View style={styles.cardHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.cardTitle, { color: Colors.primaryText, marginBottom: 0 }]}>Tasks</Text>
+              <Text style={[styles.cardTitle, { color: Colors.primaryText, marginBottom: 0 }]}>{t('phaseDetail.tasks')}</Text>
             </View>
             <View style={[styles.taskCountBadge, { backgroundColor: Colors.primaryBlue + '15' }]}>
               <Text style={[styles.taskCountText, { color: Colors.primaryBlue }]}>
@@ -600,14 +600,14 @@ export default function PhaseDetailScreen({ navigation, route }) {
             <View style={styles.emptyState}>
               <Ionicons name="list-outline" size={48} color={Colors.secondaryText} />
               <Text style={[styles.emptyStateText, { color: Colors.secondaryText }]}>
-                No tasks added yet
+                {t('phaseDetail.noTasks')}
               </Text>
               <TouchableOpacity
                 style={[styles.addFirstTaskButton, { backgroundColor: Colors.primaryBlue }]}
                 onPress={() => setShowAddTask(true)}
               >
                 <Ionicons name="add-circle-outline" size={20} color="#fff" />
-                <Text style={styles.addFirstTaskText}>Add First Task</Text>
+                <Text style={styles.addFirstTaskText}>{t('phaseDetail.addFirstTask')}</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -657,7 +657,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
                       </Text>
                       {task.completed_date && (
                         <Text style={[styles.taskDate, { color: Colors.secondaryText }]}>
-                          Completed {new Date(task.completed_date).toLocaleDateString()}
+                          {t('phaseDetail.completedOn', { date: new Date(task.completed_date).toLocaleDateString() })}
                         </Text>
                       )}
                     </View>
@@ -712,21 +712,21 @@ export default function PhaseDetailScreen({ navigation, route }) {
           <SafeAreaView style={{ flex: 1 }}>
             <View style={[styles.modalHeader, { borderBottomColor: Colors.border }]}>
               <TouchableOpacity onPress={() => setShowAddTask(false)}>
-                <Text style={[styles.modalCancelText, { color: Colors.primaryBlue }]}>Cancel</Text>
+                <Text style={[styles.modalCancelText, { color: Colors.primaryBlue }]}>{t('common:buttons.cancel')}</Text>
               </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Add Task</Text>
+              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>{t('phaseDetail.addTask')}</Text>
               <TouchableOpacity onPress={handleAddTask}>
-                <Text style={[styles.modalSaveText, { color: Colors.primaryBlue }]}>Add</Text>
+                <Text style={[styles.modalSaveText, { color: Colors.primaryBlue }]}>{t('common:buttons.add')}</Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.modalContent}>
-              <Text style={[styles.modalLabel, { color: Colors.secondaryText }]}>Task Description</Text>
+              <Text style={[styles.modalLabel, { color: Colors.secondaryText }]}>{t('phaseDetail.taskDescriptionLabel')}</Text>
               <TextInput
                 style={[styles.modalInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
                 value={taskInput}
                 onChangeText={setTaskInput}
-                placeholder="Enter task description..."
+                placeholder={t('phaseDetail.taskDescriptionPlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 multiline
                 numberOfLines={3}
@@ -751,21 +751,21 @@ export default function PhaseDetailScreen({ navigation, route }) {
           <SafeAreaView style={{ flex: 1 }}>
             <View style={[styles.modalHeader, { borderBottomColor: Colors.border }]}>
               <TouchableOpacity onPress={() => setShowEditTask(false)}>
-                <Text style={[styles.modalCancelText, { color: Colors.primaryBlue }]}>Cancel</Text>
+                <Text style={[styles.modalCancelText, { color: Colors.primaryBlue }]}>{t('common:buttons.cancel')}</Text>
               </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Edit Task</Text>
+              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>{t('phaseDetail.editTask')}</Text>
               <TouchableOpacity onPress={handleEditTask}>
-                <Text style={[styles.modalSaveText, { color: Colors.primaryBlue }]}>Save</Text>
+                <Text style={[styles.modalSaveText, { color: Colors.primaryBlue }]}>{t('common:buttons.save')}</Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.modalContent}>
-              <Text style={[styles.modalLabel, { color: Colors.secondaryText }]}>Task Description</Text>
+              <Text style={[styles.modalLabel, { color: Colors.secondaryText }]}>{t('phaseDetail.taskDescriptionLabel')}</Text>
               <TextInput
                 style={[styles.modalInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
                 value={taskInput}
                 onChangeText={setTaskInput}
-                placeholder="Enter task description..."
+                placeholder={t('phaseDetail.taskDescriptionPlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 multiline
                 numberOfLines={3}
@@ -790,16 +790,16 @@ export default function PhaseDetailScreen({ navigation, route }) {
           <SafeAreaView style={{ flex: 1 }}>
             <View style={[styles.modalHeader, { borderBottomColor: Colors.border }]}>
               <TouchableOpacity onPress={() => setShowBudgetEdit(false)}>
-                <Text style={[styles.modalCancelText, { color: Colors.primaryBlue }]}>Cancel</Text>
+                <Text style={[styles.modalCancelText, { color: Colors.primaryBlue }]}>{t('common:buttons.cancel')}</Text>
               </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Edit Budget</Text>
+              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>{t('phaseDetail.editBudget')}</Text>
               <TouchableOpacity onPress={handleSaveBudget}>
-                <Text style={[styles.modalSaveText, { color: Colors.primaryBlue }]}>Save</Text>
+                <Text style={[styles.modalSaveText, { color: Colors.primaryBlue }]}>{t('common:buttons.save')}</Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.modalContent}>
-              <Text style={[styles.modalLabel, { color: Colors.secondaryText }]}>Budget / Allocated ($)</Text>
+              <Text style={[styles.modalLabel, { color: Colors.secondaryText }]}>{t('phaseDetail.budgetAllocatedLabel')}</Text>
               <TextInput
                 style={[styles.modalInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText, minHeight: 48 }]}
                 value={budgetInput}
@@ -812,7 +812,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
 
               <View style={{ height: 16 }} />
 
-              <Text style={[styles.modalLabel, { color: Colors.secondaryText }]}>Payment Amount ($)</Text>
+              <Text style={[styles.modalLabel, { color: Colors.secondaryText }]}>{t('phaseDetail.paymentAmountLabel')}</Text>
               <TextInput
                 style={[styles.modalInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText, minHeight: 48 }]}
                 value={paymentAmountInput}
@@ -823,7 +823,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
               />
 
               <Text style={{ fontSize: 12, color: Colors.secondaryText, marginTop: 16 }}>
-                Budget is the total allocated for this phase. Payment amount is the milestone payment due on completion.
+                {t('phaseDetail.budgetHelpText')}
               </Text>
             </View>
           </SafeAreaView>

@@ -4,16 +4,18 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useClientProject } from '../contexts/ClientProjectContext';
 
 export default function ClientProjectSwitcher({ light = false }) {
+  const { t } = useTranslation('projects');
   const { projects, selectedProject, setSelectedProjectId } = useClientProject();
   const [open, setOpen] = useState(false);
 
   if (!projects || projects.length < 2) return null;
 
   const fg = light ? '#fff' : '#111827';
-  const name = selectedProject?.name || 'Select project';
+  const name = selectedProject?.name || t('clientProjectSwitcher.selectProject');
 
   return (
     <>
@@ -31,7 +33,7 @@ export default function ClientProjectSwitcher({ light = false }) {
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
           <Pressable style={styles.sheet} onPress={() => {}}>
-            <Text style={styles.sheetTitle}>Your projects</Text>
+            <Text style={styles.sheetTitle}>{t('clientProjectSwitcher.yourProjects')}</Text>
             {projects.map((p) => {
               const active = p.id === selectedProject?.id;
               return (
@@ -42,7 +44,7 @@ export default function ClientProjectSwitcher({ light = false }) {
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.rowText, active && styles.rowTextActive]} numberOfLines={1}>
-                    {p.name || 'Untitled project'}
+                    {p.name || t('clientProjectSwitcher.untitledProject')}
                   </Text>
                   {active && <Ionicons name="checkmark-circle" size={20} color="#F59E0B" />}
                 </TouchableOpacity>

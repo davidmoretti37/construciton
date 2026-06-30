@@ -191,11 +191,11 @@ export default function HomeScreen({ navigation }) {
       // Normalize the time_tracking rows to the shape WorkersWidget expects
       setActiveClockIns(
         (clocked || [])
-          .filter(t => !!t.workers)
-          .map(t => ({
-            id: t.workers?.id || t.worker_id,
-            name: t.workers?.full_name || 'Worker',
-            projectName: t.projects?.name || t.service_plans?.name || '',
+          .filter(row => !!row.workers)
+          .map(row => ({
+            id: row.workers?.id || row.worker_id,
+            name: row.workers?.full_name || t('workers.unknownWorker'),
+            projectName: row.projects?.name || row.service_plans?.name || '',
           }))
       );
     } catch (e) {
@@ -253,13 +253,13 @@ export default function HomeScreen({ navigation }) {
       if (result) {
         setActiveSession(result);
         setShowProjectPicker(false);
-        Alert.alert('Success', 'You have clocked in successfully!');
+        Alert.alert(t('common:alerts.success'), t('clockIn.successMessage'));
       } else {
-        Alert.alert('Error', 'Failed to clock in. Please check if the supervisor_time_tracking table exists in your database.');
+        Alert.alert(t('common:alerts.error'), t('clockIn.failedCheckDb'));
       }
     } catch (error) {
       console.error('🕐 Clock-in error:', error);
-      Alert.alert('Error', `Failed to clock in: ${error.message || 'Unknown error'}`);
+      Alert.alert(t('common:alerts.error'), t('clockIn.failedWithError', { message: error.message || t('errors.unknown') }));
     } finally {
       setClockLoading(false);
     }
@@ -273,16 +273,16 @@ export default function HomeScreen({ navigation }) {
     try {
       const result = await supervisorClockOut(activeSession.id);
       if (result.success) {
-        Alert.alert('Clocked Out', `You worked ${formatHoursMinutes(result.hours)}`);
+        Alert.alert(t('clockOut.title'), t('clockOut.workedHours', { hours: formatHoursMinutes(result.hours) }));
         setActiveSession(null);
         setElapsedTime('00:00:00');
         loadSupervisorTimeData(); // Refresh today's hours and history
       } else {
-        Alert.alert('Error', result.error || 'Failed to clock out');
+        Alert.alert(t('common:alerts.error'), result.error || t('clockOut.failed'));
       }
     } catch (error) {
       console.error('🕐 Clock-out error:', error);
-      Alert.alert('Error', `Failed to clock out: ${error.message || 'Unknown error'}`);
+      Alert.alert(t('common:alerts.error'), t('clockOut.failedWithError', { message: error.message || t('errors.unknown') }));
     } finally {
       setClockLoading(false);
     }
@@ -336,8 +336,8 @@ export default function HomeScreen({ navigation }) {
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
-    if (date.toDateString() === today.toDateString()) return 'Today';
-    if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    if (date.toDateString() === today.toDateString()) return t('timeAgo.today');
+    if (date.toDateString() === yesterday.toDateString()) return t('timeAgo.yesterday');
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
@@ -516,7 +516,7 @@ export default function HomeScreen({ navigation }) {
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
     return { revenue, expenses, profit, margin };
   }, [totalIncomeCollected, totalExpenses]);
-  const marginHealthText = pnl.margin >= 20 ? 'Healthy' : pnl.margin >= 10 ? 'Moderate' : 'At risk';
+  const marginHealthText = pnl.margin >= 20 ? t('margin.healthy') : pnl.margin >= 10 ? t('margin.moderate') : t('margin.atRisk');
 
   // Filter the layout: drop any widget the supervisor no longer has
   // permission for (so a granted-then-revoked toggle silently hides the
@@ -548,7 +548,7 @@ export default function HomeScreen({ navigation }) {
   // the supervisor's own data set.
   const handleClockInPress = useCallback(() => {
     if (projects.length === 0) {
-      Alert.alert('No Projects', 'You need to have at least one project to clock in.');
+      Alert.alert(t('clockIn.noProjectsTitle'), t('clockIn.noProjectsMessage'));
       return;
     }
     setShowProjectPicker(true);
@@ -763,7 +763,7 @@ export default function HomeScreen({ navigation }) {
           style={{ backgroundColor: '#FF3B30', paddingVertical: 8, paddingHorizontal: 16, alignItems: 'center' }}
           onPress={() => { setLoadError(false); refreshProjects(); refreshDailyReports(); }}
         >
-          <Text testID="home.retryText" style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Failed to load data. Tap to retry.</Text>
+          <Text testID="home.retryText" style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>{t('retryBanner.message')}</Text>
         </TouchableOpacity>
       )}
 
@@ -793,7 +793,7 @@ export default function HomeScreen({ navigation }) {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <Ionicons name="warning" size={20} color="#D97706" />
               <Text style={{ fontSize: 14, fontWeight: '700', color: '#92400E' }}>
-                Forgotten Clock-Outs
+                {t('forgottenClockOut.title')}
               </Text>
             </View>
             {forgottenClockOuts.workers.map((w) => (
@@ -808,17 +808,17 @@ export default function HomeScreen({ navigation }) {
                   style={{ backgroundColor: '#EF4444', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}
                   onPress={() => {
                     Alert.alert(
-                      'Clock Out Worker',
-                      `Clock out ${w.worker_name}?`,
+                      t('forgottenClockOut.alertTitle'),
+                      t('forgottenClockOut.alertMessage', { name: w.worker_name }),
                       [
-                        { text: 'Cancel', style: 'cancel' },
+                        { text: t('common:actions.cancel'), style: 'cancel' },
                         {
-                          text: 'Clock Out',
+                          text: t('forgottenClockOut.clockOutButton'),
                           style: 'destructive',
                           onPress: async () => {
                             const result = await remoteClockOutWorker(w.worker_id);
                             if (result.success) {
-                              Alert.alert('Success', `${w.worker_name} clocked out.`);
+                              Alert.alert(t('common:alerts.success'), t('forgottenClockOut.successMessage', { name: w.worker_name }));
                               loadSupervisorTimeData();
                             }
                           },
@@ -827,7 +827,7 @@ export default function HomeScreen({ navigation }) {
                     );
                   }}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#FFF' }}>Clock Out</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#FFF' }}>{t('forgottenClockOut.clockOutButton')}</Text>
                 </TouchableOpacity>
               </View>
             ))}
@@ -848,11 +848,11 @@ export default function HomeScreen({ navigation }) {
           <>
             <View style={styles.editBar}>
               <TouchableOpacity testID="home.resetLayoutButton" accessibilityLabel="Reset layout" onPress={handleResetLayout}>
-                <Text style={styles.editBarReset}>Reset</Text>
+                <Text style={styles.editBarReset}>{t('editDashboard.reset')}</Text>
               </TouchableOpacity>
-              <Text testID="home.editBarTitle" style={styles.editBarTitle}>Editing Dashboard</Text>
+              <Text testID="home.editBarTitle" style={styles.editBarTitle}>{t('editDashboard.title')}</Text>
               <TouchableOpacity testID="home.editDoneButton" accessibilityLabel="Done editing" onPress={exitEditMode}>
-                <Text style={styles.editBarDone}>Done</Text>
+                <Text style={styles.editBarDone}>{t('common:actions.done')}</Text>
               </TouchableOpacity>
             </View>
             <DraggableWidgetGrid
@@ -880,7 +880,7 @@ export default function HomeScreen({ navigation }) {
                     <View style={styles.addSlotIconCircle}>
                       <Ionicons name="add" size={20} color="#FFFFFF" />
                     </View>
-                    <Text style={styles.addSlotText}>Add a widget</Text>
+                    <Text style={styles.addSlotText}>{t('editDashboard.addWidget')}</Text>
                     <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.85)" />
                   </TouchableOpacity>
                   <View style={{ height: 60 }} />
@@ -894,7 +894,7 @@ export default function HomeScreen({ navigation }) {
               <TouchableOpacity testID="home.emptyDashboardButton" accessibilityLabel="Add widgets to dashboard" style={styles.emptyDash} onPress={enterEditMode}>
                 <Ionicons name="grid-outline" size={28} color={Colors.placeholderText} />
                 <Text style={[styles.emptyDashText, { color: Colors.placeholderText }]}>
-                  Tap to add widgets to your dashboard
+                  {t('editDashboard.emptyMessage')}
                 </Text>
               </TouchableOpacity>
             ) : (
@@ -997,7 +997,7 @@ export default function HomeScreen({ navigation }) {
             <TouchableOpacity testID="home.projectPickerCloseButton" accessibilityLabel="Close" onPress={() => setShowProjectPicker(false)} style={styles.modalCloseButton}>
               <Ionicons name="close" size={28} color={Colors.primaryText} />
             </TouchableOpacity>
-            <Text testID="home.projectPickerTitle" style={[styles.modalTitle, { color: Colors.primaryText }]}>Select Project</Text>
+            <Text testID="home.projectPickerTitle" style={[styles.modalTitle, { color: Colors.primaryText }]}>{t('clockIn.selectProjectTitle')}</Text>
             <View style={{ width: 28 }} />
           </View>
           <ScrollView style={{ flex: 1, padding: Spacing.lg }}>
@@ -1005,7 +1005,7 @@ export default function HomeScreen({ navigation }) {
               <View style={styles.emptyModalState}>
                 <Ionicons name="folder-open-outline" size={64} color={Colors.secondaryText} />
                 <Text style={[styles.emptyModalText, { color: Colors.secondaryText }]}>
-                  No projects available
+                  {t('clockIn.noProjectsAvailable')}
                 </Text>
               </View>
             ) : (

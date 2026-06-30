@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchDailyVisits } from '../../utils/storage/serviceVisits';
@@ -31,6 +32,7 @@ export default function DailyRouteScreen() {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const navigation = useNavigation();
+  const { t } = useTranslation('owner');
 
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [data, setData] = useState(null);
@@ -75,7 +77,7 @@ export default function DailyRouteScreen() {
   const formatDate = (dateStr) => {
     const d = new Date(dateStr + 'T12:00:00');
     const today = new Date().toISOString().split('T')[0];
-    if (dateStr === today) return 'Today';
+    if (dateStr === today) return t('dailyRoute.today');
     return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   };
 
@@ -89,7 +91,7 @@ export default function DailyRouteScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Daily Routes</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('dailyRoute.title')}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <TouchableOpacity
             onPress={() => navigation.navigate('MapRoute')}
@@ -130,9 +132,9 @@ export default function DailyRouteScreen() {
           {routes.length === 0 && unrouted.length === 0 && (
             <View style={styles.emptyState}>
               <Ionicons name="navigate-outline" size={48} color={Colors.secondaryText} />
-              <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>No routes for this day</Text>
+              <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>{t('dailyRoute.emptyTitle')}</Text>
               <Text style={[styles.emptySubtitle, { color: Colors.secondaryText }]}>
-                Generate visits from your service plans to see routes here.
+                {t('dailyRoute.emptySubtitle')}
               </Text>
             </View>
           )}
@@ -154,10 +156,10 @@ export default function DailyRouteScreen() {
                     <View style={styles.routeMeta}>
                       <Ionicons name="person-outline" size={13} color={Colors.secondaryText} />
                       <Text style={[styles.routeMetaText, { color: Colors.secondaryText }]}>
-                        {route.worker_name || 'Unassigned'}
+                        {route.worker_name || t('dailyRoute.unassigned')}
                       </Text>
                       <Text style={[styles.routeMetaText, { color: Colors.secondaryText }]}>
-                        • {stops.length} stop{stops.length !== 1 ? 's' : ''}
+                        {t('dailyRoute.stopsCount', { count: stops.length })}
                       </Text>
                     </View>
                     {/* Progress bar */}
@@ -167,7 +169,7 @@ export default function DailyRouteScreen() {
                       }]} />
                     </View>
                     <Text style={[styles.progressText, { color: Colors.secondaryText }]}>
-                      {completedCount}/{stops.length} completed
+                      {t('dailyRoute.progressText', { completed: completedCount, total: stops.length })}
                     </Text>
                   </View>
                   <Ionicons
@@ -184,14 +186,14 @@ export default function DailyRouteScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.stopName, { color: Colors.primaryText }]}>
-                        {stop.visit?.location?.name || 'Unknown'}
+                        {stop.visit?.location?.name || t('dailyRoute.unknownLocation')}
                       </Text>
                       <Text style={[styles.stopAddress, { color: Colors.secondaryText }]} numberOfLines={1}>
                         {stop.visit?.location?.address || ''}
                       </Text>
                       {stop.visit?.checklist_total > 0 && (
                         <Text style={[styles.stopChecklist, { color: Colors.secondaryText }]}>
-                          {stop.visit.checklist_completed}/{stop.visit.checklist_total} items
+                          {t('dailyRoute.checklistCount', { completed: stop.visit.checklist_completed, total: stop.visit.checklist_total })}
                         </Text>
                       )}
                     </View>
@@ -206,14 +208,14 @@ export default function DailyRouteScreen() {
           {unrouted.length > 0 && (
             <View style={styles.unroutedSection}>
               <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>
-                Unrouted Visits ({unrouted.length})
+                {t('dailyRoute.unroutedVisits', { count: unrouted.length })}
               </Text>
               {unrouted.map(visit => (
                 <View key={visit.id} style={[styles.unroutedItem, { backgroundColor: Colors.cardBackground }]}>
                   <Ionicons name="location-outline" size={18} color="#F59E0B" />
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.stopName, { color: Colors.primaryText }]}>
-                      {visit.location_name || 'Unknown'}
+                      {visit.location_name || t('dailyRoute.unknownLocation')}
                     </Text>
                     <Text style={[styles.stopAddress, { color: Colors.secondaryText }]} numberOfLines={1}>
                       {visit.location_address || ''}

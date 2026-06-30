@@ -38,7 +38,7 @@ const EXPENSE_CATEGORIES = [
 export default function ExpenseFormScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
-  const { t } = useTranslation('common');
+  const { t } = useTranslation('workers');
   const { profile } = useAuth();
 
   // Detect user role
@@ -129,7 +129,7 @@ export default function ExpenseFormScreen({ navigation }) {
 
         if (workerError || !workerData) {
           console.error('Error fetching worker:', workerError);
-          Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'worker profile' }));
+          Alert.alert(t('common:alerts.error'), t('common:messages.failedToLoad', { item: 'worker profile' }));
           setLoading(false);
           return;
         }
@@ -189,7 +189,7 @@ export default function ExpenseFormScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error loading projects:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'projects' }));
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToLoad', { item: 'projects' }));
     } finally {
       setLoading(false);
     }
@@ -204,7 +204,7 @@ export default function ExpenseFormScreen({ navigation }) {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(t('alerts.permissionRequired'), t('permissions.cameraRequired'));
+        Alert.alert(t('common:alerts.permissionRequired'), t('common:permissions.cameraRequired'));
         return;
       }
 
@@ -219,7 +219,7 @@ export default function ExpenseFormScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error taking photo:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'photo' }));
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToSave', { item: 'photo' }));
     }
   };
 
@@ -227,7 +227,7 @@ export default function ExpenseFormScreen({ navigation }) {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(t('alerts.permissionRequired'), t('permissions.photoLibraryRequired'));
+        Alert.alert(t('common:alerts.permissionRequired'), t('common:permissions.photoLibraryRequired'));
         return;
       }
 
@@ -243,7 +243,7 @@ export default function ExpenseFormScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error picking image:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'image' }));
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToLoad', { item: 'image' }));
     }
   };
 
@@ -274,9 +274,9 @@ export default function ExpenseFormScreen({ navigation }) {
     } catch (error) {
       console.error('Error analyzing receipt:', error);
       Alert.alert(
-        t('alerts.error'),
-        'Could not analyze the receipt. You can still fill in the details manually.',
-        [{ text: 'OK', onPress: () => setStep(4) }]
+        t('common:alerts.error'),
+        t('expenseForm.analyzeFailed'),
+        [{ text: t('common:buttons.ok'), onPress: () => setStep(4) }]
       );
     } finally {
       setAnalyzing(false);
@@ -286,12 +286,12 @@ export default function ExpenseFormScreen({ navigation }) {
   const handleSubmit = async (skipReceipt = false) => {
     setAttemptedSubmit(true);
     if (!amount || parseFloat(amount) <= 0) {
-      Alert.alert(t('alerts.missingInfo'), t('messages.pleaseEnter', { item: 'valid amount' }));
+      Alert.alert(t('common:alerts.missingInfo'), t('common:messages.pleaseEnter', { item: 'valid amount' }));
       return;
     }
 
     if (!description.trim()) {
-      Alert.alert(t('alerts.missingInfo'), t('messages.pleaseEnter', { item: 'description' }));
+      Alert.alert(t('common:alerts.missingInfo'), t('common:messages.pleaseEnter', { item: 'description' }));
       return;
     }
 
@@ -299,15 +299,15 @@ export default function ExpenseFormScreen({ navigation }) {
     // back to the static subcategory list, also required there).
     if (!selectedProject?.isServicePlan && !subcategory && !phaseId) {
       Alert.alert(
-        'Phase required',
-        'Pick a phase for this expense so the project budget breakdown stays accurate.'
+        t('expenseForm.phaseRequiredTitle'),
+        t('expenseForm.phaseRequiredBody')
       );
       return;
     }
     if (selectedProject?.isServicePlan && !subcategory) {
       Alert.alert(
-        'Category required',
-        'Pick a category for this expense.'
+        t('expenseForm.categoryRequiredTitle'),
+        t('expenseForm.categoryRequiredBody')
       );
       return;
     }
@@ -325,12 +325,12 @@ export default function ExpenseFormScreen({ navigation }) {
         if (!receiptUrl) {
           setSubmitting(false);
           Alert.alert(
-            'Receipt upload failed',
-            "We couldn't upload your receipt photo. Try again, or submit without it.",
+            t('expenseForm.receiptUploadFailedTitle'),
+            t('expenseForm.receiptUploadFailedBody'),
             [
-              { text: 'Try again', style: 'cancel' },
+              { text: t('expenseForm.tryAgain'), style: 'cancel' },
               {
-                text: 'Submit without receipt',
+                text: t('expenseForm.submitWithoutReceipt'),
                 style: 'destructive',
                 // Pass skipReceipt=true so the recursive call provably bypasses the
                 // upload regardless of state-update timing (setReceiptImage(null) only
@@ -389,11 +389,11 @@ export default function ExpenseFormScreen({ navigation }) {
       }
 
       Alert.alert(
-        t('alerts.success'),
-        t('messages.savedSuccessfully', { item: 'expense' }),
+        t('common:alerts.success'),
+        t('common:messages.savedSuccessfully', { item: 'expense' }),
         [
           {
-            text: 'OK',
+            text: t('common:buttons.ok'),
             onPress: () => {
               navigation.goBack();
             }
@@ -402,7 +402,7 @@ export default function ExpenseFormScreen({ navigation }) {
       );
     } catch (error) {
       console.error('Error submitting expense:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'expense' }));
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToSave', { item: 'expense' }));
     } finally {
       setSubmitting(false);
     }
@@ -417,7 +417,7 @@ export default function ExpenseFormScreen({ navigation }) {
       <View style={[styles.loadingContainer, { backgroundColor: Colors.background }]}>
         <ActivityIndicator size="large" color={Colors.primaryBlue} />
         <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>
-          Loading projects...
+          {t('expenseForm.loadingProjects')}
         </Text>
       </View>
     );
@@ -444,7 +444,7 @@ export default function ExpenseFormScreen({ navigation }) {
             testID="expenseForm.headerTitle"
             accessibilityLabel="expenseForm.headerTitle"
           >
-            Submit Expense
+            {t('expenseForm.title')}
           </Text>
           <View style={{ width: 40 }} />
         </View>
@@ -464,7 +464,7 @@ export default function ExpenseFormScreen({ navigation }) {
                 {step > s && <Ionicons name="checkmark" size={12} color="#fff" />}
               </View>
               <Text style={[styles.stepLabel, { color: step >= s ? Colors.primaryText : Colors.secondaryText }]}>
-                {s === 1 ? 'Project' : s === 2 ? 'Upload' : s === 3 ? 'Analyze' : 'Review'}
+                {s === 1 ? t('expenseForm.stepProject') : s === 2 ? t('expenseForm.stepUpload') : s === 3 ? t('expenseForm.stepAnalyze') : t('expenseForm.stepReview')}
               </Text>
             </View>
           ))}
@@ -483,18 +483,18 @@ export default function ExpenseFormScreen({ navigation }) {
                 testID="expenseForm.selectProjectTitle"
                 accessibilityLabel="expenseForm.selectProjectTitle"
               >
-                Select Project
+                {t('expenseForm.selectProject')}
               </Text>
               <Text
                 style={[styles.sectionSubtitle, { color: Colors.secondaryText }]}
                 testID="expenseForm.selectProjectSubtitle"
                 accessibilityLabel="expenseForm.selectProjectSubtitle"
               >
-                Choose the project this expense is for
+                {t('expenseForm.selectProjectSubtitle')}
               </Text>
               {assignedProjects.length === 0 ? (
                 <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-                  No assigned projects
+                  {t('expenseForm.noAssignedProjects')}
                 </Text>
               ) : (
                 <View style={styles.projectList} testID="expenseForm.projectList">
@@ -538,10 +538,10 @@ export default function ExpenseFormScreen({ navigation }) {
           {step === 2 && (
             <View style={[styles.section, { backgroundColor: Colors.white }]}>
               <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-                Upload Receipt
+                {t('expenseForm.uploadReceipt')}
               </Text>
               <Text style={[styles.sectionSubtitle, { color: Colors.secondaryText }]}>
-                Take a photo or select an image of your receipt
+                {t('expenseForm.uploadReceiptSubtitle')}
               </Text>
 
               <View style={styles.selectedProjectBadge}>
@@ -557,14 +557,14 @@ export default function ExpenseFormScreen({ navigation }) {
                   onPress={handleTakePhoto}
                 >
                   <Ionicons name="camera" size={32} color="#fff" />
-                  <Text style={styles.uploadButtonText}>Take Photo</Text>
+                  <Text style={styles.uploadButtonText}>{t('common:buttons.takePhoto')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.uploadButton, { backgroundColor: Colors.primaryBlue }]}
                   onPress={handlePickImage}
                 >
                   <Ionicons name="images" size={32} color="#fff" />
-                  <Text style={styles.uploadButtonText}>Choose Image</Text>
+                  <Text style={styles.uploadButtonText}>{t('expenseForm.chooseImage')}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -573,7 +573,7 @@ export default function ExpenseFormScreen({ navigation }) {
                 onPress={handleSkipAnalysis}
               >
                 <Text style={[styles.skipButtonText, { color: Colors.secondaryText }]}>
-                  Skip and enter manually
+                  {t('expenseForm.skipAndEnterManually')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -585,10 +585,10 @@ export default function ExpenseFormScreen({ navigation }) {
               <View style={styles.analyzingContainer}>
                 <ActivityIndicator size="large" color={Colors.primaryBlue} />
                 <Text style={[styles.analyzingTitle, { color: Colors.primaryText }]}>
-                  Analyzing Receipt
+                  {t('expenseForm.analyzingReceipt')}
                 </Text>
                 <Text style={[styles.analyzingSubtitle, { color: Colors.secondaryText }]}>
-                  AI is extracting expense details...
+                  {t('expenseForm.analyzingSubtitle')}
                 </Text>
                 {receiptImage && (
                   <Image source={{ uri: receiptImage }} style={styles.analyzingPreview} />
@@ -604,7 +604,7 @@ export default function ExpenseFormScreen({ navigation }) {
               {receiptImage && (
                 <View style={[styles.section, { backgroundColor: Colors.white }]}>
                   <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-                    Receipt
+                    {t('expenseForm.receipt')}
                   </Text>
                   <Image source={{ uri: receiptImage }} style={[styles.receiptPreview, { backgroundColor: Colors.lightBackground }]} />
                   <TouchableOpacity
@@ -612,7 +612,7 @@ export default function ExpenseFormScreen({ navigation }) {
                     onPress={() => setStep(2)}
                   >
                     <Text style={[styles.changeReceiptText, { color: Colors.primaryBlue }]}>
-                      Change Receipt
+                      {t('expenseForm.changeReceipt')}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -621,7 +621,7 @@ export default function ExpenseFormScreen({ navigation }) {
               {/* Amount */}
               <View style={[styles.section, { backgroundColor: Colors.white }]}>
                 <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-                  Amount *
+                  {t('expenseForm.amount')} *
                 </Text>
                 <View style={styles.amountInputContainer}>
                   <Text style={[styles.currencySymbol, { color: Colors.primaryText }]}>$</Text>
@@ -655,7 +655,7 @@ export default function ExpenseFormScreen({ navigation }) {
               {/* Description */}
               <View style={[styles.section, { backgroundColor: Colors.white }]}>
                 <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-                  Description *
+                  {t('expenseForm.description')} *
                 </Text>
                 <TextInput
                   style={[
@@ -664,7 +664,7 @@ export default function ExpenseFormScreen({ navigation }) {
                   ]}
                   value={description}
                   onChangeText={setDescription}
-                  placeholder="e.g., Home Depot - Building materials"
+                  placeholder={t('expenseForm.descriptionPlaceholder')}
                   placeholderTextColor={Colors.secondaryText}
                 />
               </View>
@@ -672,7 +672,7 @@ export default function ExpenseFormScreen({ navigation }) {
               {/* Category */}
               <View style={[styles.section, { backgroundColor: Colors.white }]}>
                 <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-                  Category
+                  {t('expenseForm.category')}
                 </Text>
                 <View style={styles.categoryGrid}>
                   {EXPENSE_CATEGORIES.map((cat) => (
@@ -719,7 +719,7 @@ export default function ExpenseFormScreen({ navigation }) {
                   }}
                 >
                   <Text style={[styles.sectionTitle, { color: Colors.primaryText, fontSize: FontSizes.small }]}>
-                    {phases.length > 0 ? 'Phase' : 'Phase or Trade'} <Text style={{ color: '#EF4444' }}>*</Text>
+                    {phases.length > 0 ? t('expenseForm.phase') : t('expenseForm.phaseOrTrade')} <Text style={{ color: '#EF4444' }}>*</Text>
                   </Text>
 
                   <View style={styles.categoryGrid}>
@@ -807,13 +807,13 @@ export default function ExpenseFormScreen({ navigation }) {
                           { color: subcategory === 'overhead' ? '#10B981' : Colors.secondaryText }
                         ]}
                       >
-                        Extras / Overhead
+                        {t('expenseForm.extrasOverhead')}
                       </Text>
                     </TouchableOpacity>
                   </View>
                   {subcategory === 'overhead' && (
                     <Text style={{ color: Colors.secondaryText, fontSize: FontSizes.small, marginTop: Spacing.sm }}>
-                      Use Description above to note what this extra was for.
+                      {t('expenseForm.overheadHint')}
                     </Text>
                   )}
                 </View>
@@ -822,7 +822,7 @@ export default function ExpenseFormScreen({ navigation }) {
               {/* Date */}
               <View style={[styles.section, { backgroundColor: Colors.white }]}>
                 <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-                  Date
+                  {t('expenseForm.date')}
                 </Text>
                 <TextInput
                   style={[
@@ -841,7 +841,7 @@ export default function ExpenseFormScreen({ navigation }) {
                 <View style={[styles.section, { backgroundColor: Colors.white }]}>
                   <View style={styles.lineItemsHeaderRow}>
                     <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginBottom: 0 }]}>
-                      Line Items
+                      {t('expenseForm.lineItems')}
                     </Text>
                     <TouchableOpacity
                       onPress={() => setLineItems([...lineItems, { description: '', total: '' }])}
@@ -873,7 +873,7 @@ export default function ExpenseFormScreen({ navigation }) {
                             next[index] = { ...next[index], description: text };
                             setLineItems(next);
                           }}
-                          placeholder="Item description"
+                          placeholder={t('expenseForm.itemDescriptionPlaceholder')}
                           placeholderTextColor={Colors.secondaryText}
                         />
                         <TextInput
@@ -908,7 +908,7 @@ export default function ExpenseFormScreen({ navigation }) {
               {/* Notes */}
               <View style={[styles.section, { backgroundColor: Colors.white }]}>
                 <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-                  Notes (Optional)
+                  {t('expenseForm.notesOptional')}
                 </Text>
                 <TextInput
                   style={[
@@ -917,7 +917,7 @@ export default function ExpenseFormScreen({ navigation }) {
                   ]}
                   value={notes}
                   onChangeText={setNotes}
-                  placeholder="Any additional notes..."
+                  placeholder={t('expenseForm.notesPlaceholder')}
                   placeholderTextColor={Colors.secondaryText}
                   multiline
                   numberOfLines={3}
@@ -930,7 +930,7 @@ export default function ExpenseFormScreen({ navigation }) {
                 <View style={styles.projectBadgeRow}>
                   <Ionicons name="briefcase" size={18} color={Colors.primaryBlue} />
                   <Text style={[styles.projectBadgeText, { color: Colors.primaryText }]}>
-                    Project: {selectedProject?.name}
+                    {t('expenseForm.projectLabel', { name: selectedProject?.name })}
                   </Text>
                 </View>
               </View>
@@ -950,7 +950,7 @@ export default function ExpenseFormScreen({ navigation }) {
                   ) : (
                     <>
                       <Ionicons name="checkmark-circle" size={24} color="#fff" />
-                      <Text style={styles.submitButtonText}>Submit Expense</Text>
+                      <Text style={styles.submitButtonText}>{t('expenseForm.title')}</Text>
                     </>
                   )}
                 </TouchableOpacity>

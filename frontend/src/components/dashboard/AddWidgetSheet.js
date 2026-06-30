@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { WIDGET_PALETTES } from './widgets/widgetColors';
 import { getColors, LightColors } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -105,6 +106,7 @@ function GradientPreview({ widgetId, size, icon }) {
 }
 
 export default function AddWidgetSheet({ visible, onClose, availableWidgets, onAdd }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const styles = useMemo(() => createSheetStyles(Colors), [Colors]);
@@ -116,7 +118,7 @@ export default function AddWidgetSheet({ visible, onClose, availableWidgets, onA
         <View style={styles.sheet}>
           <View style={styles.handle} />
           <View style={styles.titleRow}>
-            <Text style={styles.title}>Add Widget</Text>
+            <Text style={styles.title}>{t('addWidgetSheet.title')}</Text>
             <TouchableOpacity onPress={onClose}>
               <Ionicons name="close" size={22} color={Colors.secondaryText} />
             </TouchableOpacity>
@@ -125,12 +127,12 @@ export default function AddWidgetSheet({ visible, onClose, availableWidgets, onA
           {availableWidgets.length === 0 ? (
             <View style={styles.emptyWrap}>
               <Ionicons name="checkmark-circle" size={36} color={Colors.successGreen || '#10B981'} />
-              <Text style={styles.emptyText}>All widgets are on your dashboard</Text>
+              <Text style={styles.emptyText}>{t('addWidgetSheet.emptyText')}</Text>
             </View>
           ) : (
             <>
               <Text style={styles.sheetSubtitle}>
-                Tap a size to add it to your dashboard
+                {t('addWidgetSheet.subtitle')}
               </Text>
               <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
                 {availableWidgets.map((widget) => {
@@ -155,7 +157,7 @@ export default function AddWidgetSheet({ visible, onClose, availableWidgets, onA
                             activeOpacity={0.75}
                           >
                             <GradientPreview widgetId={widget.id} size={size} icon={icon} />
-                            <Text style={styles.shapeLabel}>{size.charAt(0).toUpperCase() + size.slice(1)}</Text>
+                            <Text style={styles.shapeLabel}>{t(`addWidgetSheet.size_${size}`)}</Text>
                           </TouchableOpacity>
                         ))}
                       </View>

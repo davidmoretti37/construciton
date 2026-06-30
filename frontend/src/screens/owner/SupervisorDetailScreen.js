@@ -181,7 +181,7 @@ export default function SupervisorDetailScreen() {
       if (cancelled) return;
       if (error || !data) {
         if (!supervisor) {
-          setHydrationError(error?.message || 'Supervisor not found');
+          setHydrationError(error?.message || t('supervisorDetail.supervisorNotFound'));
           setLoading(false);
           setLoadingPayment(false);
         }
@@ -236,27 +236,27 @@ export default function SupervisorDetailScreen() {
   const handleClockOutSupervisor = () => {
     const name = supervisor?.business_name || supervisor?.email?.split('@')[0] || 'Supervisor';
     Alert.alert(
-      'Clock Out Supervisor',
-      `Are you sure you want to clock out ${name}?`,
+      t('supervisorDetail.clockOutTitle'),
+      t('supervisorDetail.clockOutConfirm', { name }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
         {
-          text: 'Clock Out',
+          text: t('supervisorDetail.clockOutButton'),
           style: 'destructive',
           onPress: async () => {
             setClockOutLoading(true);
             try {
               const result = await remoteClockOutSupervisor(supervisor.id);
               if (result.success) {
-                Alert.alert('Success', `${name} has been clocked out. (${formatHoursMinutes(result.hours || 0)})`);
+                Alert.alert(t('common:alerts.success'), t('supervisorDetail.clockedOutSuccess', { name, duration: formatHoursMinutes(result.hours || 0) }));
                 setActiveSession(null);
                 fetchSupervisorData();
                 loadPaymentData();
               } else {
-                Alert.alert('Error', result.error || 'Failed to clock out supervisor.');
+                Alert.alert(t('common:alerts.error'), result.error || t('supervisorDetail.clockOutFailed'));
               }
             } catch (e) {
-              Alert.alert('Error', 'Something went wrong.');
+              Alert.alert(t('common:alerts.error'), t('supervisorDetail.somethingWentWrong'));
             } finally {
               setClockOutLoading(false);
             }
@@ -489,14 +489,14 @@ export default function SupervisorDetailScreen() {
             <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: Colors.primaryText }]} numberOfLines={1}>
-            Supervisor
+            {t('supervisorDetail.title')}
           </Text>
           <View style={{ width: 30 }} />
         </View>
         <View style={[styles.loadingContainer, { paddingHorizontal: 24 }]}>
           <Ionicons name="alert-circle-outline" size={48} color={Colors.secondaryText} />
           <Text style={{ color: Colors.secondaryText, textAlign: 'center', marginTop: 12 }}>
-            {hydrationError || 'Could not load supervisor details.'}
+            {hydrationError || t('supervisorDetail.couldNotLoadDetails')}
           </Text>
         </View>
       </SafeAreaView>
@@ -664,7 +664,7 @@ export default function SupervisorDetailScreen() {
             onPress={() => navigation.navigate('EditSupervisor', { supervisor })}
           >
             <Ionicons name="create-outline" size={15} color="#1E40AF" />
-            <Text style={{ color: '#1E40AF', fontSize: 13, fontWeight: '600' }}>Edit Info</Text>
+            <Text style={{ color: '#1E40AF', fontSize: 13, fontWeight: '600' }}>{t('supervisorDetail.editInfo')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -672,13 +672,13 @@ export default function SupervisorDetailScreen() {
         <View style={[styles.card, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
           <View style={styles.cardHeader}>
             <Ionicons name="key-outline" size={20} color="#1E40AF" />
-            <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Permissions</Text>
+            <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>{t('supervisorDetail.permissions')}</Text>
             <TouchableOpacity
               onPress={() => navigation.navigate('EditSupervisor', { supervisor })}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               style={{ marginLeft: 'auto' }}
             >
-              <Text style={{ color: '#1E40AF', fontSize: 13, fontWeight: '600' }}>Edit</Text>
+              <Text style={{ color: '#1E40AF', fontSize: 13, fontWeight: '600' }}>{t('common:buttons.edit')}</Text>
             </TouchableOpacity>
           </View>
           {SUPERVISOR_PERMISSIONS.map((perm, idx) => {
@@ -706,7 +706,7 @@ export default function SupervisorDetailScreen() {
                     {perm.label}
                   </Text>
                   <Text style={{ fontSize: 12, color: Colors.secondaryText, marginTop: 1 }}>
-                    {granted ? 'Allowed' : 'Not allowed'}
+                    {granted ? t('supervisorDetail.allowed') : t('supervisorDetail.notAllowed')}
                   </Text>
                 </View>
               </View>
@@ -789,7 +789,7 @@ export default function SupervisorDetailScreen() {
                 ) : (
                   <>
                     <Ionicons name="log-out-outline" size={18} color="#FFF" />
-                    <Text style={styles.clockOutButtonText}>Clock Out</Text>
+                    <Text style={styles.clockOutButtonText}>{t('supervisorDetail.clockOutButton')}</Text>
                   </>
                 )}
               </TouchableOpacity>

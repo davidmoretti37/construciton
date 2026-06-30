@@ -27,6 +27,7 @@ import {
 
 export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) {
   const { t } = useTranslation('common');
+  const { t: tProj } = useTranslation('projects');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -325,7 +326,7 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
                 <Ionicons name={getStatusIcon(phase.status)} size={28} color={statusColor} />
               </View>
               <View style={styles.statusInfo}>
-                <Text style={[styles.statusLabel, { color: Colors.secondaryText }]}>Status</Text>
+                <Text style={[styles.statusLabel, { color: Colors.secondaryText }]}>{tProj('phaseDetailModal.statusLabel')}</Text>
                 <Text style={[styles.statusValue, { color: Colors.primaryText }]}>
                   {phase.status?.replace('_', ' ').toUpperCase()}
                 </Text>
@@ -337,7 +338,7 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
             {/* Progress Bar */}
             <View style={styles.progressSection}>
               <View style={styles.progressHeader}>
-                <Text style={[styles.progressLabel, { color: Colors.secondaryText }]}>Progress</Text>
+                <Text style={[styles.progressLabel, { color: Colors.secondaryText }]}>{tProj('phaseDetailModal.progressLabel')}</Text>
                 <Text style={[styles.progressPercent, { color: Colors.primaryBlue }]}>
                   {completion}%
                 </Text>
@@ -354,7 +355,7 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
                 />
               </View>
               <Text style={[styles.progressTasks, { color: Colors.secondaryText }]}>
-                {tasks.filter(t => t.completed).length} of {tasks.length} tasks completed
+                {tProj('phaseDetailModal.tasksCompleted', { completed: tasks.filter(task => task.completed).length, total: tasks.length })}
               </Text>
             </View>
           </View>
@@ -362,13 +363,13 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
           {/* Timeline Info */}
           {(phase.start_date || phase.end_date || phase.planned_days) && (
             <View style={[styles.card, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-              <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Timeline</Text>
+              <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>{tProj('phaseDetailModal.timelineTitle')}</Text>
 
               {phase.start_date && (
                 <View style={styles.infoRow}>
                   <Ionicons name="play-outline" size={18} color="#10B981" />
                   <View style={styles.infoContent}>
-                    <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Start Date</Text>
+                    <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>{tProj('phaseDetailModal.startDate')}</Text>
                     <Text style={[styles.infoValue, { color: Colors.primaryText }]}>
                       {new Date(phase.start_date + 'T00:00:00').toLocaleDateString('en-US', {
                         month: 'long',
@@ -384,7 +385,7 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
                 <View style={styles.infoRow}>
                   <Ionicons name="flag-outline" size={18} color="#EF4444" />
                   <View style={styles.infoContent}>
-                    <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>End Date</Text>
+                    <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>{tProj('phaseDetailModal.endDate')}</Text>
                     <Text style={[styles.infoValue, { color: Colors.primaryText }]}>
                       {new Date(phase.end_date + 'T00:00:00').toLocaleDateString('en-US', {
                         month: 'long',
@@ -400,9 +401,9 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
                 <View style={styles.infoRow}>
                   <Ionicons name="time-outline" size={18} color="#F59E0B" />
                   <View style={styles.infoContent}>
-                    <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Duration</Text>
+                    <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>{tProj('phaseDetailModal.duration')}</Text>
                     <Text style={[styles.infoValue, { color: Colors.primaryText }]}>
-                      {phase.planned_days} days
+                      {tProj('phaseDetailModal.durationDays', { days: phase.planned_days })}
                     </Text>
                   </View>
                 </View>
@@ -412,9 +413,9 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
                 <View style={styles.infoRow}>
                   <Ionicons name="alert-circle-outline" size={18} color="#F59E0B" />
                   <View style={styles.infoContent}>
-                    <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Time Extensions</Text>
+                    <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>{tProj('phaseDetailModal.timeExtensions')}</Text>
                     <Text style={[styles.infoValue, { color: '#F59E0B' }]}>
-                      +{totalExtendedDays} days
+                      {tProj('phaseDetailModal.plusDays', { days: totalExtendedDays })}
                     </Text>
                   </View>
                 </View>
@@ -425,13 +426,13 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
           {/* Budget Info */}
           {(phase.budget || phase.spent) && (
             <View style={[styles.card, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-              <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Budget</Text>
+              <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>{tProj('phaseDetailModal.budgetTitle')}</Text>
 
               {phase.budget && (
                 <View style={styles.infoRow}>
                   <Ionicons name="wallet-outline" size={18} color="#3B82F6" />
                   <View style={styles.infoContent}>
-                    <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Allocated</Text>
+                    <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>{tProj('phaseDetailModal.allocated')}</Text>
                     <Text style={[styles.infoValue, { color: Colors.primaryText }]}>
                       ${phase.budget.toLocaleString('en-US')}
                     </Text>
@@ -443,7 +444,7 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
                 <View style={styles.infoRow}>
                   <Ionicons name="trending-down-outline" size={18} color="#EF4444" />
                   <View style={styles.infoContent}>
-                    <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Spent</Text>
+                    <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>{tProj('phaseDetailModal.spent')}</Text>
                     <Text style={[styles.infoValue, { color: Colors.primaryText }]}>
                       ${phase.spent.toLocaleString('en-US')}
                     </Text>
@@ -459,7 +460,7 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
                     color={phase.spent <= phase.budget ? '#10B981' : '#EF4444'}
                   />
                   <View style={styles.infoContent}>
-                    <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Remaining</Text>
+                    <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>{tProj('phaseDetailModal.remaining')}</Text>
                     <Text style={[
                       styles.infoValue,
                       { color: phase.spent <= phase.budget ? '#10B981' : '#EF4444' }
@@ -476,7 +477,7 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
           <View style={[styles.card, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
             <View style={styles.cardHeader}>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.cardTitle, { color: Colors.primaryText, marginBottom: 0 }]}>Tasks</Text>
+                <Text style={[styles.cardTitle, { color: Colors.primaryText, marginBottom: 0 }]}>{tProj('phaseDetailModal.tasksTitle')}</Text>
               </View>
               <View style={[styles.taskCountBadge, { backgroundColor: Colors.primaryBlue + '15' }]}>
                 <Text style={[styles.taskCountText, { color: Colors.primaryBlue }]}>
@@ -540,7 +541,7 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
                       </Text>
                       {task.completed_date && (
                         <Text style={[styles.taskDate, { color: Colors.secondaryText }]}>
-                          Completed {new Date(task.completed_date).toLocaleDateString()}
+                          {tProj('phaseDetailModal.completedOn', { date: new Date(task.completed_date).toLocaleDateString() })}
                         </Text>
                       )}
                     </View>
@@ -564,7 +565,7 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
                   color: Colors.primaryText,
                   borderColor: Colors.border
                 }]}
-                placeholder="Add a task..."
+                placeholder={tProj('phaseDetailModal.addTaskPlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 value={newTaskName}
                 onChangeText={setNewTaskName}

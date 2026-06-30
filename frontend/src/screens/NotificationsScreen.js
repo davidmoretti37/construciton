@@ -24,12 +24,12 @@ import { routeForNotification } from '../utils/notificationRouter';
 
 // Filter options
 const FILTERS = [
-  { id: 'all', label: 'All' },
-  { id: 'appointment_reminder', label: 'Appointments' },
-  { id: 'daily_report_submitted', label: 'Reports' },
-  { id: 'project_warning', label: 'Warnings' },
-  { id: 'financial_update', label: 'Financial' },
-  { id: 'worker_update', label: 'Workers' },
+  { id: 'all', label: 'All', labelKey: 'notifications.filterAll' },
+  { id: 'appointment_reminder', label: 'Appointments', labelKey: 'notifications.filterAppointments' },
+  { id: 'daily_report_submitted', label: 'Reports', labelKey: 'notifications.filterReports' },
+  { id: 'project_warning', label: 'Warnings', labelKey: 'notifications.filterWarnings' },
+  { id: 'financial_update', label: 'Financial', labelKey: 'notifications.filterFinancial' },
+  { id: 'worker_update', label: 'Workers', labelKey: 'notifications.filterWorkers' },
 ];
 
 export default function NotificationsScreen({ navigation }) {
@@ -151,24 +151,24 @@ export default function NotificationsScreen({ navigation }) {
       const res = await nudgeInvoice(invoiceId);
       const channels = res?.delivered || [];
       const where = channels.includes('message') && channels.includes('push')
-        ? 'their portal and phone'
+        ? t('notifications.wherePortalAndPhone')
         : channels.includes('message')
-          ? 'their portal'
-          : 'their phone';
-      Alert.alert('Reminder sent', `Nudged ${res?.client || 'the client'} in ${where}.`);
+          ? t('notifications.wherePortal')
+          : t('notifications.wherePhone');
+      Alert.alert(t('notifications.reminderSent'), t('notifications.nudgedClient', { client: res?.client || t('notifications.defaultClient'), where }));
       return { ok: true };
     } catch (e) {
       if (e?.code === 'NO_PORTAL_CLIENT') {
         Alert.alert(
-          'Client not on portal',
-          "This client doesn't have portal access yet. Invite them to the portal, then you can nudge them there.",
-          [{ text: 'OK' }]
+          t('notifications.clientNotOnPortal'),
+          t('notifications.clientNoPortalMsg'),
+          [{ text: t('notifications.ok') }]
         );
         return { ok: true, skipped: true };
       }
-      return { ok: false, error: e?.message || 'Could not send the reminder' };
+      return { ok: false, error: e?.message || t('notifications.couldNotSendReminder') };
     }
-  }, []);
+  }, [t]);
 
   const handleNotificationAction = useCallback(async (notification) => {
     const action = notification.action_type;
@@ -181,11 +181,11 @@ export default function NotificationsScreen({ navigation }) {
           // Confirm before generating an invoice
           const ok = await new Promise((resolve) => {
             Alert.alert(
-              'Send invoice?',
-              `Generate the invoice for $${(data.net || data.gross || 0).toLocaleString()}?`,
+              t('notifications.sendInvoiceTitle'),
+              t('notifications.sendInvoiceConfirm', { amount: (data.net || data.gross || 0).toLocaleString() }),
               [
-                { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-                { text: 'Send', onPress: () => resolve(true) },
+                { text: t('common:buttons.cancel'), style: 'cancel', onPress: () => resolve(false) },
+                { text: t('notifications.send'), onPress: () => resolve(true) },
               ]
             );
           });
@@ -210,15 +210,15 @@ export default function NotificationsScreen({ navigation }) {
           return;
       }
       if (result?.error) {
-        Alert.alert('Action failed', result.error);
+        Alert.alert(t('notifications.actionFailed'), result.error);
         return;
       }
       // Mark notification as read so the CTA disappears
       await markNotificationAsRead(notification.id);
     } catch (e) {
-      Alert.alert('Action failed', e.message || 'Could not complete the action');
+      Alert.alert(t('notifications.actionFailed'), e.message || t('notifications.couldNotCompleteAction'));
     }
-  }, [markNotificationAsRead, nudgeClientInPortal]);
+  }, [markNotificationAsRead, nudgeClientInPortal, t]);
 
   // Appointment popup handlers
   const handleReschedule = useCallback(async (eventId, updates) => {
@@ -278,9 +278,9 @@ export default function NotificationsScreen({ navigation }) {
 
       let groupKey;
       if (date.getTime() === today.getTime()) {
-        groupKey = 'Today';
+        groupKey = t('notifications.today');
       } else if (date.getTime() === yesterday.getTime()) {
-        groupKey = 'Yesterday';
+        groupKey = t('notifications.yesterday');
       } else {
         groupKey = date.toLocaleDateString('en-US', {
           weekday: 'long',
@@ -299,7 +299,7 @@ export default function NotificationsScreen({ navigation }) {
       title,
       data,
     }));
-  }, [filteredNotifications]);
+  }, [filteredNotifications, t]);
 
   const renderSectionHeader = ({ section }) => (
     <View
@@ -329,12 +329,14 @@ export default function NotificationsScreen({ navigation }) {
         style={[styles.emptyTitle, { color: Colors.primaryText }]}
         testID="notifications.emptyTitle"
       >
-        No notifications
+        {t('notifications.noNotificationsTitle')}
       </Text>
       <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
         {activeFilter === 'all'
-          ? "You're all caught up!"
-          : `No ${FILTERS.find(f => f.id === activeFilter)?.label.toLowerCase()} notifications`}
+          ? t('notifications.allCaughtUp')
+          : t('notifications.noFilteredNotifications', {
+              filter: t(FILTERS.find(f => f.id === activeFilter)?.labelKey ?? 'notifications.filterAll').toLowerCase(),
+            })}
       </Text>
     </View>
   );
@@ -356,7 +358,7 @@ export default function NotificationsScreen({ navigation }) {
           style={[styles.headerTitle, { color: Colors.primaryText }]}
           testID="notifications.headerTitle"
         >
-          Notifications
+          {t('notifications.title')}
         </Text>
 
         <View style={styles.headerRight}>
@@ -368,7 +370,7 @@ export default function NotificationsScreen({ navigation }) {
               accessibilityLabel="Mark all read"
             >
               <Text style={[styles.markAllText, { color: Colors.primaryBlue }]}>
-                Mark all read
+                {t('notifications.markAllRead')}
               </Text>
             </TouchableOpacity>
           )}
@@ -410,7 +412,7 @@ export default function NotificationsScreen({ navigation }) {
                   activeFilter === item.id && styles.filterTabTextActive,
                 ]}
               >
-                {item.label}
+                {t(item.labelKey)}
               </Text>
             </TouchableOpacity>
           )}

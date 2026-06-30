@@ -225,7 +225,7 @@ export default function PhaseCustomizationScreen({ navigation, route }) {
                       </View>
                       <View style={styles.phaseInfo}>
                         <Text style={[styles.phaseName, { color: Colors.primaryText }]}>
-                          {phase.name || phase.phase_name || 'Unnamed Phase'}
+                          {phase.name || phase.phase_name || t('phaseCustomization.unnamedPhase')}
                         </Text>
                         {phase.description && (
                           <Text style={[styles.phaseDescription, { color: Colors.secondaryText }]}>
@@ -342,7 +342,7 @@ function PhaseEditModal({ phase, onSave, onCancel, Colors, t }) {
 
   const handleSave = () => {
     if (!name.trim()) {
-      Alert.alert('Error', t('phaseCustomization.modal.errors.enterName'));
+      Alert.alert(t('common:alerts.error'), t('phaseCustomization.modal.errors.enterName'));
       return;
     }
 

@@ -14,6 +14,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -29,6 +30,7 @@ import MonthGridView from './schedule/MonthGridView';
 const STORAGE_KEY_VIEW_MODE = 'schedule.viewMode.v1';
 
 export default function ScheduleView({ navigation, role = 'worker', onAddTaskForDate }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -258,7 +260,7 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
 
             phaseTasks.push({
               id: task.id || `phase-${phase.id}-${task.order}`,
-              title: task.description || task.name || 'Untitled',
+              title: task.description || task.name || t('scheduleView.untitledTask'),
               description: phase.name,
               status: task.status || (task.completed ? 'done' : 'not_started'),
               start_date: taskDate,
@@ -355,15 +357,15 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
   const handleSaveNewTask = useCallback(async () => {
     const title = newTaskTitle.trim();
     if (!title) {
-      Alert.alert('Title required', 'Give the task a short name first.');
+      Alert.alert(t('scheduleView.titleRequiredTitle'), t('scheduleView.titleRequiredBody'));
       return;
     }
     if (!newTaskProjectId) {
-      Alert.alert('Project required', 'Pick which project this task belongs to.');
+      Alert.alert(t('scheduleView.projectRequiredTitle'), t('scheduleView.projectRequiredBody'));
       return;
     }
     if (newTaskEnd < newTaskStart) {
-      Alert.alert('Invalid range', 'End date must be on or after start date.');
+      Alert.alert(t('scheduleView.invalidRangeTitle'), t('scheduleView.invalidRangeBody'));
       return;
     }
     setSavingTask(true);
@@ -372,13 +374,13 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
       // supervisors) so it lands where the refresh re-queries it.
       const created = await createAdHocDayTask(newTaskProjectId, title, newTaskStart, newTaskEnd, agendaOwnerId);
       if (!created) {
-        Alert.alert("Couldn't create task", 'Something went wrong. Try again.');
+        Alert.alert(t('scheduleView.createTaskErrorTitle'), t('scheduleView.somethingWentWrong'));
         return;
       }
       setShowAddTask(false);
       await loadData();
     } catch (err) {
-      Alert.alert("Couldn't create task", 'Something went wrong. Try again.');
+      Alert.alert(t('scheduleView.createTaskErrorTitle'), t('scheduleView.somethingWentWrong'));
     } finally {
       setSavingTask(false);
     }
@@ -437,7 +439,7 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
             />
             {viewMode === 'agenda' && (
               <Text style={[styles.viewToggleLabel, { color: Colors.primaryBlue }]}>
-                Agenda
+                {t('scheduleView.agenda')}
               </Text>
             )}
           </TouchableOpacity>
@@ -456,7 +458,7 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
             />
             {viewMode === 'month' && (
               <Text style={[styles.viewToggleLabel, { color: Colors.primaryBlue }]}>
-                Month
+                {t('scheduleView.month')}
               </Text>
             )}
           </TouchableOpacity>
@@ -483,10 +485,10 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
         <View style={[styles.banner, { backgroundColor: Colors.errorBackground || '#FDECEA', borderColor: Colors.error || '#E53935' }]}>
           <Ionicons name="alert-circle-outline" size={18} color={Colors.error || '#E53935'} />
           <Text style={[styles.bannerText, { color: Colors.error || '#E53935' }]}>
-            Couldn't load your schedule.
+            {t('scheduleView.loadError')}
           </Text>
           <TouchableOpacity onPress={loadData} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={[styles.bannerAction, { color: Colors.error || '#E53935' }]}>Retry</Text>
+            <Text style={[styles.bannerAction, { color: Colors.error || '#E53935' }]}>{t('common:buttons.retry')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -495,9 +497,9 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
       {!loadError && projects.length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons name="calendar-outline" size={48} color={Colors.secondaryText} />
-          <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>No projects yet</Text>
+          <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>{t('scheduleView.noProjectsTitle')}</Text>
           <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-            Create a project to schedule tasks.
+            {t('scheduleView.noProjectsText')}
           </Text>
         </View>
       ) : viewMode === 'agenda' ? (
@@ -525,7 +527,7 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
               setDailyChecklist((prev) =>
                 prev.map((c) => (c.template_id === item.template_id ? item : c))
               );
-              Alert.alert("Couldn't update", 'Something went wrong. Try again.');
+              Alert.alert(t('scheduleView.updateErrorTitle'), t('scheduleView.somethingWentWrong'));
             }
           }}
           // onAddTaskForDate intentionally omitted — the top-bar "+" button
@@ -555,8 +557,8 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
               }
             } catch (err) {
               // Rollback on failure
-              setTasks((prev) => prev.map((t) => (t.id === item.id ? item : t)));
-              Alert.alert("Couldn't update", 'Something went wrong. Try again.');
+              setTasks((prev) => prev.map((tk) => (tk.id === item.id ? item : tk)));
+              Alert.alert(t('scheduleView.updateErrorTitle'), t('scheduleView.somethingWentWrong'));
             }
           }}
         />
@@ -591,17 +593,17 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
         >
           <View style={[styles.addTaskCard, { backgroundColor: Colors.cardBackground || Colors.white }]}>
             <View style={styles.addTaskHeader}>
-              <Text style={[styles.addTaskTitle, { color: Colors.primaryText }]}>New Task</Text>
+              <Text style={[styles.addTaskTitle, { color: Colors.primaryText }]}>{t('scheduleView.newTask')}</Text>
               <TouchableOpacity onPress={closeAddTask} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Ionicons name="close" size={22} color={Colors.secondaryText} />
               </TouchableOpacity>
             </View>
 
-            <Text style={[styles.addTaskLabel, { color: Colors.secondaryText }]}>TITLE</Text>
+            <Text style={[styles.addTaskLabel, { color: Colors.secondaryText }]}>{t('scheduleView.titleLabel')}</Text>
             <TextInput
               value={newTaskTitle}
               onChangeText={setNewTaskTitle}
-              placeholder="e.g. Pick up tile from supplier"
+              placeholder={t('scheduleView.titlePlaceholder')}
               placeholderTextColor={Colors.secondaryText + '80'}
               autoFocus
               style={[styles.addTaskInput, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.background }]}
@@ -609,7 +611,7 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
               onSubmitEditing={handleSaveNewTask}
             />
 
-            <Text style={[styles.addTaskLabel, { color: Colors.secondaryText }]}>PROJECT</Text>
+            <Text style={[styles.addTaskLabel, { color: Colors.secondaryText }]}>{t('scheduleView.projectLabel')}</Text>
             <TouchableOpacity
               onPress={openTaskProjectPicker}
               activeOpacity={0.7}
@@ -621,12 +623,12 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
                 <Ionicons name="folder-outline" size={16} color={Colors.secondaryText} style={{ marginRight: 10 }} />
               )}
               <Text style={[styles.addTaskRowText, { color: selectedTaskProject ? Colors.primaryText : Colors.secondaryText }]}>
-                {selectedTaskProject ? selectedTaskProject.name : 'Pick a project'}
+                {selectedTaskProject ? selectedTaskProject.name : t('scheduleView.pickAProject')}
               </Text>
               <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} />
             </TouchableOpacity>
 
-            <Text style={[styles.addTaskLabel, { color: Colors.secondaryText }]}>WHEN</Text>
+            <Text style={[styles.addTaskLabel, { color: Colors.secondaryText }]}>{t('scheduleView.whenLabel')}</Text>
             <View style={styles.dateRangeRow}>
               <TouchableOpacity
                 onPress={() => openDatePicker('start')}
@@ -635,13 +637,13 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
               >
                 <Ionicons name="calendar-outline" size={14} color={Colors.primaryBlue} />
                 <View style={{ marginLeft: 8 }}>
-                  <Text style={[styles.dateChipLabel, { color: Colors.secondaryText }]}>Start</Text>
+                  <Text style={[styles.dateChipLabel, { color: Colors.secondaryText }]}>{t('scheduleView.start')}</Text>
                   <Text style={[styles.dateChipValue, { color: Colors.primaryText }]}>
                     {(() => {
                       const d = new Date(newTaskStart + 'T12:00:00');
                       const today = formatDate(new Date());
                       return newTaskStart === today
-                        ? 'Today'
+                        ? t('scheduleView.today')
                         : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
                     })()}
                   </Text>
@@ -655,7 +657,7 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
               >
                 <Ionicons name="calendar-outline" size={14} color={Colors.primaryBlue} />
                 <View style={{ marginLeft: 8 }}>
-                  <Text style={[styles.dateChipLabel, { color: Colors.secondaryText }]}>End</Text>
+                  <Text style={[styles.dateChipLabel, { color: Colors.secondaryText }]}>{t('scheduleView.end')}</Text>
                   <Text style={[styles.dateChipValue, { color: Colors.primaryText }]}>
                     {(() => {
                       const d = new Date(newTaskEnd + 'T12:00:00');
@@ -667,8 +669,8 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
             </View>
             <Text style={[styles.dateRangeHint, { color: Colors.secondaryText }]}>
               {newTaskStart === newTaskEnd
-                ? 'Single-day task. Tap End to span multiple days.'
-                : 'Multi-day task — will appear on every day in this range.'}
+                ? t('scheduleView.singleDayHint')
+                : t('scheduleView.multiDayHint')}
             </Text>
 
             <View style={styles.addTaskActions}>
@@ -678,7 +680,7 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
                 style={[styles.addTaskBtn, { borderColor: Colors.border, borderWidth: 1 }]}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.addTaskBtnText, { color: Colors.primaryText }]}>Cancel</Text>
+                <Text style={[styles.addTaskBtnText, { color: Colors.primaryText }]}>{t('common:buttons.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleSaveNewTask}
@@ -692,7 +694,7 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
                 {savingTask ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Text style={[styles.addTaskBtnText, { color: '#fff' }]}>Save</Text>
+                  <Text style={[styles.addTaskBtnText, { color: '#fff' }]}>{t('common:buttons.save')}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -710,13 +712,13 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
             <View style={[styles.datePickerSheet, { backgroundColor: Colors.cardBackground || Colors.white }]}>
               <View style={styles.datePickerHeader}>
                 <TouchableOpacity onPress={() => setDatePickerMode(null)}>
-                  <Text style={[styles.datePickerHeaderText, { color: Colors.secondaryText }]}>Cancel</Text>
+                  <Text style={[styles.datePickerHeaderText, { color: Colors.secondaryText }]}>{t('common:buttons.cancel')}</Text>
                 </TouchableOpacity>
                 <Text style={[styles.datePickerHeaderTitle, { color: Colors.primaryText }]}>
-                  {datePickerMode === 'start' ? 'Start date' : 'End date'}
+                  {datePickerMode === 'start' ? t('scheduleView.startDate') : t('scheduleView.endDate')}
                 </Text>
                 <TouchableOpacity onPress={() => setDatePickerMode(null)}>
-                  <Text style={[styles.datePickerHeaderText, { color: Colors.primaryBlue, fontWeight: '700' }]}>Done</Text>
+                  <Text style={[styles.datePickerHeaderText, { color: Colors.primaryBlue, fontWeight: '700' }]}>{t('common:buttons.done')}</Text>
                 </TouchableOpacity>
               </View>
               <DateTimePicker
@@ -771,7 +773,7 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
         >
           <View style={[styles.pickerContainer, { backgroundColor: Colors.background }]}>
             <View style={[styles.pickerHeader, { borderBottomColor: Colors.border }]}>
-              <Text style={[styles.pickerTitle, { color: Colors.primaryText }]}>Pick Project</Text>
+              <Text style={[styles.pickerTitle, { color: Colors.primaryText }]}>{t('scheduleView.pickProject')}</Text>
               <TouchableOpacity onPress={() => setShowTaskProjectPicker(false)}>
                 <Ionicons name="close" size={24} color={Colors.primaryText} />
               </TouchableOpacity>
@@ -782,7 +784,7 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
               ListEmptyComponent={(
                 <View style={styles.pickerItem}>
                   <Text style={[styles.pickerItemText, { color: Colors.secondaryText }]}>
-                    No projects yet — create a project first.
+                    {t('scheduleView.noProjectsCreateFirst')}
                   </Text>
                 </View>
               )}
@@ -819,14 +821,14 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
       >
         <View style={[styles.pickerContainer, { backgroundColor: Colors.background }]}>
           <View style={[styles.pickerHeader, { borderBottomColor: Colors.border }]}>
-            <Text style={[styles.pickerTitle, { color: Colors.primaryText }]}>Select Project</Text>
+            <Text style={[styles.pickerTitle, { color: Colors.primaryText }]}>{t('scheduleView.selectProject')}</Text>
             <TouchableOpacity onPress={() => setShowProjectPicker(false)}>
               <Ionicons name="close" size={24} color={Colors.primaryText} />
             </TouchableOpacity>
           </View>
 
           <FlatList
-            data={[{ id: null, name: 'All Projects' }, ...projects]}
+            data={[{ id: null, name: t('scheduleView.allProjects') }, ...projects]}
             keyExtractor={(item) => item.id || 'all'}
             renderItem={({ item }) => {
               const isSelected = item.id === null

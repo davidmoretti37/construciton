@@ -20,6 +20,7 @@ import {
   View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, Alert, Modal, FlatList, Linking, Image, Platform,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -84,6 +85,7 @@ const ATTACHMENT_TYPES = [
 ];
 
 export default function BidRequestCreatorScreen({ route, navigation }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = isDark ? DarkColors : LightColors;
   const styles = makeStyles(Colors);
@@ -132,7 +134,7 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
       setProjects(projList || []);
       setSubs(subList || []);
     } catch (e) {
-      Alert.alert('Could not load', e.message || 'Try again');
+      Alert.alert(t('bidRequestCreator.couldNotLoad'), e.message || t('bidRequestCreator.tryAgain'));
     } finally {
       setLoading(false);
     }
@@ -184,7 +186,7 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
         type,
       }]);
     } catch (e) {
-      Alert.alert('Could not read file', e.message);
+      Alert.alert(t('bidRequestCreator.couldNotReadFile'), e.message);
     }
   };
 
@@ -201,12 +203,12 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
     const stuck = /Different document picking in progress|Await other document/.test(e?.message || '');
     if (!stuck) return false;
     Alert.alert(
-      'iOS picker is stuck',
-      'iOS thinks a previous picker is still open. Reload the app to clear it — your draft will be lost.',
+      t('bidRequestCreator.pickerStuckTitle'),
+      t('bidRequestCreator.pickerStuckBody'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
         {
-          text: 'Reload app',
+          text: t('bidRequestCreator.reloadApp'),
           style: 'destructive',
           onPress: async () => {
             try { await Updates.reloadAsync(); }
@@ -233,7 +235,7 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
         }
       }
     } catch (e) {
-      if (!handleStuckPicker(e)) Alert.alert('Could not pick file', e.message);
+      if (!handleStuckPicker(e)) Alert.alert(t('bidRequestCreator.couldNotPickFile'), e.message);
     } finally {
       pickerBusyRef.current = false;
     }
@@ -244,7 +246,7 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
     pickerBusyRef.current = true;
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
-      if (!perm.granted) { Alert.alert('Camera permission needed'); return; }
+      if (!perm.granted) { Alert.alert(t('bidRequestCreator.cameraPermissionNeeded')); return; }
       const result = await ImagePicker.launchCameraAsync({ quality: 0.85 });
       if (!result.canceled) {
         const a = result.assets[0];
@@ -255,7 +257,7 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
         }, 'photo');
       }
     } catch (e) {
-      Alert.alert('Camera error', e.message);
+      Alert.alert(t('bidRequestCreator.cameraError'), e.message);
     } finally {
       pickerBusyRef.current = false;
     }
@@ -277,7 +279,7 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
         }
       }
     } catch (e) {
-      Alert.alert('Could not pick image', e.message);
+      Alert.alert(t('bidRequestCreator.couldNotPickImage'), e.message);
     } finally {
       pickerBusyRef.current = false;
     }
@@ -285,12 +287,12 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
 
   const promptPhotoSource = () => {
     Alert.alert(
-      'Add a site photo',
+      t('bidRequestCreator.addSitePhoto'),
       null,
       [
-        { text: 'Take a photo', onPress: takePhoto },
-        { text: 'Pick from library', onPress: pickFromLibrary },
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('bidRequestCreator.takePhoto'), onPress: takePhoto },
+        { text: t('bidRequestCreator.pickFromLibrary'), onPress: pickFromLibrary },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
       ],
       { cancelable: true },
     );
@@ -318,7 +320,7 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
       setScope(res.scope_summary || '');
       setScopeSource(res.source || null);
     } catch (e) {
-      Alert.alert('Could not generate scope', e.message || 'Try again');
+      Alert.alert(t('bidRequestCreator.couldNotGenerateScope'), e.message || t('bidRequestCreator.tryAgain'));
     } finally {
       setGenerating(false);
     }
@@ -351,9 +353,9 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
 
   // ─── Send ──────────────────────────────────────────────────────────
   const handleSend = async () => {
-    if (!scope.trim()) { Alert.alert('Add a scope', 'Scope of work is required.'); return; }
+    if (!scope.trim()) { Alert.alert(t('bidRequestCreator.addScopeTitle'), t('bidRequestCreator.scopeRequired')); return; }
     if (selectedSubs.length === 0) {
-      Alert.alert('Pick at least one sub', 'Choose who should receive this bid request.');
+      Alert.alert(t('bidRequestCreator.pickAtLeastOneSub'), t('bidRequestCreator.pickAtLeastOneSubBody'));
       return;
     }
     setSubmitting(true);
@@ -390,12 +392,12 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
 
       await api.inviteSubsToBid(bid_request.id, selectedSubs);
       Alert.alert(
-        'Bid package sent',
-        `Sent to ${selectedSubs.length} sub${selectedSubs.length === 1 ? '' : 's'}. They'll see it in their portal with all attachments.`,
-        [{ text: 'OK', onPress: () => navigation.goBack() }],
+        t('bidRequestCreator.bidPackageSent'),
+        t('bidRequestCreator.sentBody', { count: selectedSubs.length }),
+        [{ text: t('bidRequestCreator.ok'), onPress: () => navigation.goBack() }],
       );
     } catch (e) {
-      Alert.alert('Could not send', e.message || 'Try again');
+      Alert.alert(t('bidRequestCreator.couldNotSend'), e.message || t('bidRequestCreator.tryAgain'));
     } finally {
       setSubmitting(false);
     }
@@ -417,8 +419,8 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
           <Ionicons name="chevron-back" size={26} color={Colors.primaryText} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Get bids</Text>
-          <Text style={styles.headerSub}>Step {step} of 4</Text>
+          <Text style={styles.headerTitle}>{t('bidRequestCreator.getBids')}</Text>
+          <Text style={styles.headerSub}>{t('bidRequestCreator.stepOf', { step })}</Text>
         </View>
       </View>
 
@@ -436,19 +438,19 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
         {/* STEP 1 — Project + trade */}
         {step === 1 && (
           <>
-            <Text style={styles.label}>Project</Text>
+            <Text style={styles.label}>{t('bidRequestCreator.project')}</Text>
             <TouchableOpacity
               style={styles.input}
               onPress={() => setShowProjectPicker(true)}
               activeOpacity={0.7}
             >
               <Text style={[styles.inputText, !project && styles.inputPlaceholder]}>
-                {project ? project.name || project.project_name || 'Untitled project' : 'Select a project'}
+                {project ? project.name || project.project_name || t('bidRequestCreator.untitledProject') : t('bidRequestCreator.selectProject')}
               </Text>
               <Ionicons name="chevron-down" size={18} color={Colors.secondaryText} />
             </TouchableOpacity>
 
-            <Text style={[styles.label, { marginTop: 18 }]}>Trade</Text>
+            <Text style={[styles.label, { marginTop: 18 }]}>{t('bidRequestCreator.trade')}</Text>
             <View style={styles.tradeGrid}>
               {TRADES.map((t) => {
                 const isActive = trade === t.key;
@@ -477,7 +479,7 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
             {trade === 'other' && (
               <TextInput
                 style={[styles.textInput, { marginTop: 12 }]}
-                placeholder="What trade?"
+                placeholder={t('bidRequestCreator.whatTrade')}
                 placeholderTextColor={Colors.placeholder || '#9CA3AF'}
                 value={customTrade}
                 onChangeText={setCustomTrade}
@@ -485,10 +487,10 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
               />
             )}
 
-            <Text style={[styles.label, { marginTop: 18 }]}>Specific notes (optional)</Text>
+            <Text style={[styles.label, { marginTop: 18 }]}>{t('bidRequestCreator.specificNotes')}</Text>
             <TextInput
               style={[styles.textInput, styles.multilineInput]}
-              placeholder="Anything specific the sub should know — fixtures, timing, tricky access..."
+              placeholder={t('bidRequestCreator.specificNotesPlaceholder')}
               placeholderTextColor={Colors.placeholder || '#9CA3AF'}
               value={instructions}
               onChangeText={setInstructions}
@@ -501,7 +503,7 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
               disabled={!canGoStep2}
               activeOpacity={0.85}
             >
-              <Text style={styles.primaryBtnText}>Continue</Text>
+              <Text style={styles.primaryBtnText}>{t('common:buttons.continue')}</Text>
               <Ionicons name="chevron-forward" size={18} color="#fff" style={{ marginLeft: 6 }} />
             </TouchableOpacity>
           </>
@@ -519,9 +521,9 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
 
             {/* Site address */}
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.label}>Job site location</Text>
+              <Text style={styles.label}>{t('bidRequestCreator.jobSiteLocation')}</Text>
               <TouchableOpacity onPress={() => setOverrideSite((v) => !v)}>
-                <Text style={styles.linkText}>{overrideSite ? 'Use project address' : 'Override'}</Text>
+                <Text style={styles.linkText}>{overrideSite ? t('bidRequestCreator.useProjectAddress') : t('bidRequestCreator.override')}</Text>
               </TouchableOpacity>
             </View>
 
@@ -532,12 +534,12 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.siteAddress} numberOfLines={2}>
-                    {fullSiteAddr || 'No address on project — tap Override to set one'}
+                    {fullSiteAddr || t('bidRequestCreator.noAddressOnProject')}
                   </Text>
                   {fullSiteAddr ? (
                     <TouchableOpacity onPress={openMap} style={styles.mapLinkRow}>
                       <Ionicons name="map" size={13} color={SUB_VIOLET} />
-                      <Text style={styles.mapLink}>Open in maps</Text>
+                      <Text style={styles.mapLink}>{t('bidRequestCreator.openInMaps')}</Text>
                     </TouchableOpacity>
                   ) : null}
                 </View>
@@ -546,7 +548,7 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
               <>
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Street address"
+                  placeholder={t('bidRequestCreator.streetAddress')}
                   placeholderTextColor={Colors.placeholder || '#9CA3AF'}
                   value={siteAddress}
                   onChangeText={setSiteAddress}
@@ -554,14 +556,14 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                   <TextInput
                     style={[styles.textInput, { flex: 2 }]}
-                    placeholder="City"
+                    placeholder={t('bidRequestCreator.city')}
                     placeholderTextColor={Colors.placeholder || '#9CA3AF'}
                     value={siteCity}
                     onChangeText={setSiteCity}
                   />
                   <TextInput
                     style={[styles.textInput, { flex: 1 }]}
-                    placeholder="ST"
+                    placeholder={t('bidRequestCreator.stateAbbr')}
                     placeholderTextColor={Colors.placeholder || '#9CA3AF'}
                     value={siteState}
                     onChangeText={setSiteState}
@@ -570,7 +572,7 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
                   />
                   <TextInput
                     style={[styles.textInput, { flex: 1.2 }]}
-                    placeholder="Zip"
+                    placeholder={t('bidRequestCreator.zip')}
                     placeholderTextColor={Colors.placeholder || '#9CA3AF'}
                     value={sitePostal}
                     onChangeText={setSitePostal}
@@ -580,10 +582,10 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
               </>
             )}
 
-            <Text style={[styles.label, { marginTop: 18 }]}>Site visit notes (optional)</Text>
+            <Text style={[styles.label, { marginTop: 18 }]}>{t('bidRequestCreator.siteVisitNotes')}</Text>
             <TextInput
               style={[styles.textInput, { minHeight: 64, textAlignVertical: 'top' }]}
-              placeholder="e.g. Walk-throughs Tu/Th 2-4pm. Call John (555) 555-5555 to schedule."
+              placeholder={t('bidRequestCreator.siteVisitNotesPlaceholder')}
               placeholderTextColor={Colors.placeholder || '#9CA3AF'}
               value={siteVisitNotes}
               onChangeText={setSiteVisitNotes}
@@ -591,9 +593,9 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
             />
 
             {/* Attachments */}
-            <Text style={[styles.label, { marginTop: 22 }]}>Attachments</Text>
+            <Text style={[styles.label, { marginTop: 22 }]}>{t('bidRequestCreator.attachments')}</Text>
             <Text style={styles.hint}>
-              Plans, drawings, site photos, specs — anything the sub needs to price the job.
+              {t('bidRequestCreator.attachmentsHint')}
             </Text>
 
             <View style={styles.attachTypeRow}>
@@ -646,7 +648,7 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
                 onPress={() => setStep(1)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.secondaryBtnText}>Back</Text>
+                <Text style={styles.secondaryBtnText}>{t('common:buttons.back')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.primaryBtn, { flex: 1 }, !canGoStep3 && { opacity: 0.5 }]}
@@ -654,7 +656,7 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
                 disabled={!canGoStep3}
                 activeOpacity={0.85}
               >
-                <Text style={styles.primaryBtnText}>Draft scope with AI</Text>
+                <Text style={styles.primaryBtnText}>{t('bidRequestCreator.draftScopeWithAI')}</Text>
                 <Ionicons name="sparkles" size={18} color="#fff" style={{ marginLeft: 8 }} />
               </TouchableOpacity>
             </View>
@@ -672,14 +674,14 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
             </View>
 
             <View style={styles.scopeHeaderRow}>
-              <Text style={styles.label}>Scope of work</Text>
+              <Text style={styles.label}>{t('bidRequestCreator.scopeOfWork')}</Text>
               <TouchableOpacity onPress={handleGenerate} disabled={generating} activeOpacity={0.7}>
                 {generating ? (
                   <ActivityIndicator size="small" color={SUB_VIOLET} />
                 ) : (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Ionicons name="sparkles" size={14} color={SUB_VIOLET} />
-                    <Text style={styles.linkText}>Regenerate</Text>
+                    <Text style={styles.linkText}>{t('bidRequestCreator.regenerate')}</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -688,7 +690,7 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
             {generating ? (
               <View style={[styles.scopeBox, styles.scopeLoading]}>
                 <ActivityIndicator size="small" color={SUB_VIOLET} />
-                <Text style={styles.scopeLoadingText}>Drafting your scope...</Text>
+                <Text style={styles.scopeLoadingText}>{t('bidRequestCreator.draftingScope')}</Text>
               </View>
             ) : (
               <>
@@ -697,17 +699,17 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
                   multiline
                   value={scope}
                   onChangeText={setScope}
-                  placeholder="Scope will appear here..."
+                  placeholder={t('bidRequestCreator.scopePlaceholder')}
                   placeholderTextColor={Colors.placeholder || '#9CA3AF'}
                 />
                 {scopeSource === 'template' && (
                   <Text style={styles.hint}>
-                    AI is offline — using a template. Edit freely.
+                    {t('bidRequestCreator.templateHint')}
                   </Text>
                 )}
                 {scopeSource === 'ai' && (
                   <Text style={styles.hint}>
-                    Drafted by AI. Review and edit before sending.
+                    {t('bidRequestCreator.aiHint')}
                   </Text>
                 )}
               </>
@@ -719,7 +721,7 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
                 onPress={() => setStep(2)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.secondaryBtnText}>Back</Text>
+                <Text style={styles.secondaryBtnText}>{t('common:buttons.back')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.primaryBtn, { flex: 1 }, (!canGoStep4 || generating) && { opacity: 0.5 }]}
@@ -727,7 +729,7 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
                 disabled={!canGoStep4 || generating}
                 activeOpacity={0.85}
               >
-                <Text style={styles.primaryBtnText}>Pick subs</Text>
+                <Text style={styles.primaryBtnText}>{t('bidRequestCreator.pickSubs')}</Text>
               </TouchableOpacity>
             </View>
           </>
@@ -736,23 +738,23 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
         {/* STEP 4 — Subs + send */}
         {step === 4 && (
           <>
-            <Text style={styles.label}>Send to</Text>
+            <Text style={styles.label}>{t('bidRequestCreator.sendTo')}</Text>
             <Text style={styles.hint}>
-              Tap subs to add them. Each gets the full bid package — site address, attachments, scope.
+              {t('bidRequestCreator.sendToHint')}
             </Text>
 
             {subs.length === 0 ? (
               <View style={styles.emptySubs}>
                 <Ionicons name="people-outline" size={32} color={Colors.secondaryText} />
-                <Text style={styles.emptySubsText}>No subs added yet.</Text>
+                <Text style={styles.emptySubsText}>{t('bidRequestCreator.noSubsAdded')}</Text>
                 <Text style={styles.emptySubsBody}>
-                  Add subs from the Team tab first, then come back.
+                  {t('bidRequestCreator.noSubsBody')}
                 </Text>
               </View>
             ) : (
               subs.map((s) => {
                 const isSel = selectedSubs.includes(s.id);
-                const tradesText = (s.trades || []).join(', ') || 'No trades set';
+                const tradesText = (s.trades || []).join(', ') || t('bidRequestCreator.noTradesSet');
                 return (
                   <TouchableOpacity
                     key={s.id}
@@ -790,7 +792,7 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
                 activeOpacity={0.7}
                 disabled={submitting}
               >
-                <Text style={styles.secondaryBtnText}>Back</Text>
+                <Text style={styles.secondaryBtnText}>{t('common:buttons.back')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.primaryBtn, { flex: 1 }, (selectedSubs.length === 0 || submitting) && { opacity: 0.5 }]}
@@ -804,7 +806,7 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
                   <>
                     <Ionicons name="paper-plane" size={18} color="#fff" style={{ marginRight: 8 }} />
                     <Text style={styles.primaryBtnText}>
-                      Send to {selectedSubs.length || ''} sub{selectedSubs.length === 1 ? '' : 's'}
+                      {t('bidRequestCreator.sendToSubs', { count: selectedSubs.length })}
                     </Text>
                   </>
                 )}
@@ -819,14 +821,14 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalSheet, { backgroundColor: Colors.cardBackground }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Pick a project</Text>
+              <Text style={styles.modalTitle}>{t('bidRequestCreator.pickAProject')}</Text>
               <TouchableOpacity onPress={() => setShowProjectPicker(false)}>
                 <Ionicons name="close" size={24} color={Colors.primaryText} />
               </TouchableOpacity>
             </View>
             {projects.length === 0 ? (
               <Text style={[styles.hint, { padding: 18 }]}>
-                No projects yet. Create one first, then come back.
+                {t('bidRequestCreator.noProjectsYet')}
               </Text>
             ) : (
               <FlatList
@@ -840,7 +842,7 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
                   >
                     <View style={{ flex: 1, marginRight: 10 }}>
                       <Text style={styles.projectName} numberOfLines={1}>
-                        {item.name || item.project_name || 'Untitled project'}
+                        {item.name || item.project_name || t('bidRequestCreator.untitledProject')}
                       </Text>
                       <Text style={styles.projectMeta} numberOfLines={1}>
                         {item.location || item.client_name || item.status || ''}

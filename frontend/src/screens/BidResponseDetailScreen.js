@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { LightColors, DarkColors } from '../constants/theme';
 import * as api from '../services/subsService';
+import { useTranslation } from 'react-i18next';
 
 const SUB_VIOLET = '#8B5CF6';
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -28,6 +29,7 @@ export default function BidResponseDetailScreen({ route, navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = isDark ? DarkColors : LightColors;
   const styles = makeStyles(Colors);
+  const { t } = useTranslation('common');
 
   const bidRequestId = route?.params?.bidRequestId;
   const subOrgId     = route?.params?.subOrgId;
@@ -45,24 +47,26 @@ export default function BidResponseDetailScreen({ route, navigation }) {
   const onAccept = () => {
     if (!myBid?.id) return;
     Alert.alert(
-      'Accept this bid?',
-      `Award this job to ${data?.sub_organization?.legal_name || 'the sub'} for $${Number(myBid.amount).toLocaleString()}.`
-        + ' All other submitted bids will be marked declined and a new active job will be created.',
+      t('bidResponseDetail.acceptBidTitle'),
+      t('bidResponseDetail.acceptBidMessage', {
+        name: data?.sub_organization?.legal_name || t('bidResponseDetail.theSub'),
+        amount: Number(myBid.amount).toLocaleString(),
+      }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
         {
-          text: 'Accept',
+          text: t('common:buttons.accept'),
           onPress: async () => {
             setDeciding(true);
             try {
               await api.acceptBid(bidRequestId, myBid.id);
               Alert.alert(
-                'Bid accepted',
-                'A new active job has been created. The sub has been notified.',
-                [{ text: 'OK', onPress: () => navigation.goBack() }],
+                t('bidResponseDetail.bidAcceptedTitle'),
+                t('bidResponseDetail.bidAcceptedMessage'),
+                [{ text: t('common:buttons.ok'), onPress: () => navigation.goBack() }],
               );
             } catch (e) {
-              Alert.alert('Could not accept', e.message || 'Try again.');
+              Alert.alert(t('bidResponseDetail.couldNotAccept'), e.message || t('bidResponseDetail.tryAgain'));
             } finally {
               setDeciding(false);
             }
@@ -75,12 +79,12 @@ export default function BidResponseDetailScreen({ route, navigation }) {
   const onDecline = () => {
     if (!myBid?.id) return;
     Alert.alert(
-      'Decline this bid?',
-      'The sub will be notified that their bid was not accepted.',
+      t('bidResponseDetail.declineBidTitle'),
+      t('bidResponseDetail.declineBidMessage'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
         {
-          text: 'Decline',
+          text: t('bidResponseDetail.decline'),
           style: 'destructive',
           onPress: async () => {
             setDeciding(true);
@@ -88,7 +92,7 @@ export default function BidResponseDetailScreen({ route, navigation }) {
               await api.declineBid(bidRequestId, myBid.id);
               await load();
             } catch (e) {
-              Alert.alert('Could not decline', e.message || 'Try again.');
+              Alert.alert(t('bidResponseDetail.couldNotDecline'), e.message || t('bidResponseDetail.tryAgain'));
             } finally {
               setDeciding(false);
             }
@@ -104,7 +108,7 @@ export default function BidResponseDetailScreen({ route, navigation }) {
       // Reuse the bid-history endpoint and pick the matching one.
       const list = await api.listBidHistoryForSub(subOrgId);
       const match = list.find((br) => br.id === bidRequestId);
-      if (!match) throw new Error('Bid request not found');
+      if (!match) throw new Error(t('bidResponseDetail.bidRequestNotFound'));
       setData(match);
 
       // Prefetch image URLs so the gallery opens instantly
@@ -119,11 +123,11 @@ export default function BidResponseDetailScreen({ route, navigation }) {
       }));
       setImageUrls(urlMap);
     } catch (e) {
-      Alert.alert('Could not load', e.message || 'Try again');
+      Alert.alert(t('bidResponseDetail.couldNotLoad'), e.message || t('bidResponseDetail.tryAgain'));
     } finally {
       setLoading(false);
     }
-  }, [bidRequestId, subOrgId]);
+  }, [bidRequestId, subOrgId, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -170,18 +174,18 @@ export default function BidResponseDetailScreen({ route, navigation }) {
     setOpeningDocId(att.id);
     try {
       const res = await api.getBidAttachmentSignedUrl(bidRequestId, att.id);
-      if (!res?.url) throw new Error('No URL');
+      if (!res?.url) throw new Error(t('bidResponseDetail.noUrl'));
       const ext = (att.file_name || '').split('.').pop()?.toLowerCase();
       const isPDF = (att.file_mime || '').includes('pdf') || ext === 'pdf';
       const isImage = (att.file_mime || '').startsWith('image/') ||
         ['jpg','jpeg','png','gif','webp','bmp','heic'].includes(ext);
       navigation.navigate('DocumentViewer', {
         fileUrl: res.url,
-        fileName: att.file_name || 'Attachment',
+        fileName: att.file_name || t('bidResponseDetail.attachment'),
         fileType: isPDF ? 'pdf' : isImage ? 'image' : 'document',
       });
     } catch (e) {
-      Alert.alert('Could not open', e.message || 'Try again.');
+      Alert.alert(t('bidResponseDetail.couldNotOpen'), e.message || t('bidResponseDetail.tryAgain'));
     } finally {
       setOpeningDocId(null);
     }
@@ -213,7 +217,7 @@ export default function BidResponseDetailScreen({ route, navigation }) {
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle} numberOfLines={1}>{br.trade}</Text>
           <Text style={styles.headerSub} numberOfLines={1}>
-            {br.project?.name || 'Project'}
+            {br.project?.name || t('bidResponseDetail.project')}
           </Text>
         </View>
       </View>
@@ -221,13 +225,13 @@ export default function BidResponseDetailScreen({ route, navigation }) {
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Status row */}
         <View style={styles.statusRow}>
-          <View style={[styles.statusPill, { backgroundColor: pill(myBid?.status || br.status).bg }]}>
-            <Text style={[styles.statusText, { color: pill(myBid?.status || br.status).fg }]}>
-              {pill(myBid?.status || br.status).label}
+          <View style={[styles.statusPill, { backgroundColor: pill(myBid?.status || br.status, t).bg }]}>
+            <Text style={[styles.statusText, { color: pill(myBid?.status || br.status, t).fg }]}>
+              {pill(myBid?.status || br.status, t).label}
             </Text>
           </View>
           {br.due_at && (
-            <Text style={styles.metaText}>Due {new Date(br.due_at).toLocaleDateString()}</Text>
+            <Text style={styles.metaText}>{t('bidResponseDetail.due', { date: new Date(br.due_at).toLocaleDateString() })}</Text>
           )}
         </View>
 
@@ -235,28 +239,28 @@ export default function BidResponseDetailScreen({ route, navigation }) {
         {myBid && myBid.status !== 'withdrawn' ? (
           <>
             <View style={styles.responseCard}>
-              <Text style={styles.label}>Sub's response</Text>
+              <Text style={styles.label}>{t('bidResponseDetail.subResponse')}</Text>
               <View style={styles.amountRow}>
                 <Text style={styles.amountValue}>${Number(myBid.amount).toLocaleString()}</Text>
                 {myBid.timeline_days != null ? (
-                  <Text style={styles.amountMeta}>{myBid.timeline_days} days</Text>
+                  <Text style={styles.amountMeta}>{t('bidResponseDetail.days', { days: myBid.timeline_days })}</Text>
                 ) : null}
               </View>
               {myBid.exclusions ? (
                 <>
-                  <Text style={styles.fieldLabel}>Exclusions</Text>
+                  <Text style={styles.fieldLabel}>{t('bidResponseDetail.exclusions')}</Text>
                   <Text style={styles.fieldValue}>{myBid.exclusions}</Text>
                 </>
               ) : null}
               {myBid.notes ? (
                 <>
-                  <Text style={styles.fieldLabel}>Notes</Text>
+                  <Text style={styles.fieldLabel}>{t('bidResponseDetail.notes')}</Text>
                   <Text style={styles.fieldValue}>{myBid.notes}</Text>
                 </>
               ) : null}
               {myBid.submitted_at ? (
                 <Text style={styles.timestamp}>
-                  Submitted {new Date(myBid.submitted_at).toLocaleDateString()}
+                  {t('bidResponseDetail.submittedOn', { date: new Date(myBid.submitted_at).toLocaleDateString() })}
                 </Text>
               ) : null}
             </View>
@@ -270,7 +274,7 @@ export default function BidResponseDetailScreen({ route, navigation }) {
                   disabled={deciding}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.declineBtnText}>Decline</Text>
+                  <Text style={styles.declineBtnText}>{t('bidResponseDetail.decline')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.acceptBtn, deciding && { opacity: 0.5 }]}
@@ -283,7 +287,7 @@ export default function BidResponseDetailScreen({ route, navigation }) {
                   ) : (
                     <>
                       <Ionicons name="checkmark" size={18} color="#fff" />
-                      <Text style={styles.acceptBtnText}>Accept bid</Text>
+                      <Text style={styles.acceptBtnText}>{t('bidResponseDetail.acceptBid')}</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -293,13 +297,13 @@ export default function BidResponseDetailScreen({ route, navigation }) {
             {myBid.status === 'accepted' && (
               <View style={styles.acceptedBanner}>
                 <Ionicons name="checkmark-circle" size={18} color="#10B981" />
-                <Text style={styles.acceptedText}>You accepted this bid. An active job was created.</Text>
+                <Text style={styles.acceptedText}>{t('bidResponseDetail.acceptedBanner')}</Text>
               </View>
             )}
             {myBid.status === 'declined' && (
               <View style={styles.acceptedBanner}>
                 <Ionicons name="close-circle-outline" size={18} color="#DC2626" />
-                <Text style={styles.acceptedText}>You declined this bid.</Text>
+                <Text style={styles.acceptedText}>{t('bidResponseDetail.declinedBanner')}</Text>
               </View>
             )}
 
@@ -307,7 +311,7 @@ export default function BidResponseDetailScreen({ route, navigation }) {
                 GC sees them at the same time as the amount. GC's own bid
                 attachments stay further down as reference material. */}
             {subPhotos.length > 0 && (
-              <Section title="Photos from sub" Colors={Colors}>
+              <Section title={t('bidResponseDetail.photosFromSub')} Colors={Colors}>
                 <PhotoStrip
                   photos={subPhotos}
                   urls={imageUrls}
@@ -317,7 +321,7 @@ export default function BidResponseDetailScreen({ route, navigation }) {
               </Section>
             )}
             {subDocs.length > 0 && (
-              <Section title="Documents from sub" Colors={Colors}>
+              <Section title={t('bidResponseDetail.documentsFromSub')} Colors={Colors}>
                 {subDocs.map((a) => (
                   <DocRow
                     key={a.id}
@@ -336,15 +340,15 @@ export default function BidResponseDetailScreen({ route, navigation }) {
             <Ionicons name="time-outline" size={20} color={Colors.secondaryText} />
             <Text style={styles.awaitingText}>
               {myBid?.status === 'withdrawn'
-                ? 'Sub declined this invitation.'
-                : 'Sub hasn\'t responded yet.'}
+                ? t('bidResponseDetail.subDeclinedInvitation')
+                : t('bidResponseDetail.subNotResponded')}
             </Text>
           </View>
         )}
 
         {/* Site */}
         {siteAddress ? (
-          <Section title="Job site" Colors={Colors}>
+          <Section title={t('bidResponseDetail.jobSite')} Colors={Colors}>
             <TouchableOpacity style={styles.rowCard} onPress={openMap} activeOpacity={0.7}>
               <Ionicons name="location-outline" size={20} color={Colors.primaryText} />
               <Text style={styles.rowCardText}>{siteAddress}</Text>
@@ -355,7 +359,7 @@ export default function BidResponseDetailScreen({ route, navigation }) {
 
         {/* Site visit notes */}
         {br.site_visit_notes ? (
-          <Section title="Site visit" Colors={Colors}>
+          <Section title={t('bidResponseDetail.siteVisit')} Colors={Colors}>
             <View style={styles.rowCard}>
               <Text style={[styles.rowCardText, { marginLeft: 0 }]}>{br.site_visit_notes}</Text>
             </View>
@@ -363,7 +367,7 @@ export default function BidResponseDetailScreen({ route, navigation }) {
         ) : null}
 
         {/* Scope */}
-        <Section title="Scope of work" Colors={Colors}>
+        <Section title={t('bidResponseDetail.scopeOfWork')} Colors={Colors}>
           <View style={styles.rowCard}>
             <Text style={[styles.scopeText, { marginLeft: 0 }]}>{br.scope_summary}</Text>
           </View>
@@ -371,7 +375,7 @@ export default function BidResponseDetailScreen({ route, navigation }) {
 
         {/* Photos from GC */}
         {gcPhotos.length > 0 && (
-          <Section title="Site photos (sent by you)" Colors={Colors}>
+          <Section title={t('bidResponseDetail.sitePhotosSentByYou')} Colors={Colors}>
             <PhotoStrip
               photos={gcPhotos}
               urls={imageUrls}
@@ -383,7 +387,7 @@ export default function BidResponseDetailScreen({ route, navigation }) {
 
         {/* Documents from GC */}
         {gcDocs.length > 0 && (
-          <Section title="Documents (sent by you)" Colors={Colors}>
+          <Section title={t('bidResponseDetail.documentsSentByYou')} Colors={Colors}>
             {gcDocs.map((a) => (
               <DocRow
                 key={a.id}
@@ -494,16 +498,16 @@ function DocRow({ a, onPress, isLoading, styles, Colors }) {
   );
 }
 
-function pill(status) {
+function pill(status, t) {
   switch (status) {
-    case 'submitted': return { label: 'Submitted', bg: '#3B82F615', fg: '#3B82F6' };
-    case 'accepted':  return { label: 'Accepted',  bg: '#10B98115', fg: '#10B981' };
+    case 'submitted': return { label: t('bidResponseDetail.statusSubmitted'), bg: '#3B82F615', fg: '#3B82F6' };
+    case 'accepted':  return { label: t('bidResponseDetail.statusAccepted'),  bg: '#10B98115', fg: '#10B981' };
     case 'declined':
-    case 'rejected':  return { label: 'Declined',  bg: '#DC262615', fg: '#DC2626' };
-    case 'withdrawn': return { label: 'Withdrawn', bg: '#6B728015', fg: '#6B7280' };
-    case 'open':      return { label: 'Awaiting',  bg: '#F59E0B15', fg: '#F59E0B' };
-    case 'closed':    return { label: 'Closed',    bg: '#6B728015', fg: '#6B7280' };
-    case 'cancelled': return { label: 'Cancelled', bg: '#6B728015', fg: '#6B7280' };
+    case 'rejected':  return { label: t('bidResponseDetail.statusDeclined'),  bg: '#DC262615', fg: '#DC2626' };
+    case 'withdrawn': return { label: t('bidResponseDetail.statusWithdrawn'), bg: '#6B728015', fg: '#6B7280' };
+    case 'open':      return { label: t('bidResponseDetail.statusAwaiting'),  bg: '#F59E0B15', fg: '#F59E0B' };
+    case 'closed':    return { label: t('bidResponseDetail.statusClosed'),    bg: '#6B728015', fg: '#6B7280' };
+    case 'cancelled': return { label: t('bidResponseDetail.statusCancelled'), bg: '#6B728015', fg: '#6B7280' };
     default:          return { label: status || '—', bg: '#6B728015', fg: '#6B7280' };
   }
 }

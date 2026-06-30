@@ -15,6 +15,7 @@ import {
   Alert,
   Dimensions,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -108,6 +109,7 @@ const AnimatedBenefitItem = ({ text, index, animationKey }) => {
 };
 
 export default function PaywallScreen({ navigation, onSubscribed, onClose, route }) {
+  const { t } = useTranslation('common');
   const insets = useSafeAreaInsets();
   const [selectedPlan, setSelectedPlan] = useState('pro');
   const [loading, setLoading] = useState(false);
@@ -155,10 +157,10 @@ export default function PaywallScreen({ navigation, onSubscribed, onClose, route
     if (justSubscribed) {
       const planName = planTier.charAt(0).toUpperCase() + planTier.slice(1);
       Alert.alert(
-        'Welcome!',
-        `Your ${planName} trial is now active. Enjoy 7 days free!`,
+        t('paywall.welcomeTitle'),
+        t('paywall.welcomeBody', { planName }),
         [{
-          text: 'Get Started',
+          text: t('paywall.getStarted'),
           onPress: () => {
             clearJustSubscribed();
             if (onSubscribed) onSubscribed();
@@ -179,7 +181,7 @@ export default function PaywallScreen({ navigation, onSubscribed, onClose, route
       await refreshSubscription();
 
     } catch (error) {
-      Alert.alert('Error', 'Failed to open checkout. Please try again.');
+      Alert.alert(t('paywall.errorTitle'), t('paywall.checkoutError'));
       console.error('Checkout error:', error);
     } finally {
       setLoading(false);
@@ -215,8 +217,8 @@ export default function PaywallScreen({ navigation, onSubscribed, onClose, route
                 <Ionicons name="diamond" size={32} color="#FFF" />
               </LinearGradient>
             </View>
-            <Text style={styles.title}>Unlock Full Access</Text>
-            <Text style={styles.subtitle}>Manage your projects like a pro</Text>
+            <Text style={styles.title}>{t('paywall.title')}</Text>
+            <Text style={styles.subtitle}>{t('paywall.subtitle')}</Text>
           </View>
 
           {/* Plan cards */}
@@ -238,7 +240,7 @@ export default function PaywallScreen({ navigation, onSubscribed, onClose, route
           {/* Benefits list */}
           <View style={styles.benefitsContainer}>
             <Text style={styles.benefitsTitle}>
-              What you get with {currentPlanName}:
+              {t('paywall.benefitsTitle', { planName: currentPlanName })}
             </Text>
             {currentBenefits.map((benefit, index) => (
               <AnimatedBenefitItem
@@ -259,7 +261,7 @@ export default function PaywallScreen({ navigation, onSubscribed, onClose, route
               </View>
             ) : (
               <ShimmerButton
-                title="Get Started"
+                title={t('paywall.getStarted')}
                 onPress={handleStartTrial}
                 gradientColors={['#3B82F6', '#06B6D4']}
               />
@@ -270,12 +272,12 @@ export default function PaywallScreen({ navigation, onSubscribed, onClose, route
           <View style={styles.trustFooter}>
             <View style={styles.trustItem}>
               <Ionicons name="shield-checkmark" size={14} color="#64748B" />
-              <Text style={styles.trustText}>Secure</Text>
+              <Text style={styles.trustText}>{t('paywall.secure')}</Text>
             </View>
             <View style={styles.trustDivider} />
             <View style={styles.trustItem}>
               <Ionicons name="refresh" size={14} color="#64748B" />
-              <Text style={styles.trustText}>Cancel anytime</Text>
+              <Text style={styles.trustText}>{t('paywall.cancelAnytime')}</Text>
             </View>
             <View style={styles.trustDivider} />
             <View style={styles.trustItem}>

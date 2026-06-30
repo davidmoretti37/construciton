@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { updateSupervisorProfile, removeSupervisor } from '../../utils/storage';
@@ -22,6 +23,7 @@ import { SUPERVISOR_PERMISSIONS } from '../../constants/supervisorPermissions';
 import { supabase } from '../../lib/supabase';
 
 export default function EditSupervisorScreen({ navigation, route }) {
+  const { t } = useTranslation('owner');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { supervisor } = route.params;
@@ -123,7 +125,7 @@ export default function EditSupervisorScreen({ navigation, route }) {
       // after a failed profile write produces an inverse partial save (perms
       // land but the user is told the whole save failed).
       if (!success) {
-        Alert.alert('Error', 'Failed to update supervisor. Please try again.');
+        Alert.alert(t('common:alerts.error'), t('editSupervisor.updateFailed'));
         return;
       }
 
@@ -145,9 +147,9 @@ export default function EditSupervisorScreen({ navigation, route }) {
         // state rather than implying nothing saved. Don't update nav params or
         // claim success when only half the edit landed.
         Alert.alert(
-          'Partial save',
+          t('editSupervisor.partialSaveTitle'),
           (permResult && permResult.error) ||
-            'Profile saved, but permissions failed — please retry.'
+            t('editSupervisor.partialSaveMessage')
         );
         return;
       }
@@ -166,12 +168,12 @@ export default function EditSupervisorScreen({ navigation, route }) {
           source: previousRoute.key,
         });
       }
-      Alert.alert('Success', 'Supervisor updated successfully.', [
-        { text: 'OK', onPress: () => navigation.goBack() }
+      Alert.alert(t('common:alerts.success'), t('editSupervisor.updateSuccess'), [
+        { text: t('common:buttons.ok'), onPress: () => navigation.goBack() }
       ]);
     } catch (error) {
       console.error('Error updating supervisor:', error);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      Alert.alert(t('common:alerts.error'), t('editSupervisor.somethingWrongRetry'));
     } finally {
       setSaving(false);
     }
@@ -179,20 +181,20 @@ export default function EditSupervisorScreen({ navigation, route }) {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('Error', 'Supervisor name is required.');
+      Alert.alert(t('common:alerts.error'), t('editSupervisor.nameRequired'));
       return;
     }
 
     // Block saving until live payment data has loaded — otherwise empty rate
     // fields seeded from the stub would overwrite the supervisor's real rate.
     if (hydrating) {
-      Alert.alert('Please wait', 'Still loading supervisor details. Try again in a moment.');
+      Alert.alert(t('editSupervisor.pleaseWaitTitle'), t('editSupervisor.stillLoading'));
       return;
     }
     if (hydrationFailed) {
       Alert.alert(
-        'Could not load details',
-        "We couldn't load this supervisor's current pay rates. Saving now could overwrite them. Please go back and reopen this screen.",
+        t('editSupervisor.couldNotLoadTitle'),
+        t('editSupervisor.couldNotLoadMessage'),
       );
       return;
     }
@@ -202,16 +204,16 @@ export default function EditSupervisorScreen({ navigation, route }) {
     // confirm explicitly when the owner intends a $0 rate.
     const parsedRate = parseFloat(rateValue);
     if (rateValue.trim() === '' || Number.isNaN(parsedRate)) {
-      Alert.alert('Invalid rate', `Please enter a valid ${rateLabel.toLowerCase()}.`);
+      Alert.alert(t('editSupervisor.invalidRateTitle'), t('editSupervisor.invalidRateMessage', { label: rateLabel.toLowerCase() }));
       return;
     }
     if (parsedRate === 0) {
       Alert.alert(
-        'Save $0 rate?',
-        `This will set the ${rateLabel.toLowerCase()} to $0. Are you sure?`,
+        t('editSupervisor.saveZeroRateTitle'),
+        t('editSupervisor.saveZeroRateMessage', { label: rateLabel.toLowerCase() }),
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Save', style: 'destructive', onPress: () => { performSave(); } },
+          { text: t('common:buttons.cancel'), style: 'cancel' },
+          { text: t('common:buttons.save'), style: 'destructive', onPress: () => { performSave(); } },
         ]
       );
       return;
@@ -222,27 +224,27 @@ export default function EditSupervisorScreen({ navigation, route }) {
 
   const handleRemove = () => {
     Alert.alert(
-      'Remove Supervisor',
-      `Are you sure you want to remove ${supervisorName} from your team? They will no longer be linked to your account.`,
+      t('editSupervisor.removeSupervisor'),
+      t('editSupervisor.removeConfirm', { name: supervisorName }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
         {
-          text: 'Remove',
+          text: t('editSupervisor.remove'),
           style: 'destructive',
           onPress: async () => {
             setRemoving(true);
             try {
               const success = await removeSupervisor(supervisor.id);
               if (success) {
-                Alert.alert('Removed', `${supervisorName} has been removed from your team.`, [
-                  { text: 'OK', onPress: () => navigation.popToTop() }
+                Alert.alert(t('editSupervisor.removedTitle'), t('editSupervisor.removedMessage', { name: supervisorName }), [
+                  { text: t('common:buttons.ok'), onPress: () => navigation.popToTop() }
                 ]);
               } else {
-                Alert.alert('Error', 'Failed to remove supervisor.');
+                Alert.alert(t('common:alerts.error'), t('editSupervisor.removeFailed'));
               }
             } catch (error) {
               console.error('Error removing supervisor:', error);
-              Alert.alert('Error', 'Something went wrong.');
+              Alert.alert(t('common:alerts.error'), t('editSupervisor.somethingWrong'));
             } finally {
               setRemoving(false);
             }
@@ -252,9 +254,9 @@ export default function EditSupervisorScreen({ navigation, route }) {
     );
   };
 
-  const rateSuffix = paymentType === 'hourly' ? '/hr' :
-    paymentType === 'daily' ? '/day' :
-    paymentType === 'weekly' ? '/wk' : '/proj';
+  const rateSuffix = paymentType === 'hourly' ? t('editSupervisor.suffixHourly') :
+    paymentType === 'daily' ? t('editSupervisor.suffixDaily') :
+    paymentType === 'weekly' ? t('editSupervisor.suffixWeekly') : t('editSupervisor.suffixProject');
 
   const rateValue = paymentType === 'hourly' ? hourlyRate :
     paymentType === 'daily' ? dailyRate :
@@ -264,9 +266,9 @@ export default function EditSupervisorScreen({ navigation, route }) {
     paymentType === 'daily' ? setDailyRate :
     paymentType === 'weekly' ? setWeeklySalary : setProjectRate;
 
-  const rateLabel = paymentType === 'hourly' ? 'Hourly Rate' :
-    paymentType === 'daily' ? 'Daily Rate' :
-    paymentType === 'weekly' ? 'Weekly Salary' : 'Project Rate';
+  const rateLabel = paymentType === 'hourly' ? t('editSupervisor.hourlyRate') :
+    paymentType === 'daily' ? t('editSupervisor.dailyRate') :
+    paymentType === 'weekly' ? t('editSupervisor.weeklySalary') : t('editSupervisor.projectRate');
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
@@ -275,7 +277,7 @@ export default function EditSupervisorScreen({ navigation, route }) {
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Edit Supervisor</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('editSupervisor.title')}</Text>
         <TouchableOpacity
           style={[styles.saveBtn, { backgroundColor: (saving || hydrating || hydrationFailed) ? '#9CA3AF' : '#1E40AF' }]}
           onPress={handleSave}
@@ -284,7 +286,7 @@ export default function EditSupervisorScreen({ navigation, route }) {
           {(saving || hydrating) ? (
             <ActivityIndicator size="small" color="#FFF" />
           ) : (
-            <Text style={styles.saveBtnText}>Save</Text>
+            <Text style={styles.saveBtnText}>{t('common:buttons.save')}</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -304,7 +306,7 @@ export default function EditSupervisorScreen({ navigation, route }) {
             <View style={styles.hydrateBanner}>
               <ActivityIndicator size="small" color="#1E40AF" />
               <Text style={[styles.hydrateBannerText, { color: Colors.secondaryText }]}>
-                Loading supervisor details…
+                {t('editSupervisor.loadingDetails')}
               </Text>
             </View>
           )}
@@ -312,7 +314,7 @@ export default function EditSupervisorScreen({ navigation, route }) {
             <View style={styles.warnBanner}>
               <Ionicons name="warning-outline" size={18} color="#B45309" />
               <Text style={styles.warnBannerText}>
-                Couldn't load current pay rates. Saving is disabled to avoid overwriting them — go back and reopen this screen.
+                {t('editSupervisor.loadFailedBanner')}
               </Text>
             </View>
           )}
@@ -321,29 +323,29 @@ export default function EditSupervisorScreen({ navigation, route }) {
           <View style={[styles.card, { backgroundColor: Colors.white }]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="person-outline" size={20} color="#1E40AF" />
-              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Supervisor Information</Text>
+              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('editSupervisor.supervisorInformation')}</Text>
             </View>
 
-            <Text style={[styles.fieldLabel, { color: Colors.secondaryText }]}>Name</Text>
+            <Text style={[styles.fieldLabel, { color: Colors.secondaryText }]}>{t('editSupervisor.name')}</Text>
             <View style={[styles.fieldInput, { backgroundColor: Colors.lightGray || '#F3F4F6', borderColor: Colors.border }]}>
               <Ionicons name="person-outline" size={18} color={Colors.secondaryText} />
               <TextInput
                 style={[styles.textInput, { color: Colors.primaryText }]}
                 value={name}
                 onChangeText={(v) => { markDirty(); setName(v); }}
-                placeholder="Supervisor name"
+                placeholder={t('editSupervisor.namePlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
               />
             </View>
 
-            <Text style={[styles.fieldLabel, { color: Colors.secondaryText }]}>Phone</Text>
+            <Text style={[styles.fieldLabel, { color: Colors.secondaryText }]}>{t('editSupervisor.phone')}</Text>
             <View style={[styles.fieldInput, { backgroundColor: Colors.lightGray || '#F3F4F6', borderColor: Colors.border }]}>
               <Ionicons name="call-outline" size={18} color={Colors.secondaryText} />
               <TextInput
                 style={[styles.textInput, { color: Colors.primaryText }]}
                 value={phone}
                 onChangeText={(v) => { markDirty(); setPhone(v); }}
-                placeholder="Phone number"
+                placeholder={t('editSupervisor.phonePlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 keyboardType="phone-pad"
               />
@@ -351,7 +353,7 @@ export default function EditSupervisorScreen({ navigation, route }) {
 
             {supervisor?.email && (
               <>
-                <Text style={[styles.fieldLabel, { color: Colors.secondaryText }]}>Email</Text>
+                <Text style={[styles.fieldLabel, { color: Colors.secondaryText }]}>{t('editSupervisor.email')}</Text>
                 <View style={[styles.fieldInput, { backgroundColor: Colors.lightGray || '#F3F4F6', borderColor: Colors.border, opacity: 0.6 }]}>
                   <Ionicons name="mail-outline" size={18} color={Colors.secondaryText} />
                   <Text style={[styles.textInput, { color: Colors.secondaryText }]}>{supervisor.email}</Text>
@@ -364,15 +366,15 @@ export default function EditSupervisorScreen({ navigation, route }) {
           <View style={[styles.card, { backgroundColor: Colors.white }]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="wallet-outline" size={20} color="#1E40AF" />
-              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Payment</Text>
+              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('editSupervisor.payment')}</Text>
             </View>
 
             <View style={styles.paymentTypeGrid}>
               {[
-                { key: 'hourly', icon: 'time', label: 'Hourly' },
-                { key: 'daily', icon: 'sunny', label: 'Daily' },
-                { key: 'weekly', icon: 'calendar', label: 'Weekly' },
-                { key: 'project_based', icon: 'briefcase', label: 'Project' },
+                { key: 'hourly', icon: 'time', label: t('editSupervisor.hourly') },
+                { key: 'daily', icon: 'sunny', label: t('editSupervisor.daily') },
+                { key: 'weekly', icon: 'calendar', label: t('editSupervisor.weekly') },
+                { key: 'project_based', icon: 'briefcase', label: t('editSupervisor.project') },
               ].map(({ key, icon, label }) => (
                 <TouchableOpacity
                   key={key}
@@ -419,10 +421,10 @@ export default function EditSupervisorScreen({ navigation, route }) {
           <View style={[styles.card, { backgroundColor: Colors.white }]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="key-outline" size={20} color="#1E40AF" />
-              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Permissions</Text>
+              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('editSupervisor.permissions')}</Text>
             </View>
             <Text style={{ fontSize: 13, color: Colors.secondaryText, lineHeight: 18, marginBottom: 14 }}>
-              Choose what this supervisor can do. Changes apply on their next sign-in.
+              {t('editSupervisor.permissionsHelp')}
             </Text>
             {SUPERVISOR_PERMISSIONS.map((perm, idx) => (
               <View
@@ -454,10 +456,10 @@ export default function EditSupervisorScreen({ navigation, route }) {
           <View style={[styles.card, { backgroundColor: Colors.white }]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="warning-outline" size={20} color="#EF4444" />
-              <Text style={[styles.sectionTitle, { color: '#EF4444' }]}>Danger Zone</Text>
+              <Text style={[styles.sectionTitle, { color: '#EF4444' }]}>{t('editSupervisor.dangerZone')}</Text>
             </View>
             <Text style={{ fontSize: 13, color: Colors.secondaryText, lineHeight: 18, marginBottom: 14 }}>
-              Remove this supervisor from your team. They will lose access to your projects and workers.
+              {t('editSupervisor.dangerZoneHelp')}
             </Text>
             <TouchableOpacity
               style={styles.deleteButton}
@@ -469,7 +471,7 @@ export default function EditSupervisorScreen({ navigation, route }) {
               ) : (
                 <>
                   <Ionicons name="person-remove-outline" size={18} color="#FFF" />
-                  <Text style={styles.deleteButtonText}>Remove Supervisor</Text>
+                  <Text style={styles.deleteButtonText}>{t('editSupervisor.removeSupervisor')}</Text>
                 </>
               )}
             </TouchableOpacity>

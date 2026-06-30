@@ -161,7 +161,7 @@ export default function OwnerSettingsScreen() {
       } else {
         const result = await connectService.startOnboarding();
         if (result.error) {
-          Alert.alert('Error', result.error);
+          Alert.alert(t('ownerSettings.errorTitle', 'Error'), result.error);
           return;
         }
         if (result.alreadyConnected) {
@@ -172,18 +172,18 @@ export default function OwnerSettingsScreen() {
           const status = await connectService.getStatus();
           setConnectStatus(status);
           if (status.onboardingComplete) {
-            Alert.alert('Payments Active ✓', 'Your bank account is connected. You can now receive payments from clients.');
+            Alert.alert(t('ownerSettings.paymentsActiveTitle', 'Payments Active ✓'), t('ownerSettings.paymentsActiveMessage', 'Your bank account is connected. You can now receive payments from clients.'));
           } else if (status.accountId) {
             Alert.alert(
-              'Verification In Progress',
-              'Stripe is reviewing your information. This usually takes 1–2 business days. We\'ll send you a notification as soon as your account is approved.'
+              t('ownerSettings.verificationInProgressTitle', 'Verification In Progress'),
+              t('ownerSettings.verificationInProgressMessage', "Stripe is reviewing your information. This usually takes 1–2 business days. We'll send you a notification as soon as your account is approved.")
             );
           }
         } catch {}
       }
     } catch (err) {
       console.error('Connect payments error:', err);
-      Alert.alert('Error', 'Failed to connect payments. Please try again.');
+      Alert.alert(t('ownerSettings.errorTitle', 'Error'), t('ownerSettings.connectPaymentsError', 'Failed to connect payments. Please try again.'));
     }
   };
 
@@ -275,7 +275,7 @@ export default function OwnerSettingsScreen() {
   const handleOpenLink = (url) => {
     Linking.openURL(url).catch((err) => {
       console.error('Failed to open URL:', err);
-      Alert.alert('Error', 'Could not open the link');
+      Alert.alert(t('ownerSettings.errorTitle', 'Error'), t('ownerSettings.openLinkError', 'Could not open the link'));
     });
   };
 
@@ -329,7 +329,7 @@ export default function OwnerSettingsScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="ownerSettings.headerTitle">Settings</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="ownerSettings.headerTitle">{t('ownerSettings.title', 'Settings')}</Text>
         <NotificationBell testID="ownerSettings.notificationBell" accessibilityLabel="Notifications" onPress={() => navigation.navigate('Notifications')} />
       </View>
 
@@ -637,9 +637,9 @@ export default function OwnerSettingsScreen() {
             title={t('items.receivePayments', 'Receive Payments')}
             subtitle={
               connectStatus?.onboardingComplete
-                ? `Active ✓${connectStatus?.bankLast4 ? ` · ••${connectStatus.bankLast4}` : ''}`
+                ? `${t('ownerSettings.paymentsActive', 'Active ✓')}${connectStatus?.bankLast4 ? ` · ••${connectStatus.bankLast4}` : ''}`
                 : connectStatus?.accountId
-                  ? 'Verification in progress…'
+                  ? t('ownerSettings.verificationInProgress', 'Verification in progress…')
                   : t('items.receivePaymentsSubtitle', 'Connect bank to get paid')
             }
             onPress={handleConnectPayments}

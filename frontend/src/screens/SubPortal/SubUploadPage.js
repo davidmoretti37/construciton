@@ -23,6 +23,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { useTheme } from '../../contexts/ThemeContext';
 import { LightColors, DarkColors } from '../../constants/theme';
 import * as api from '../../services/subPortalService';
+import { useTranslation } from 'react-i18next';
 
 const DOC_TYPE_LABELS = {
   w9: 'IRS Form W-9',
@@ -42,6 +43,7 @@ export default function SubUploadPage({ route, navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = isDark ? DarkColors : LightColors;
   const styles = makeStyles(Colors);
+  const { t } = useTranslation('common');
 
   // In-app params take precedence; magic-link path uses ?t=<token> on web.
   // On native, `window` exists but `window.location` doesn't — guard both.
@@ -75,7 +77,7 @@ export default function SubUploadPage({ route, navigation }) {
         setMagicInfo(info);
       }
     } catch (e) {
-      Alert.alert('Could not load', e.message || 'Try again');
+      Alert.alert(t('subUploadPage.couldNotLoad'), e.message || t('subUploadPage.tryAgain'));
     } finally {
       setLoading(false);
     }
@@ -84,7 +86,7 @@ export default function SubUploadPage({ route, navigation }) {
   useEffect(() => { init(); }, [init]);
 
   const docType = inAppDocType || magicInfo?.doc_type_requested;
-  const docLabel = DOC_TYPE_LABELS[docType] || docType || 'document';
+  const docLabel = DOC_TYPE_LABELS[docType] || docType || t('subUploadPage.documentFallback');
   const orgName = subOrg?.legal_name || magicInfo?.sub_organization?.legal_name;
 
   const pickerBusyRef = useRef(false);
@@ -101,8 +103,8 @@ export default function SubUploadPage({ route, navigation }) {
       setPickedFile(result.assets?.[0]);
     } catch (e) {
       const stuck = /Different document picking in progress|Await other document/.test(e?.message || '');
-      Alert.alert(stuck ? 'iOS picker is stuck' : 'Could not pick file',
-        stuck ? 'Reload the app to clear it.' : e.message);
+      Alert.alert(stuck ? t('subUploadPage.iosPickerStuck') : t('subUploadPage.couldNotPickFile'),
+        stuck ? t('subUploadPage.reloadToClear') : e.message);
     } finally {
       pickerBusyRef.current = false;
     }
@@ -114,7 +116,7 @@ export default function SubUploadPage({ route, navigation }) {
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert('Camera permission needed');
+        Alert.alert(t('subUploadPage.cameraPermissionNeeded'));
         return;
       }
       const result = await ImagePicker.launchCameraAsync({
@@ -130,7 +132,7 @@ export default function SubUploadPage({ route, navigation }) {
         mimeType: 'image/jpeg',
       });
     } catch (e) {
-      Alert.alert('Camera error', e.message);
+      Alert.alert(t('subUploadPage.cameraError'), e.message);
     } finally {
       pickerBusyRef.current = false;
     }
@@ -138,7 +140,7 @@ export default function SubUploadPage({ route, navigation }) {
 
   const onUpload = async () => {
     if (!pickedFile) {
-      Alert.alert('Pick a file first');
+      Alert.alert(t('subUploadPage.pickFileFirst'));
       return;
     }
     // Validate optional expiry: must be a real YYYY-MM-DD date if provided.
@@ -150,7 +152,7 @@ export default function SubUploadPage({ route, navigation }) {
         d.getUTCMonth() + 1 === Number(m[2]) &&
         d.getUTCDate() === Number(m[3]);
       if (!valid) {
-        setExpiresError('Use the format YYYY-MM-DD (e.g. 2026-12-31).');
+        setExpiresError(t('subUploadPage.expiresFormatError'));
         return;
       }
     }
@@ -162,7 +164,7 @@ export default function SubUploadPage({ route, navigation }) {
       });
 
       if (isInApp) {
-        if (!subOrg?.id) throw new Error('No sub_organization linked');
+        if (!subOrg?.id) throw new Error(t('subUploadPage.noSubOrgLinked'));
         await api.uploadDocumentBlob({
           sub_organization_id: subOrg.id,
           doc_type: docType,
@@ -177,11 +179,11 @@ export default function SubUploadPage({ route, navigation }) {
         // Magic-link path — public endpoint, requires file_url. Not fully
         // wired in v1 (server-side blob accept for unauth). Surface a clear
         // message rather than silently fail.
-        throw new Error('Public link upload not yet supported. Open Sylk and sign in to upload.');
+        throw new Error(t('subUploadPage.publicLinkNotSupported'));
       }
       setDone(true);
     } catch (e) {
-      Alert.alert('Upload failed', e.message || 'Unknown error');
+      Alert.alert(t('subUploadPage.uploadFailed'), e.message || t('subUploadPage.unknownError'));
     } finally {
       setUploading(false);
     }
@@ -199,8 +201,8 @@ export default function SubUploadPage({ route, navigation }) {
     return (
       <SafeAreaView style={[styles.center, { backgroundColor: Colors.background }]}>
         <Ionicons name="alert-circle-outline" size={48} color={Colors.errorRed} />
-        <Text style={styles.errorTitle}>Link invalid or expired</Text>
-        <Text style={styles.errorBody}>Ask the contractor to send you a new link.</Text>
+        <Text style={styles.errorTitle}>{t('subUploadPage.linkInvalidOrExpired')}</Text>
+        <Text style={styles.errorBody}>{t('subUploadPage.askContractorNewLink')}</Text>
       </SafeAreaView>
     );
   }
@@ -211,10 +213,11 @@ export default function SubUploadPage({ route, navigation }) {
     return (
       <SafeAreaView style={[styles.center, { backgroundColor: Colors.background }]}>
         <Ionicons name="lock-closed-outline" size={48} color={Colors.primaryBlue} />
-        <Text style={styles.successTitle}>Open Sylk to upload</Text>
+        <Text style={styles.successTitle}>{t('subUploadPage.openSylkToUpload')}</Text>
         <Text style={styles.successBody}>
-          To upload {docLabel}{orgName ? ` for ${orgName}` : ''}, open the Sylk app and
-          sign in. You'll find this request in your Documents.
+          {orgName
+            ? t('subUploadPage.openSylkBodyWithOrg', { docLabel, orgName })
+            : t('subUploadPage.openSylkBody', { docLabel })}
         </Text>
       </SafeAreaView>
     );
@@ -224,14 +227,14 @@ export default function SubUploadPage({ route, navigation }) {
     return (
       <SafeAreaView style={[styles.center, { backgroundColor: Colors.background }]}>
         <Ionicons name="checkmark-circle" size={72} color={Colors.successGreen} />
-        <Text style={styles.successTitle}>Uploaded</Text>
-        <Text style={styles.successBody}>The contractor will see it on Sylk.</Text>
+        <Text style={styles.successTitle}>{t('subUploadPage.uploaded')}</Text>
+        <Text style={styles.successBody}>{t('subUploadPage.contractorWillSee')}</Text>
         {navigation && (
           <TouchableOpacity
             style={[styles.primaryBtn, { marginTop: 24, paddingHorizontal: 32 }]}
             onPress={() => navigation.goBack()}
           >
-            <Text style={styles.primaryBtnText}>Done</Text>
+            <Text style={styles.primaryBtnText}>{t('common:buttons.done')}</Text>
           </TouchableOpacity>
         )}
       </SafeAreaView>
@@ -248,8 +251,8 @@ export default function SubUploadPage({ route, navigation }) {
           </TouchableOpacity>
         )}
         <View style={{ flex: 1 }}>
-          <Text style={styles.heading}>Upload {docLabel}</Text>
-          {orgName ? <Text style={styles.subheading}>For {orgName}</Text> : null}
+          <Text style={styles.heading}>{t('subUploadPage.headingUpload', { docLabel })}</Text>
+          {orgName ? <Text style={styles.subheading}>{t('subUploadPage.subheadingFor', { orgName })}</Text> : null}
         </View>
       </View>
 
@@ -266,16 +269,16 @@ export default function SubUploadPage({ route, navigation }) {
           <View style={styles.pickerRow}>
             <TouchableOpacity style={styles.pickerBtn} onPress={onTakePhoto} activeOpacity={0.7}>
               <Ionicons name="camera-outline" size={26} color={Colors.primaryText} />
-              <Text style={styles.pickerBtnText}>Take photo</Text>
+              <Text style={styles.pickerBtnText}>{t('subUploadPage.takePhoto')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.pickerBtn} onPress={onPickFile} activeOpacity={0.7}>
               <Ionicons name="document-attach-outline" size={26} color={Colors.primaryText} />
-              <Text style={styles.pickerBtnText}>Pick PDF</Text>
+              <Text style={styles.pickerBtnText}>{t('subUploadPage.pickPdf')}</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        <Text style={styles.label}>Expiration date</Text>
+        <Text style={styles.label}>{t('subUploadPage.expirationDate')}</Text>
         <TextInput
           style={[styles.input, expiresError && styles.inputError]}
           value={expiresAt}
@@ -286,12 +289,12 @@ export default function SubUploadPage({ route, navigation }) {
         />
         {expiresError ? <Text style={styles.fieldError}>{expiresError}</Text> : null}
 
-        <Text style={styles.label}>Policy / license number (optional)</Text>
+        <Text style={styles.label}>{t('subUploadPage.policyNumber')}</Text>
         <TextInput
           style={styles.input}
           value={policyNumber}
           onChangeText={setPolicyNumber}
-          placeholder="e.g. GL-12345"
+          placeholder={t('subUploadPage.policyPlaceholder')}
           placeholderTextColor={Colors.placeholder || '#9CA3AF'}
           autoCapitalize="characters"
         />
@@ -305,7 +308,7 @@ export default function SubUploadPage({ route, navigation }) {
           {uploading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.primaryBtnText}>Upload</Text>
+            <Text style={styles.primaryBtnText}>{t('subUploadPage.upload')}</Text>
           )}
         </TouchableOpacity>
       </ScrollView>

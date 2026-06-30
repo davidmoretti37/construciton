@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Linking } 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 import { fetchDashboard } from '../../services/clientPortalApi';
 import { useClientProject } from '../../contexts/ClientProjectContext';
@@ -14,6 +15,7 @@ const C = {
 };
 
 export default function ClientMoreScreen({ navigation }) {
+  const { t } = useTranslation('common');
   const { setProjects } = useClientProject();
   const [branding, setBranding] = useState(null);
   const [brandingLoading, setBrandingLoading] = useState(true);
@@ -41,47 +43,47 @@ export default function ClientMoreScreen({ navigation }) {
   }, [loadBranding]));
 
   const handleSignOut = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', style: 'destructive', onPress: async () => {
+    Alert.alert(t('clientMore.signOut.label'), t('clientMore.signOut.confirm'), [
+      { text: t('common:buttons.cancel'), style: 'cancel' },
+      { text: t('clientMore.signOut.label'), style: 'destructive', onPress: async () => {
         try {
           const { error } = await supabase.auth.signOut();
           if (error) throw error;
         } catch {
-          Alert.alert('Sign Out', 'Could not sign you out. Please try again.');
+          Alert.alert(t('clientMore.signOut.label'), t('clientMore.signOut.errorMessage'));
         }
       }},
     ]);
   };
 
   const handleContactInfo = () => {
-    const name = branding?.business_name || 'Your Contractor';
+    const name = branding?.business_name || t('clientMore.defaultContractor');
     const phone = branding?.phone || null;
     const email = branding?.email || null;
 
     if (phone || email) {
       const buttons = [];
-      if (phone) buttons.push({ text: `Call ${phone}`, onPress: () => Linking.openURL(`tel:${phone}`) });
-      if (email) buttons.push({ text: `Email ${email}`, onPress: () => Linking.openURL(`mailto:${email}`) });
-      buttons.push({ text: 'Close', style: 'cancel' });
-      Alert.alert(name, 'How would you like to get in touch?', buttons);
+      if (phone) buttons.push({ text: t('clientMore.contactInfo.callLabel', { phone }), onPress: () => Linking.openURL(`tel:${phone}`) });
+      if (email) buttons.push({ text: t('clientMore.contactInfo.emailLabel', { email }), onPress: () => Linking.openURL(`mailto:${email}`) });
+      buttons.push({ text: t('common:buttons.close'), style: 'cancel' });
+      Alert.alert(name, t('clientMore.contactInfo.howToGetInTouch'), buttons);
       return;
     }
 
     if (brandingLoading) {
-      Alert.alert('Contact Info', 'Still loading contact information. Please try again in a moment.');
+      Alert.alert(t('clientMore.contactInfo.title'), t('clientMore.contactInfo.loadingMessage'));
       return;
     }
 
     if (brandingFailed) {
-      Alert.alert('Contact Info', "Couldn't load contact information.", [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Retry', onPress: () => loadBranding() },
+      Alert.alert(t('clientMore.contactInfo.title'), t('clientMore.contactInfo.failedMessage'), [
+        { text: t('common:buttons.cancel'), style: 'cancel' },
+        { text: t('common:buttons.retry'), onPress: () => loadBranding() },
       ]);
       return;
     }
 
-    Alert.alert(name, 'Contact information not available. Use the Messages tab to reach your contractor.');
+    Alert.alert(name, t('clientMore.contactInfo.unavailableMessage'));
   };
 
   const handlePress = (item) => {
@@ -96,19 +98,19 @@ export default function ClientMoreScreen({ navigation }) {
 
   const MENU_SECTIONS = [
     {
-      label: 'YOUR PROJECT',
+      label: t('clientMore.sections.yourProject'),
       items: [
-        { key: 'Documents', icon: 'document-text', iconBg: '#EFF6FF', iconColor: '#3B82F6', screen: 'ClientDocuments' },
-        { key: 'Selections', icon: 'color-palette', iconBg: '#FDF2F8', iconColor: '#EC4899', screen: 'ClientSelections' },
-        { key: 'Photos', icon: 'images', iconBg: '#F5F3FF', iconColor: '#8B5CF6', screen: 'ClientPhotos' },
-        { key: 'AI Summaries', icon: 'sparkles', iconBg: '#FFFBEB', iconColor: '#F59E0B', screen: 'ClientAISummaries' },
+        { key: 'Documents', label: t('clientMore.items.documents'), icon: 'document-text', iconBg: '#EFF6FF', iconColor: '#3B82F6', screen: 'ClientDocuments' },
+        { key: 'Selections', label: t('clientMore.items.selections'), icon: 'color-palette', iconBg: '#FDF2F8', iconColor: '#EC4899', screen: 'ClientSelections' },
+        { key: 'Photos', label: t('clientMore.items.photos'), icon: 'images', iconBg: '#F5F3FF', iconColor: '#8B5CF6', screen: 'ClientPhotos' },
+        { key: 'AI Summaries', label: t('clientMore.items.aiSummaries'), icon: 'sparkles', iconBg: '#FFFBEB', iconColor: '#F59E0B', screen: 'ClientAISummaries' },
       ],
     },
     {
-      label: 'ACCOUNT',
+      label: t('clientMore.sections.account'),
       items: [
-        { key: 'Contact Info', icon: 'call', iconBg: '#F0FDF4', iconColor: '#10B981', action: handleContactInfo },
-        { key: 'Settings', icon: 'settings', iconBg: '#F9FAFB', iconColor: '#6B7280', screen: 'Settings' },
+        { key: 'Contact Info', label: t('clientMore.items.contactInfo'), icon: 'call', iconBg: '#F0FDF4', iconColor: '#10B981', action: handleContactInfo },
+        { key: 'Settings', label: t('clientMore.items.settings'), icon: 'settings', iconBg: '#F9FAFB', iconColor: '#6B7280', screen: 'Settings' },
       ],
     },
   ];
@@ -120,7 +122,7 @@ export default function ClientMoreScreen({ navigation }) {
           style={styles.headerTitle}
           testID="clientMore.headerTitle"
           accessibilityLabel="clientMore.headerTitle"
-        >More</Text>
+        >{t('clientMore.title')}</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -153,7 +155,7 @@ export default function ClientMoreScreen({ navigation }) {
                     style={styles.rowLabel}
                     testID={`clientMore.${item.key.replace(/\s+/g, '')}Label`}
                     accessibilityLabel={`clientMore.${item.key.replace(/\s+/g, '')}Label`}
-                  >{item.key}</Text>
+                  >{item.label}</Text>
                   <Ionicons name="chevron-forward" size={16} color="#D1D5DB" />
                 </TouchableOpacity>
               ))}
@@ -162,7 +164,7 @@ export default function ClientMoreScreen({ navigation }) {
         ))}
 
         <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut} activeOpacity={0.7}>
-          <Text style={styles.signOutText}>Sign Out</Text>
+          <Text style={styles.signOutText}>{t('clientMore.signOut.label')}</Text>
         </TouchableOpacity>
 
         <View style={{ height: 100 }} />

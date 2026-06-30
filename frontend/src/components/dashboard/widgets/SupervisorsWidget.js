@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
+import { useTranslation } from 'react-i18next';
 
 function ShieldIcon({ size = 40, color = 'rgba(255,255,255,0.15)' }) {
   const w = size;
@@ -16,6 +17,7 @@ function ShieldIcon({ size = 40, color = 'rgba(255,255,255,0.15)' }) {
 }
 
 export default function SupervisorsWidget({ totalSupervisors, totalWorkers, totalProjects, size, editMode, onPress }) {
+  const { t } = useTranslation('common');
   if (size === 'medium') {
     return (
       <TouchableOpacity
@@ -35,8 +37,8 @@ export default function SupervisorsWidget({ totalSupervisors, totalWorkers, tota
             <Text style={styles.shieldCount}>{totalSupervisors}</Text>
           </View>
           <View style={styles.mediumContent}>
-            <Text style={styles.labelMedium}>SUPERVISORS</Text>
-            <Text style={styles.breakdown}>{totalWorkers} workers · {totalProjects} projects</Text>
+            <Text style={styles.labelMedium}>{t('supervisorsWidget.label')}</Text>
+            <Text style={styles.breakdown}>{t('supervisorsWidget.breakdown', { totalWorkers, totalProjects })}</Text>
           </View>
         </LinearGradient>
       </TouchableOpacity>
@@ -56,12 +58,12 @@ export default function SupervisorsWidget({ totalSupervisors, totalWorkers, tota
         end={{ x: 1, y: 1 }}
         style={styles.gradientSmall}
       >
-        <Text style={styles.titleSmall}>Supervisors</Text>
+        <Text style={styles.titleSmall}>{t('supervisorsWidget.title')}</Text>
         <View style={styles.shieldWrapSmall}>
           <ShieldIcon size={44} color="rgba(255,255,255,0.12)" />
           <Text style={styles.shieldCountSmall}>{totalSupervisors}</Text>
         </View>
-        <Text style={styles.label}>{totalSupervisors === 1 ? 'on the team' : 'on the team'}</Text>
+        <Text style={styles.label}>{t('supervisorsWidget.onTheTeam')}</Text>
       </LinearGradient>
     </TouchableOpacity>
   );

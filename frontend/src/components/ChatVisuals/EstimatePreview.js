@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Share, TextInput, Alert, Acti
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { statusLabel } from '../../utils/statusLabel';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -460,7 +461,7 @@ export default function EstimatePreview({ data, onAction }) {
       };
 
       if (Platform.OS === 'ios') {
-        const options = ['Cancel', 'Send to Client Portal', 'Send & Require Signature', 'Share PDF', 'Email PDF'];
+        const options = [t('common:buttons.cancel'), t('estimatePreview.sendToPortal'), t('estimatePreview.sendRequireSignature'), t('estimatePreview.sharePDF'), t('estimatePreview.emailPDF')];
         ActionSheetIOS.showActionSheetWithOptions(
           { options, cancelButtonIndex: 0 },
           async (buttonIndex) => {
@@ -475,13 +476,13 @@ export default function EstimatePreview({ data, onAction }) {
         );
       } else {
         // Android: alert with options
-        Alert.alert('Share Estimate', 'How would you like to send this estimate?', [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Send to Client Portal', onPress: () => sendToPortal(false) },
-          { text: 'Send & Require Signature', onPress: () => sendToPortal(true) },
-          { text: 'Share PDF', onPress: async () => await shareEstimatePDF(enrichedData) },
+        Alert.alert(t('estimatePreview.shareTitle'), t('estimatePreview.shareMessage'), [
+          { text: t('common:buttons.cancel'), style: 'cancel' },
+          { text: t('estimatePreview.sendToPortal'), onPress: () => sendToPortal(false) },
+          { text: t('estimatePreview.sendRequireSignature'), onPress: () => sendToPortal(true) },
+          { text: t('estimatePreview.sharePDF'), onPress: async () => await shareEstimatePDF(enrichedData) },
           {
-            text: 'Email PDF',
+            text: t('estimatePreview.emailPDF'),
             onPress: async () => {
               const clientEmail = typeof client === 'object' ? client?.email : null;
               await emailEstimatePDF(enrichedData, clientEmail);
@@ -491,7 +492,7 @@ export default function EstimatePreview({ data, onAction }) {
       }
     } catch (error) {
       console.error('Error sharing estimate:', error);
-      Alert.alert('Error', 'Failed to share estimate. Please try again.');
+      Alert.alert(t('common:alerts.error'), t('estimatePreview.shareError'));
     }
   };
 
@@ -506,7 +507,7 @@ export default function EstimatePreview({ data, onAction }) {
       setShowPreview(true);
     } catch (error) {
       console.error('Error previewing estimate:', error);
-      Alert.alert('Error', 'Failed to preview estimate. Please try again.');
+      Alert.alert(t('common:alerts.error'), t('estimatePreview.previewError'));
     }
   };
 
@@ -574,7 +575,7 @@ export default function EstimatePreview({ data, onAction }) {
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
         <View>
           <Text style={[styles.title, { color: Colors.primaryText }]}>
-            📋 ESTIMATE
+            {t('estimatePreview.title')}
           </Text>
           {estimateNumber && (
             <Text style={[styles.estimateNumber, { color: Colors.primaryBlue }]}>
@@ -601,7 +602,7 @@ export default function EstimatePreview({ data, onAction }) {
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor() + '15', borderColor: getStatusColor() }]}>
               <Ionicons name={getStatusIcon()} size={16} color={getStatusColor()} />
               <Text style={[styles.statusText, { color: getStatusColor() }]}>
-                {status.charAt(0).toUpperCase() + status.slice(1)}
+                {statusLabel(status)}
               </Text>
             </View>
           )}
@@ -842,7 +843,7 @@ export default function EstimatePreview({ data, onAction }) {
                     value={item.quantity?.toString()}
                     onChangeText={(value) => handleUpdateLineItem(index, 'quantity', value)}
                     keyboardType="numeric"
-                    placeholder="Qty"
+                    placeholder={t('estimatePreview.qtyLabel')}
                   />
                   <Text style={[styles.itemCalc, { color: Colors.secondaryText }]}>× $</Text>
                   <TextInput
@@ -850,7 +851,7 @@ export default function EstimatePreview({ data, onAction }) {
                     value={item.price?.toString()}
                     onChangeText={(value) => handleUpdateLineItem(index, 'price', value)}
                     keyboardType="decimal-pad"
-                    placeholder="Price"
+                    placeholder={t('estimatePreview.priceLabel')}
                   />
                 </View>
               ) : (
@@ -877,7 +878,7 @@ export default function EstimatePreview({ data, onAction }) {
           </View>
           <View style={styles.breakdownRow}>
             <Text style={[styles.breakdownLabel, { color: Colors.secondaryText }]}>
-              Profit ({((profit / subtotal) * 100).toFixed(0)}%)
+              {t('estimatePreview.profit', { percentage: ((profit / subtotal) * 100).toFixed(0) })}
             </Text>
             <Text style={[styles.breakdownValue, { color: Colors.green }]}>
               ${typeof profit === 'number' ? profit.toFixed(2) : (parseFloat(profit) || 0).toFixed(2)}
@@ -985,7 +986,7 @@ export default function EstimatePreview({ data, onAction }) {
               onPress={handleConvertToInvoice}
             >
               <Ionicons name="document-text-outline" size={18} color="#fff" />
-              <Text style={styles.buttonText}>Bill it all now</Text>
+              <Text style={styles.buttonText}>{t('estimatePreview.billItAllNow')}</Text>
             </TouchableOpacity>
           ) : (
             <View style={{ flexDirection: 'row', gap: 8, flex: 1 }}>
@@ -994,14 +995,14 @@ export default function EstimatePreview({ data, onAction }) {
                 onPress={handleConvertToInvoice}
               >
                 <Ionicons name="document-text-outline" size={16} color={Colors.primaryBlue} />
-                <Text style={[styles.buttonText, { color: Colors.primaryBlue }]}>Bill it all now</Text>
+                <Text style={[styles.buttonText, { color: Colors.primaryBlue }]}>{t('estimatePreview.billItAllNow')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.sendButton, styles.primaryButton, { flex: 1, backgroundColor: Colors.primaryBlue }]}
                 onPress={handleSetUpDraws}
               >
                 <Ionicons name="cash-outline" size={16} color="#fff" />
-                <Text style={styles.buttonText}>Set up draws</Text>
+                <Text style={styles.buttonText}>{t('estimatePreview.setUpDraws')}</Text>
               </TouchableOpacity>
             </View>
           )
@@ -1081,7 +1082,7 @@ export default function EstimatePreview({ data, onAction }) {
             <TouchableOpacity onPress={() => setShowPreview(false)} style={{ padding: 8 }} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
               <Ionicons name="close-circle" size={32} color={Colors.primaryText} />
             </TouchableOpacity>
-            <Text style={[styles.previewTitle, { color: Colors.primaryText }]}>Estimate Preview</Text>
+            <Text style={[styles.previewTitle, { color: Colors.primaryText }]}>{t('estimatePreview.previewModalTitle')}</Text>
             <View style={{ width: 28 }} />
           </View>
           <WebView

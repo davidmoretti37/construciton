@@ -33,5 +33,8 @@
     "success": "Your number is live: {{phone}}",
     "failed": "Couldn't provision a number: {{error}}",
     "current_number": "Your number: {{phone}}"
+  },
+  "inbox": {
+    "refresh": "Refresh"
   }
 }

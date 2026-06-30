@@ -1,10 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export default function BudgetChart({ data }) {
+  const { t } = useTranslation('chat');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -43,13 +45,13 @@ export default function BudgetChart({ data }) {
       {/* Main Budget Bar */}
       <View style={styles.mainSection}>
         <View style={styles.budgetRow}>
-          <Text style={[styles.label, { color: Colors.secondaryText }]}>Total Earned</Text>
+          <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('budgetChart.totalEarned')}</Text>
           <Text style={[styles.value, { color: Colors.primaryText }]}>
             {formatCurrency(earned)}
           </Text>
         </View>
         <View style={styles.budgetRow}>
-          <Text style={[styles.label, { color: Colors.secondaryText }]}>Budgeted</Text>
+          <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('budgetChart.budgeted')}</Text>
           <Text style={[styles.value, { color: Colors.secondaryText }]}>
             {formatCurrency(budgeted)}
           </Text>
@@ -78,7 +80,7 @@ export default function BudgetChart({ data }) {
             </View>
             <View>
               <Text style={[styles.paymentLabel, { color: Colors.secondaryText }]}>
-                Collected
+                {t('budgetChart.collected')}
               </Text>
               <Text style={[styles.paymentValue, { color: '#22C55E', fontWeight: '700' }]}>
                 {formatCurrency(collected)}
@@ -92,7 +94,7 @@ export default function BudgetChart({ data }) {
             </View>
             <View>
               <Text style={[styles.paymentLabel, { color: Colors.secondaryText }]}>
-                Pending
+                {t('budgetChart.pending')}
               </Text>
               <Text style={[styles.paymentValue, { color: '#9CA3AF', fontWeight: '700' }]}>
                 {formatCurrency(pending)}

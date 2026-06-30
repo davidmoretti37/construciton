@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchServicePlans } from '../../utils/storage/servicePlans';
@@ -30,6 +31,7 @@ const FILTERS = [
 ];
 
 export default function ServicePlansScreen({ showFilter = false }) {
+  const { t } = useTranslation('owner');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const navigation = useNavigation();
@@ -91,10 +93,10 @@ export default function ServicePlansScreen({ showFilter = false }) {
       <View style={styles.emptyState}>
         <Ionicons name="clipboard-outline" size={48} color={Colors.secondaryText} />
         <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>
-          No Service Plans Yet
+          {t('servicePlans.emptyTitle')}
         </Text>
         <Text style={[styles.emptySubtitle, { color: Colors.secondaryText }]}>
-          Create a service plan to manage recurring visits for your clients.
+          {t('servicePlans.emptySubtitle')}
         </Text>
       </View>
     );
@@ -116,7 +118,7 @@ export default function ServicePlansScreen({ showFilter = false }) {
               onPress={() => setActiveFilter(f.key)}
             >
               <Text style={[styles.filterText, isActive && { color: '#fff' }]}>
-                {f.label} ({count})
+                {t(`servicePlans.filter.${f.key}`)} ({count})
               </Text>
             </TouchableOpacity>
           );

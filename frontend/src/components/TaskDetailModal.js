@@ -55,12 +55,12 @@ export default function TaskDetailModal({
 
     // Validate: start can't be after end
     if (editingDate === 'start' && task.end_date && dateStr > task.end_date) {
-      Alert.alert('Invalid', 'Start date cannot be after end date.');
+      Alert.alert(t('taskDetailModal.invalidDate'), t('taskDetailModal.startAfterEndError'));
       setEditingDate(null);
       return;
     }
     if (editingDate === 'end' && task.start_date && dateStr < task.start_date) {
-      Alert.alert('Invalid', 'End date cannot be before start date.');
+      Alert.alert(t('taskDetailModal.invalidDate'), t('taskDetailModal.endBeforeStartError'));
       setEditingDate(null);
       return;
     }
@@ -73,7 +73,7 @@ export default function TaskDetailModal({
       }
       if (onDatesUpdated) onDatesUpdated();
     } catch (e) {
-      Alert.alert('Error', 'Failed to update date.');
+      Alert.alert(t('common:alerts.error'), t('taskDetailModal.updateDateFailed'));
     } finally {
       setSaving(false);
       setEditingDate(null);
@@ -171,14 +171,14 @@ export default function TaskDetailModal({
               <TouchableOpacity style={styles.dateRow} onPress={() => handleDatePress('start')}>
                 <Ionicons name="play-circle-outline" size={16} color="#3B82F6" />
                 <Text style={[styles.dateText, { color: Colors.primaryText }]}>
-                  Start: {task.start_date ? formatDate(task.start_date) : 'Not set'}
+                  {t('taskDetailModal.startDate', { date: task.start_date ? formatDate(task.start_date) : t('taskDetailModal.notSet') })}
                 </Text>
                 <Ionicons name="create-outline" size={14} color="#3B82F6" style={{ marginLeft: 'auto' }} />
               </TouchableOpacity>
               <TouchableOpacity style={styles.dateRow} onPress={() => handleDatePress('end')}>
                 <Ionicons name="flag-outline" size={16} color="#EF4444" />
                 <Text style={[styles.dateText, { color: Colors.primaryText }]}>
-                  End: {task.end_date ? formatDate(task.end_date) : 'Not set'}
+                  {t('taskDetailModal.endDate', { date: task.end_date ? formatDate(task.end_date) : t('taskDetailModal.notSet') })}
                 </Text>
                 <Ionicons name="create-outline" size={14} color="#3B82F6" style={{ marginLeft: 'auto' }} />
               </TouchableOpacity>
@@ -189,7 +189,7 @@ export default function TaskDetailModal({
           {editingDate && (
             <View style={[styles.section, { backgroundColor: Colors.cardBackground || Colors.white, borderColor: Colors.border }]}>
               <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
-                {editingDate === 'start' ? 'Pick Start Date' : 'Pick End Date'}
+                {editingDate === 'start' ? t('taskDetailModal.pickStartDate') : t('taskDetailModal.pickEndDate')}
               </Text>
               <DateTimePicker
                 value={tempDate}
@@ -201,10 +201,10 @@ export default function TaskDetailModal({
               {Platform.OS === 'ios' && (
                 <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 12, paddingTop: 8 }}>
                   <TouchableOpacity onPress={() => setEditingDate(null)}>
-                    <Text style={{ color: Colors.secondaryText, fontWeight: '600' }}>Cancel</Text>
+                    <Text style={{ color: Colors.secondaryText, fontWeight: '600' }}>{t('common:buttons.cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={handleDateConfirm} disabled={saving}>
-                    <Text style={{ color: '#3B82F6', fontWeight: '700' }}>{saving ? 'Saving...' : 'Save'}</Text>
+                    <Text style={{ color: '#3B82F6', fontWeight: '700' }}>{saving ? t('common:status.saving') : t('common:buttons.save')}</Text>
                   </TouchableOpacity>
                 </View>
               )}

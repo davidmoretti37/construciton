@@ -171,13 +171,13 @@ export default function TypicalContractsScreen({ navigation, route }) {
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <View style={styles.headerTextContainer}>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Typical Contracts</Text>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('typicalContracts.headerTitle')}</Text>
           <Text style={[styles.headerSubtitle, { color: Colors.secondaryText }]}>
-            Set up your common contract types
+            {t('typicalContracts.headerSubtitle')}
           </Text>
         </View>
         <TouchableOpacity onPress={handleSkip}>
-          <Text style={[styles.skipButton, { color: Colors.primaryBlue }]}>Skip</Text>
+          <Text style={[styles.skipButton, { color: Colors.primaryBlue }]}>{t('typicalContracts.skip')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -186,9 +186,9 @@ export default function TypicalContractsScreen({ navigation, route }) {
         <View style={[styles.infoCard, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue + '30' }]}>
           <Ionicons name="information-circle" size={24} color={Colors.primaryBlue} />
           <View style={styles.infoTextContainer}>
-            <Text style={[styles.infoTitle, { color: Colors.primaryBlue }]}>Import Your Contracts</Text>
+            <Text style={[styles.infoTitle, { color: Colors.primaryBlue }]}>{t('typicalContracts.infoTitle')}</Text>
             <Text style={[styles.infoText, { color: Colors.primaryText }]}>
-              Upload existing contract templates from files or photos. You can add more later in Settings.
+              {t('typicalContracts.infoText')}
             </Text>
           </View>
         </View>
@@ -197,7 +197,7 @@ export default function TypicalContractsScreen({ navigation, route }) {
         {contracts.length > 0 && (
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-              Uploaded Contracts ({contracts.length})
+              {t('typicalContracts.uploadedContracts', { count: contracts.length })}
             </Text>
             {contracts.map((contract) => (
               <View
@@ -213,9 +213,9 @@ export default function TypicalContractsScreen({ navigation, route }) {
                       {contract.name}
                     </Text>
                     <Text style={[styles.contractType, { color: Colors.secondaryText }]}>
-                      {contract.mimeType?.includes('pdf') ? 'PDF Document' :
-                       contract.mimeType?.includes('image') ? 'Image' :
-                       contract.mimeType?.includes('word') ? 'Word Document' : 'Document'}
+                      {contract.mimeType?.includes('pdf') ? t('typicalContracts.fileTypePdf') :
+                       contract.mimeType?.includes('image') ? t('typicalContracts.fileTypeImage') :
+                       contract.mimeType?.includes('word') ? t('typicalContracts.fileTypeWord') : t('typicalContracts.fileTypeDocument')}
                     </Text>
                   </View>
                   <TouchableOpacity
@@ -232,7 +232,7 @@ export default function TypicalContractsScreen({ navigation, route }) {
 
         {/* Upload Options */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Add Contract</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('typicalContracts.addContract')}</Text>
 
           {/* Upload from Files */}
           <TouchableOpacity
@@ -244,9 +244,9 @@ export default function TypicalContractsScreen({ navigation, route }) {
               <Ionicons name="document-text-outline" size={24} color={Colors.primaryBlue} />
             </View>
             <View style={styles.uploadInfo}>
-              <Text style={[styles.uploadTitle, { color: Colors.primaryText }]}>Upload from Files</Text>
+              <Text style={[styles.uploadTitle, { color: Colors.primaryText }]}>{t('typicalContracts.uploadFromFiles')}</Text>
               <Text style={[styles.uploadDescription, { color: Colors.secondaryText }]}>
-                PDF, Word, or other documents
+                {t('typicalContracts.uploadFromFilesDesc')}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
@@ -262,9 +262,9 @@ export default function TypicalContractsScreen({ navigation, route }) {
               <Ionicons name="images-outline" size={24} color={Colors.success} />
             </View>
             <View style={styles.uploadInfo}>
-              <Text style={[styles.uploadTitle, { color: Colors.primaryText }]}>Choose from Photos</Text>
+              <Text style={[styles.uploadTitle, { color: Colors.primaryText }]}>{t('typicalContracts.chooseFromPhotos')}</Text>
               <Text style={[styles.uploadDescription, { color: Colors.secondaryText }]}>
-                Select existing contract photos
+                {t('typicalContracts.chooseFromPhotosDesc')}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
@@ -280,9 +280,9 @@ export default function TypicalContractsScreen({ navigation, route }) {
               <Ionicons name="camera-outline" size={24} color={Colors.warning} />
             </View>
             <View style={styles.uploadInfo}>
-              <Text style={[styles.uploadTitle, { color: Colors.primaryText }]}>Take Photo</Text>
+              <Text style={[styles.uploadTitle, { color: Colors.primaryText }]}>{t('typicalContracts.takePhoto')}</Text>
               <Text style={[styles.uploadDescription, { color: Colors.secondaryText }]}>
-                Capture a contract document
+                {t('typicalContracts.takePhotoDesc')}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
@@ -297,7 +297,7 @@ export default function TypicalContractsScreen({ navigation, route }) {
           onPress={handleContinue}
           activeOpacity={0.8}
         >
-          <Text style={styles.continueButtonText}>Continue</Text>
+          <Text style={styles.continueButtonText}>{t('typicalContracts.continue')}</Text>
           <Ionicons name="arrow-forward" size={20} color="#fff" />
         </TouchableOpacity>
       </View>

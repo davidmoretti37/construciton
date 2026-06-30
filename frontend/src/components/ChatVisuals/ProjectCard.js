@@ -8,7 +8,7 @@ import PhaseTimeline from '../PhaseTimeline';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function ProjectCard({ data, onAction }) {
-  const { t } = useTranslation('projects');
+  const { t } = useTranslation('chat');
   const { isDark = false } = useTheme() || {};
   const { profile, ownerHidesContract } = useAuth() || {};
   const hideContract = profile?.role === 'supervisor' && ownerHidesContract;
@@ -55,7 +55,7 @@ export default function ProjectCard({ data, onAction }) {
   const currentData = isEditing ? editedData : data;
   const {
     id,
-    name = t('card.unnamedProject'),
+    name = t('projectCard.unnamedProject'),
     percentComplete = 0,
     status = 'active',
     workers = [],
@@ -173,7 +173,7 @@ export default function ProjectCard({ data, onAction }) {
             {hasTasks && (
               <View style={styles.tasksContainer}>
                 <Text style={[styles.tasksHeader, { color: Colors.primaryText }]}>
-                  {t('card.tasks')}
+                  {t('projectCard.tasks')}
                 </Text>
                 {phase.tasks.map((task, taskIndex) => (
                   <View key={taskIndex} style={styles.taskItem}>
@@ -228,7 +228,7 @@ export default function ProjectCard({ data, onAction }) {
           <View style={styles.timelineContainer}>
             <Ionicons name="flag" size={14} color={Colors.warning} />
             <Text style={[styles.footerText, { color: Colors.warning, fontWeight: '600' }]}>
-              {t('card.dueToday')}
+              {t('projectCard.dueToday')}
             </Text>
           </View>
         );
@@ -237,14 +237,14 @@ export default function ProjectCard({ data, onAction }) {
           <View style={styles.timelineContainer}>
             <Ionicons name="alert-circle" size={14} color={Colors.error} />
             <Text style={[styles.footerText, { color: Colors.error, fontWeight: '600' }]}>
-              {t('card.daysOverdue', { days: Math.abs(daysRemaining) })}
+              {t('projectCard.daysOverdue', { days: Math.abs(daysRemaining) })}
             </Text>
           </View>
         );
       } else {
         return (
           <Text style={[styles.footerText, { color: Colors.primaryText }]}>
-            {t('card.daysLeft', { days: daysRemaining, unit: daysRemaining === 1 ? t('card.day') : t('card.dayPlural') })}
+            {t('projectCard.daysLeft', { days: daysRemaining, unit: daysRemaining === 1 ? t('projectCard.day') : t('projectCard.dayPlural') })}
           </Text>
         );
       }
@@ -268,7 +268,7 @@ export default function ProjectCard({ data, onAction }) {
           <View style={styles.timelineContainer}>
             <Ionicons name="flag" size={14} color={Colors.warning} />
             <Text style={[styles.footerText, { color: Colors.warning, fontWeight: '600' }]}>
-              {t('card.dueToday')}
+              {t('projectCard.dueToday')}
             </Text>
           </View>
         );
@@ -277,14 +277,14 @@ export default function ProjectCard({ data, onAction }) {
           <View style={styles.timelineContainer}>
             <Ionicons name="alert-circle" size={14} color={Colors.error} />
             <Text style={[styles.footerText, { color: Colors.error, fontWeight: '600' }]}>
-              {t('card.daysOverdue', { days: Math.abs(diffDays) })}
+              {t('projectCard.daysOverdue', { days: Math.abs(diffDays) })}
             </Text>
           </View>
         );
       } else {
         return (
           <Text style={[styles.footerText, { color: Colors.primaryText }]}>
-            {t('card.daysLeft', { days: diffDays, unit: diffDays === 1 ? t('card.day') : t('card.dayPlural') })}
+            {t('projectCard.daysLeft', { days: diffDays, unit: diffDays === 1 ? t('projectCard.day') : t('projectCard.dayPlural') })}
           </Text>
         );
       }
@@ -307,7 +307,7 @@ export default function ProjectCard({ data, onAction }) {
               style={[styles.editInput, styles.projectName, { color: Colors.primaryText, borderColor: Colors.border }]}
               value={name}
               onChangeText={(value) => handleUpdateField('name', value)}
-              placeholder="Project Name"
+              placeholder={t('projectCard.projectNamePlaceholder')}
               placeholderTextColor={Colors.secondaryText}
             />
           ) : (
@@ -349,7 +349,7 @@ export default function ProjectCard({ data, onAction }) {
               color={Colors.primaryBlue}
             />
             <Text style={[styles.paymentBadgeText, { color: Colors.primaryBlue }]}>
-              {currentData.payment_structure === 'per_phase' ? t('card.payPerPhase') : t('card.payInFull')}
+              {currentData.payment_structure === 'per_phase' ? t('projectCard.payPerPhase') : t('projectCard.payInFull')}
             </Text>
           </View>
         </View>
@@ -379,7 +379,7 @@ export default function ProjectCard({ data, onAction }) {
                 if (!scopes[scopeId]) {
                   scopes[scopeId] = {
                     id: scopeId,
-                    name: phase.scope_name || t('card.originalWork'),
+                    name: phase.scope_name || t('projectCard.originalWork'),
                     phases: []
                   };
                 }
@@ -395,7 +395,7 @@ export default function ProjectCard({ data, onAction }) {
                       {scope.name}
                     </Text>
                     <Text style={[styles.scopePhaseCount, { color: Colors.secondaryText }]}>
-                      {scope.phases.length} {scope.phases.length !== 1 ? t('card.phasePlural') : t('card.phase')}
+                      {scope.phases.length} {scope.phases.length !== 1 ? t('projectCard.phasePlural') : t('projectCard.phase')}
                     </Text>
                   </View>
 
@@ -412,7 +412,7 @@ export default function ProjectCard({ data, onAction }) {
           <View style={styles.progressBarContainer}>
             <View style={styles.progressBarHeader}>
               <Text style={[styles.progressLabel, { color: Colors.primaryText, fontWeight: '600' }]}>
-                {t('card.timeline')}
+                {t('projectCard.timeline')}
               </Text>
               <Text style={[styles.progressPercentage, { color: Colors.primaryText, fontWeight: '700' }]}>
                 {percentComplete}%
@@ -436,7 +436,7 @@ export default function ProjectCard({ data, onAction }) {
             <View style={[styles.progressBarContainer, { opacity: 0.65, marginTop: 8 }]}>
               <View style={styles.progressBarHeader}>
                 <Text style={[styles.progressLabel, { color: Colors.secondaryText, fontWeight: '500' }]}>
-                  {t('card.workComplete')}
+                  {t('projectCard.workComplete')}
                 </Text>
                 <Text style={[styles.progressPercentage, { color: Colors.secondaryText, fontWeight: '600' }]}>
                   {currentData.actual_progress || 0}%
@@ -459,7 +459,7 @@ export default function ProjectCard({ data, onAction }) {
           {/* Timeline Note */}
           {!currentData.startDate || !currentData.endDate ? (
             <Text style={[styles.progressNote, { color: Colors.secondaryText }]}>
-              {t('card.noTimeline')}
+              {t('projectCard.noTimeline')}
             </Text>
           ) : null}
 
@@ -484,8 +484,8 @@ export default function ProjectCard({ data, onAction }) {
                   />
                   <Text style={[styles.varianceText, { color: isBehind ? "#EF4444" : "#10B981" }]}>
                     {isBehind
-                      ? t('card.behindWithDate', { percent: Math.round(variance), date: estimatedDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), days: daysLate })
-                      : t('card.aheadOfSchedule', { percent: Math.round(Math.abs(variance)) })
+                      ? t('projectCard.behindWithDate', { percent: Math.round(variance), date: estimatedDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), days: daysLate })
+                      : t('projectCard.aheadOfSchedule', { percent: Math.round(Math.abs(variance)) })
                     }
                   </Text>
                 </View>
@@ -507,7 +507,7 @@ export default function ProjectCard({ data, onAction }) {
         {!hideContract && (
           <View style={styles.financialRow}>
             <Text style={[styles.financialLabel, { color: Colors.primaryText }]}>
-              {extras.length > 0 ? t('financial.totalContractAmount') : t('financial.contractAmount')}
+              {extras.length > 0 ? t('projectCard.totalContractAmount') : t('projectCard.contractAmount')}
             </Text>
             <Text style={[styles.financialValue, { color: Colors.primaryText }]}>
               ${(contractAmount || 0).toLocaleString('en-US')}
@@ -519,12 +519,12 @@ export default function ProjectCard({ data, onAction }) {
         {extras.length > 0 && (
           <View style={styles.extrasContainer}>
             <Text style={[styles.extrasHeader, { color: Colors.primaryText }]}>
-              • {t('card.baseContract')}: ${baseContract.toLocaleString('en-US')}
+              • {t('projectCard.baseContract')}: ${baseContract.toLocaleString('en-US')}
             </Text>
             {extras.map((extra, index) => (
               <Text key={index} style={[styles.extrasItem, { color: Colors.primaryText }]}>
-                • {extra.description || t('card.additionalWork')}: ${(extra.amount || 0).toLocaleString('en-US')}
-                {extra.daysAdded ? ` (+${extra.daysAdded} ${t('card.dayPlural')})` : ''}
+                • {extra.description || t('projectCard.additionalWork')}: ${(extra.amount || 0).toLocaleString('en-US')}
+                {extra.daysAdded ? ` (+${extra.daysAdded} ${t('projectCard.dayPlural')})` : ''}
               </Text>
             ))}
           </View>
@@ -537,19 +537,19 @@ export default function ProjectCard({ data, onAction }) {
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: Colors.error }]} />
                 <Text style={[styles.legendText, { color: Colors.primaryText, fontSize: FontSizes.small }]}>
-                  {t('financial.expenses')} <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: FontSizes.medium }}>${(expenses || 0).toLocaleString('en-US')}</Text> <Text style={{ fontSize: FontSizes.tiny }}>({Math.round((expenses / contractAmount) * 100)}%)</Text>
+                  {t('projectCard.expenses')} <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: FontSizes.medium }}>${(expenses || 0).toLocaleString('en-US')}</Text> <Text style={{ fontSize: FontSizes.tiny }}>({Math.round((expenses / contractAmount) * 100)}%)</Text>
                 </Text>
               </View>
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: Colors.success }]} />
                 <Text style={[styles.legendText, { color: Colors.primaryText, fontSize: FontSizes.small }]}>
-                  {t('financial.netAvailable')} <Text style={{ color: '#22C55E', fontWeight: '700', fontSize: FontSizes.medium }}>${Math.max(0, (incomeCollected || 0) - (expenses || 0)).toLocaleString('en-US')}</Text> <Text style={{ fontSize: FontSizes.tiny }}>({Math.round(Math.max(0, (incomeCollected - expenses) / contractAmount) * 100)}%)</Text>
+                  {t('projectCard.netAvailable')} <Text style={{ color: '#22C55E', fontWeight: '700', fontSize: FontSizes.medium }}>${Math.max(0, (incomeCollected || 0) - (expenses || 0)).toLocaleString('en-US')}</Text> <Text style={{ fontSize: FontSizes.tiny }}>({Math.round(Math.max(0, (incomeCollected - expenses) / contractAmount) * 100)}%)</Text>
                 </Text>
               </View>
               <View style={[styles.legendItem, { alignItems: 'center' }]}>
                 <View style={{ width: 8, marginRight: 6 }} />
                 <Text style={[styles.legendText, { color: Colors.primaryText, fontSize: FontSizes.small, flex: 1 }]}>
-                  {t('financial.pending')} <Text style={{ color: '#9CA3AF', fontWeight: '700', fontSize: FontSizes.medium }}>${((contractAmount || 0) - (incomeCollected || 0)).toLocaleString('en-US')}</Text> <Text style={{ fontSize: FontSizes.tiny }}>({Math.round(((contractAmount - incomeCollected) / contractAmount) * 100)}%)</Text>
+                  {t('projectCard.pending')} <Text style={{ color: '#9CA3AF', fontWeight: '700', fontSize: FontSizes.medium }}>${((contractAmount || 0) - (incomeCollected || 0)).toLocaleString('en-US')}</Text> <Text style={{ fontSize: FontSizes.tiny }}>({Math.round(((contractAmount - incomeCollected) / contractAmount) * 100)}%)</Text>
                 </Text>
               </View>
             </View>
@@ -599,7 +599,7 @@ export default function ProjectCard({ data, onAction }) {
         <View style={styles.profitContainer}>
           <View style={styles.financialRow}>
             <Text style={[styles.financialLabel, { color: Colors.primaryText, fontWeight: '600' }]}>
-              {t('financial.currentProfit')}
+              {t('projectCard.currentProfit')}
             </Text>
             <Text
               style={[

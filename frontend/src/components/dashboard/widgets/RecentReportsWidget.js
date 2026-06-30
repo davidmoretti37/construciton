@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
 function timeAgo(input) {
   if (!input) return '';
@@ -25,6 +26,7 @@ export default function RecentReportsWidget({
   onPress,
   onReportPress,
 }) {
+  const { t } = useTranslation('common');
   const list = Array.isArray(reports) ? reports : [];
   const reportCount = list.length;
   const totalPhotos = list.reduce((sum, r) => sum + (r.photoCount || r.photo_count || 0), 0);
@@ -48,12 +50,12 @@ export default function RecentReportsWidget({
         <View style={styles.topRow}>
           <View style={styles.statBlock}>
             <Text style={styles.statValue}>{reportCount}</Text>
-            <Text style={styles.statLabel}>reports</Text>
+            <Text style={styles.statLabel}>{t('recentReportsWidget.reports')}</Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.statBlock}>
             <Text style={styles.statValue}>{totalPhotos}</Text>
-            <Text style={styles.statLabel}>photos</Text>
+            <Text style={styles.statLabel}>{t('recentReportsWidget.photos')}</Text>
           </View>
           <View style={{ flex: 1 }} />
           <View style={styles.iconCircle}>
@@ -69,7 +71,7 @@ export default function RecentReportsWidget({
                 r.workers?.full_name ||
                 r.profiles?.business_name ||
                 r.reporter_name ||
-                'Someone';
+                t('recentReportsWidget.someone');
               const project =
                 r.projectName ||
                 r.projects?.name ||
@@ -99,11 +101,11 @@ export default function RecentReportsWidget({
         ) : list[0] ? (
           <View style={styles.lastPill}>
             <Text style={styles.lastText} numberOfLines={1}>
-              {list[0].workerName || list[0].workers?.full_name || 'Someone'} — {list[0].phaseName || list[0].projectName || list[0].projects?.name || ''}
+              {list[0].workerName || list[0].workers?.full_name || t('recentReportsWidget.someone')} — {list[0].phaseName || list[0].projectName || list[0].projects?.name || ''}
             </Text>
           </View>
         ) : (
-          <Text style={styles.noReports}>No recent reports</Text>
+          <Text style={styles.noReports}>{t('recentReportsWidget.noReports')}</Text>
         )}
       </LinearGradient>
     </TouchableOpacity>

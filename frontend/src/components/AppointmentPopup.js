@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -23,6 +24,7 @@ const AppointmentPopup = ({
   onCancel,
   loading = false
 }) => {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -209,7 +211,7 @@ const AppointmentPopup = ({
         <View style={styles.row}>
           <Ionicons name="calendar-outline" size={22} color={color} />
           <View style={styles.rowContent}>
-            <Text style={[styles.label, { color: Colors.secondaryText }]}>Date</Text>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('appointmentPopup.date', 'Date')}</Text>
             <Text style={[styles.value, { color: Colors.primaryText }]}>{dateStr}</Text>
           </View>
         </View>
@@ -217,7 +219,7 @@ const AppointmentPopup = ({
           <View style={[styles.row, { marginTop: Spacing.md }]}>
             <Ionicons name="time-outline" size={22} color={color} />
             <View style={styles.rowContent}>
-              <Text style={[styles.label, { color: Colors.secondaryText }]}>Time</Text>
+              <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('appointmentPopup.time', 'Time')}</Text>
               <Text style={[styles.value, { color: Colors.primaryText }]}>
                 {startTimeStr}{endTimeStr ? ` - ${endTimeStr}` : ''}
               </Text>
@@ -226,7 +228,7 @@ const AppointmentPopup = ({
         )}
         {all_day && (
           <View style={[styles.allDayBadge, { backgroundColor: color + '20' }]}>
-            <Text style={[styles.allDayText, { color: color }]}>All Day</Text>
+            <Text style={[styles.allDayText, { color: color }]}>{t('appointmentPopup.allDay', 'All Day')}</Text>
           </View>
         )}
       </View>
@@ -241,12 +243,12 @@ const AppointmentPopup = ({
           <View style={styles.row}>
             <Ionicons name="location" size={22} color={color} />
             <View style={styles.rowContent}>
-              <Text style={[styles.label, { color: Colors.secondaryText }]}>Location</Text>
+              <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('appointmentPopup.location', 'Location')}</Text>
               <Text style={[styles.addressText, { color: Colors.primaryText }]}>{displayAddress}</Text>
             </View>
             <Ionicons name="navigate" size={20} color={color} />
           </View>
-          <Text style={[styles.tapHint, { color: color }]}>Tap to open in Maps</Text>
+          <Text style={[styles.tapHint, { color: color }]}>{t('appointmentPopup.tapToOpenInMaps', 'Tap to open in Maps')}</Text>
         </TouchableOpacity>
       )}
 
@@ -256,7 +258,7 @@ const AppointmentPopup = ({
           <View style={styles.row}>
             <Ionicons name="document-text-outline" size={22} color={Colors.secondaryText} />
             <View style={styles.rowContent}>
-              <Text style={[styles.label, { color: Colors.secondaryText }]}>Notes</Text>
+              <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('appointmentPopup.notes', 'Notes')}</Text>
               <Text style={[styles.description, { color: Colors.primaryText }]}>{description}</Text>
             </View>
           </View>
@@ -271,7 +273,7 @@ const AppointmentPopup = ({
           disabled={loading}
         >
           <Ionicons name="calendar" size={18} color="#fff" />
-          <Text style={styles.actionText}>Reschedule</Text>
+          <Text style={styles.actionText}>{t('appointmentPopup.reschedule', 'Reschedule')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionButton, { backgroundColor: '#EF4444' }]}
@@ -283,7 +285,7 @@ const AppointmentPopup = ({
           ) : (
             <>
               <Ionicons name="close-circle" size={18} color="#fff" />
-              <Text style={styles.actionText}>Cancel</Text>
+              <Text style={styles.actionText}>{t('buttons.cancel', 'Cancel')}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -303,7 +305,7 @@ const AppointmentPopup = ({
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <Text style={[styles.rescheduleTitle, { color: Colors.primaryText }]}>
-          Reschedule
+          {t('appointmentPopup.reschedule', 'Reschedule')}
         </Text>
         <View style={{ width: 40 }} />
       </View>
@@ -316,7 +318,7 @@ const AppointmentPopup = ({
 
         {/* Date Picker */}
         <View style={styles.pickerSection}>
-          <Text style={[styles.pickerLabel, { color: Colors.primaryText }]}>Date</Text>
+          <Text style={[styles.pickerLabel, { color: Colors.primaryText }]}>{t('appointmentPopup.date', 'Date')}</Text>
           <TouchableOpacity
             style={[styles.dateTimeButton, { backgroundColor: Colors.white, borderColor: Colors.border }]}
             onPress={() => setShowDatePicker(true)}
@@ -331,7 +333,7 @@ const AppointmentPopup = ({
         {/* Time Pickers (if not all day) */}
         {!all_day && (
           <View style={styles.pickerSection}>
-            <Text style={[styles.pickerLabel, { color: Colors.primaryText }]}>Time</Text>
+            <Text style={[styles.pickerLabel, { color: Colors.primaryText }]}>{t('appointmentPopup.time', 'Time')}</Text>
             <View style={styles.timeRow}>
               <TouchableOpacity
                 style={[styles.timeButton, { backgroundColor: Colors.white, borderColor: Colors.border }]}
@@ -339,7 +341,7 @@ const AppointmentPopup = ({
               >
                 <Ionicons name="time-outline" size={20} color={color} />
                 <View style={styles.timeTextContainer}>
-                  <Text style={[styles.timeLabel, { color: Colors.secondaryText }]}>Start</Text>
+                  <Text style={[styles.timeLabel, { color: Colors.secondaryText }]}>{t('appointmentPopup.start', 'Start')}</Text>
                   <Text style={[styles.timeText, { color: Colors.primaryText }]}>
                     {formatTimeShort(startTime)}
                   </Text>
@@ -354,7 +356,7 @@ const AppointmentPopup = ({
               >
                 <Ionicons name="time-outline" size={20} color={color} />
                 <View style={styles.timeTextContainer}>
-                  <Text style={[styles.timeLabel, { color: Colors.secondaryText }]}>End</Text>
+                  <Text style={[styles.timeLabel, { color: Colors.secondaryText }]}>{t('appointmentPopup.end', 'End')}</Text>
                   <Text style={[styles.timeText, { color: Colors.primaryText }]}>
                     {formatTimeShort(endTime)}
                   </Text>
@@ -377,7 +379,7 @@ const AppointmentPopup = ({
           ) : (
             <>
               <Ionicons name="checkmark-circle" size={20} color="#fff" />
-              <Text style={styles.saveButtonText}>Save Changes</Text>
+              <Text style={styles.saveButtonText}>{t('appointmentPopup.saveChanges', 'Save Changes')}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -387,12 +389,12 @@ const AppointmentPopup = ({
       {showDatePicker && Platform.OS === 'ios' && (
         <View style={[styles.pickerContainer, { backgroundColor: Colors.white }]}>
           <View style={[styles.pickerHeader, { borderBottomColor: Colors.border }]}>
-            <Text style={[styles.pickerHeaderTitle, { color: Colors.primaryText }]}>Select Date</Text>
+            <Text style={[styles.pickerHeaderTitle, { color: Colors.primaryText }]}>{t('appointmentPopup.selectDate', 'Select Date')}</Text>
             <TouchableOpacity
               onPress={() => setShowDatePicker(false)}
               style={[styles.pickerDoneButton, { backgroundColor: color }]}
             >
-              <Text style={styles.pickerDoneButtonText}>Done</Text>
+              <Text style={styles.pickerDoneButtonText}>{t('buttons.done', 'Done')}</Text>
             </TouchableOpacity>
           </View>
           <DateTimePicker
@@ -410,12 +412,12 @@ const AppointmentPopup = ({
       {showStartTimePicker && Platform.OS === 'ios' && (
         <View style={[styles.pickerContainer, { backgroundColor: Colors.white }]}>
           <View style={[styles.pickerHeader, { borderBottomColor: Colors.border }]}>
-            <Text style={[styles.pickerHeaderTitle, { color: Colors.primaryText }]}>Select Start Time</Text>
+            <Text style={[styles.pickerHeaderTitle, { color: Colors.primaryText }]}>{t('appointmentPopup.selectStartTime', 'Select Start Time')}</Text>
             <TouchableOpacity
               onPress={() => setShowStartTimePicker(false)}
               style={[styles.pickerDoneButton, { backgroundColor: color }]}
             >
-              <Text style={styles.pickerDoneButtonText}>Done</Text>
+              <Text style={styles.pickerDoneButtonText}>{t('buttons.done', 'Done')}</Text>
             </TouchableOpacity>
           </View>
           <DateTimePicker
@@ -433,12 +435,12 @@ const AppointmentPopup = ({
       {showEndTimePicker && Platform.OS === 'ios' && (
         <View style={[styles.pickerContainer, { backgroundColor: Colors.white }]}>
           <View style={[styles.pickerHeader, { borderBottomColor: Colors.border }]}>
-            <Text style={[styles.pickerHeaderTitle, { color: Colors.primaryText }]}>Select End Time</Text>
+            <Text style={[styles.pickerHeaderTitle, { color: Colors.primaryText }]}>{t('appointmentPopup.selectEndTime', 'Select End Time')}</Text>
             <TouchableOpacity
               onPress={() => setShowEndTimePicker(false)}
               style={[styles.pickerDoneButton, { backgroundColor: color }]}
             >
-              <Text style={styles.pickerDoneButtonText}>Done</Text>
+              <Text style={styles.pickerDoneButtonText}>{t('buttons.done', 'Done')}</Text>
             </TouchableOpacity>
           </View>
           <DateTimePicker

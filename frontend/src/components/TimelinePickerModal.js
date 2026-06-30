@@ -8,12 +8,14 @@ import {
   StyleSheet,
   ScrollView,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import CustomCalendar from './CustomCalendar';
 import { Ionicons } from '@expo/vector-icons';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
 export default function TimelinePickerModal({ visible, onClose, onConfirm, projectData }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -76,7 +78,7 @@ export default function TimelinePickerModal({ visible, onClose, onConfirm, proje
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'Select date';
+    if (!dateString) return t('timelinePickerModal.selectDate');
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
       month: 'short',
@@ -105,7 +107,7 @@ export default function TimelinePickerModal({ visible, onClose, onConfirm, proje
             {/* Header */}
             <View style={styles.header}>
               <Text style={[styles.title, { color: Colors.primaryText }]}>
-                Set Project Timeline
+                {t('timelinePickerModal.title')}
               </Text>
               <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
                 <Ionicons name="close" size={24} color={Colors.secondaryText} />
@@ -116,11 +118,11 @@ export default function TimelinePickerModal({ visible, onClose, onConfirm, proje
             {projectData && (
               <View style={[styles.projectInfo, { backgroundColor: Colors.lightGray }]}>
                 <Text style={[styles.projectName, { color: Colors.primaryText }]}>
-                  {projectData.name || 'New Project'}
+                  {projectData.name || t('timelinePickerModal.newProject')}
                 </Text>
                 {projectData.client && (
                   <Text style={[styles.clientName, { color: Colors.secondaryText }]}>
-                    Client: {projectData.client}
+                    {t('timelinePickerModal.clientLabel', { client: projectData.client })}
                   </Text>
                 )}
               </View>
@@ -129,7 +131,7 @@ export default function TimelinePickerModal({ visible, onClose, onConfirm, proje
             {/* Instructions */}
             <View style={styles.instructionsContainer}>
               <Text style={[styles.instructionsText, { color: Colors.secondaryText }]}>
-                Tap to select start date, then tap again to select end date
+                {t('timelinePickerModal.instructions')}
               </Text>
             </View>
 
@@ -150,7 +152,7 @@ export default function TimelinePickerModal({ visible, onClose, onConfirm, proje
                   <Ionicons name="calendar-outline" size={20} color={Colors.primaryBlue} />
                   <View style={styles.dateSummaryText}>
                     <Text style={[styles.dateSummaryLabel, { color: Colors.secondaryText }]}>
-                      Start Date
+                      {t('timelinePickerModal.startDate')}
                     </Text>
                     <Text style={[styles.dateSummaryValue, { color: Colors.primaryText }]}>
                       {formatDate(startDate)}
@@ -162,7 +164,7 @@ export default function TimelinePickerModal({ visible, onClose, onConfirm, proje
                   <Ionicons name="flag-outline" size={20} color={Colors.primaryBlue} />
                   <View style={styles.dateSummaryText}>
                     <Text style={[styles.dateSummaryLabel, { color: Colors.secondaryText }]}>
-                      End Date
+                      {t('timelinePickerModal.endDate')}
                     </Text>
                     <Text style={[styles.dateSummaryValue, { color: Colors.primaryText }]}>
                       {formatDate(endDate)}
@@ -180,7 +182,7 @@ export default function TimelinePickerModal({ visible, onClose, onConfirm, proje
                       {currentDuration}
                     </Text>
                     <Text style={[styles.durationLabel, { color: Colors.secondaryText }]}>
-                      days duration
+                      {t('timelinePickerModal.daysDuration')}
                     </Text>
                   </View>
                 </View>
@@ -195,7 +197,7 @@ export default function TimelinePickerModal({ visible, onClose, onConfirm, proje
               onPress={handleClose}
             >
               <Text style={[styles.buttonText, { color: Colors.secondaryText }]}>
-                Cancel
+                {t('common:buttons.cancel')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -211,7 +213,7 @@ export default function TimelinePickerModal({ visible, onClose, onConfirm, proje
               disabled={isConfirmDisabled}
             >
               <Text style={[styles.buttonText, { color: Colors.white }]}>
-                Set Timeline
+                {t('timelinePickerModal.setTimeline')}
               </Text>
             </TouchableOpacity>
           </View>

@@ -17,6 +17,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabase';
 
 const C = {
@@ -49,11 +50,12 @@ function VisChip({ label, color }) {
 }
 
 function VisibilityRow({ doc }) {
+  const { t } = useTranslation('common');
   const chips = [];
   if (doc.visible_to_subs)    chips.push({ label: 'S', color: C.violet });
   if (doc.visible_to_workers) chips.push({ label: 'W', color: C.green });
   if (doc.visible_to_clients) chips.push({ label: 'C', color: C.primary });
-  if (chips.length === 0)     chips.push({ label: 'Owner only', color: C.textMuted });
+  if (chips.length === 0)     chips.push({ label: t('documentsCard.ownerOnly'), color: C.textMuted });
   return (
     <View style={styles.visRow}>
       {chips.map((c, i) => <VisChip key={i} label={c.label} color={c.color} />)}
@@ -62,6 +64,7 @@ function VisibilityRow({ doc }) {
 }
 
 function DocRow({ doc, onOpen }) {
+  const { t } = useTranslation('common');
   const visual = TYPE_VISUAL[doc.category] || TYPE_VISUAL.other;
   return (
     <TouchableOpacity
@@ -77,7 +80,7 @@ function DocRow({ doc, onOpen }) {
       <View style={{ flex: 1, minWidth: 0 }}>
         <View style={styles.rowHeader}>
           <Text style={styles.rowLabel} numberOfLines={1} testID={`documentsCard.rowTitle.${doc.id}`}>
-            {doc.title || doc.file_name || 'Untitled'}
+            {doc.title || doc.file_name || t('documentsCard.untitled')}
           </Text>
           {doc.is_important ? (
             <View style={styles.importantPill}>
@@ -102,6 +105,7 @@ function DocRow({ doc, onOpen }) {
 }
 
 export default function DocumentsCard({ projectId, navigation }) {
+  const { t } = useTranslation('common');
   const [loading, setLoading] = useState(true);
   const [docs, setDocs] = useState([]);
   const [actionItems, setActionItems] = useState([]);
@@ -140,11 +144,11 @@ export default function DocumentsCard({ projectId, navigation }) {
         openTokens = data || [];
       }
 
-      const items = (openTokens || []).map((t) => ({
-        id: `req-${t.id}`,
-        title: `Awaiting ${t.doc_type_requested || 'doc'} from ${t.sub?.legal_name || 'sub'}`,
+      const items = (openTokens || []).map((tok) => ({
+        id: `req-${tok.id}`,
+        title: t('documentsCard.awaitingDoc', { docType: tok.doc_type_requested || 'doc', subName: tok.sub?.legal_name || 'sub' }),
         category: 'request',
-        created_at: t.created_at,
+        created_at: tok.created_at,
         is_important: false,
         visible_to_subs: false,
         visible_to_workers: false,
@@ -196,10 +200,10 @@ export default function DocumentsCard({ projectId, navigation }) {
           <Ionicons name="folder-outline" size={16} color={C.violet} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle} testID="documentsCard.headerTitle">Documents</Text>
+          <Text style={styles.headerTitle} testID="documentsCard.headerTitle">{t('documentsCard.title')}</Text>
           <Text style={styles.headerSubtitle} testID="documentsCard.headerSubtitle">
-            {total === 0 ? 'No documents yet' : `${total} document${total === 1 ? '' : 's'}`}
-            {actionItems.length > 0 ? `  ·  ${actionItems.length} action item${actionItems.length === 1 ? '' : 's'}` : ''}
+            {total === 0 ? t('documentsCard.noDocumentsYet') : t('documentsCard.documentCount', { count: total })}
+            {actionItems.length > 0 ? `  ·  ${t('documentsCard.actionItemCount', { count: actionItems.length })}` : ''}
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={16} color={C.textMuted} />
@@ -210,7 +214,7 @@ export default function DocumentsCard({ projectId, navigation }) {
         <View style={styles.zone}>
           <View style={styles.zoneHeader}>
             <Ionicons name="alert-circle" size={14} color={C.red} />
-            <Text style={[styles.zoneLabel, { color: C.red }]} testID="documentsCard.actionRequiredLabel">Action required ({actionItems.length})</Text>
+            <Text style={[styles.zoneLabel, { color: C.red }]} testID="documentsCard.actionRequiredLabel">{t('documentsCard.actionRequiredLabel', { count: actionItems.length })}</Text>
           </View>
           {actionItems.map((doc) => (
             <DocRow key={doc.id} doc={doc} onOpen={handleOpen} />
@@ -223,7 +227,7 @@ export default function DocumentsCard({ projectId, navigation }) {
         <View style={styles.zone}>
           <View style={styles.zoneHeader}>
             <Ionicons name="folder-open-outline" size={14} color={C.textSec} />
-            <Text style={styles.zoneLabel} testID="documentsCard.activeLabel">Active ({active.length})</Text>
+            <Text style={styles.zoneLabel} testID="documentsCard.activeLabel">{t('documentsCard.activeLabel', { count: active.length })}</Text>
           </View>
           {active.map((doc) => (
             <DocRow key={doc.id} doc={doc} onOpen={handleOpen} />
@@ -245,7 +249,7 @@ export default function DocumentsCard({ projectId, navigation }) {
               name={historyExpanded ? 'chevron-down' : 'chevron-forward'}
               size={14} color={C.textMuted}
             />
-            <Text style={styles.zoneLabel} testID="documentsCard.archiveLabel">Archive ({history.length})</Text>
+            <Text style={styles.zoneLabel} testID="documentsCard.archiveLabel">{t('documentsCard.archiveLabel', { count: history.length })}</Text>
           </TouchableOpacity>
           {historyExpanded && history.map((doc) => (
             <DocRow key={doc.id} doc={doc} onOpen={handleOpen} />
@@ -255,7 +259,7 @@ export default function DocumentsCard({ projectId, navigation }) {
 
       {total === 0 && actionItems.length === 0 && (
         <Text style={styles.emptyMsg}>
-          No documents yet. Tap to add plans, contracts, photos, or specs.
+          {t('documentsCard.emptyMsg')}
         </Text>
       )}
 
@@ -268,7 +272,7 @@ export default function DocumentsCard({ projectId, navigation }) {
         accessibilityLabel="Add document"
       >
         <Ionicons name="add-circle-outline" size={16} color={C.violet} />
-        <Text style={styles.addBtnText}>Add document</Text>
+        <Text style={styles.addBtnText}>{t('documentsCard.addDocument')}</Text>
       </TouchableOpacity>
     </View>
   );

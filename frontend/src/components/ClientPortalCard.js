@@ -69,7 +69,7 @@ export default function ClientPortalCard({ project, navigation }) {
 
   const handleShare = async () => {
     if (!clientName.trim() || !clientEmail.trim()) {
-      Alert.alert('Required', 'Client name and email are required.');
+      Alert.alert(t('clientPortalCard.requiredTitle'), t('clientPortalCard.requiredMessage'));
       return;
     }
 
@@ -93,7 +93,7 @@ export default function ClientPortalCard({ project, navigation }) {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to share');
+      if (!res.ok) throw new Error(data.error || t('clientPortalCard.failedToShare'));
 
       setPortalData({
         projectClientId: data.projectClientId,
@@ -105,11 +105,11 @@ export default function ClientPortalCard({ project, navigation }) {
 
       // Offer to share the link
       Share.share({
-        message: `View your project "${project.name}" on Sylk: ${data.portalUrl}\n\nDon't have the app? Download Sylk from the App Store.`,
+        message: t('clientPortalCard.shareMessageWithStore', { projectName: project.name, portalUrl: data.portalUrl }),
         url: data.portalUrl,
       });
     } catch (error) {
-      Alert.alert('Error', error.message);
+      Alert.alert(t('common:alerts.error'), error.message);
     } finally {
       setSharing(false);
     }
@@ -118,14 +118,14 @@ export default function ClientPortalCard({ project, navigation }) {
   const handleCopyLink = async () => {
     if (portalData?.portalUrl) {
       await Clipboard.setStringAsync(portalData.portalUrl);
-      Alert.alert('Copied', 'Portal link copied to clipboard.');
+      Alert.alert(t('clientPortalCard.copiedTitle'), t('clientPortalCard.copiedMessage'));
     }
   };
 
   const handleShareLink = async () => {
     if (portalData?.portalUrl) {
       Share.share({
-        message: `View your project "${project.name}" here: ${portalData.portalUrl}`,
+        message: t('clientPortalCard.shareMessage', { projectName: project.name, portalUrl: portalData.portalUrl }),
         url: portalData.portalUrl,
       });
     }
@@ -146,7 +146,7 @@ export default function ClientPortalCard({ project, navigation }) {
           <View style={styles.iconContainer}>
             <Ionicons name="globe-outline" size={18} color="#3B82F6" />
           </View>
-          <Text style={styles.title}>Client Portal</Text>
+          <Text style={styles.title}>{t('clientPortalCard.title')}</Text>
         </View>
         <TouchableOpacity
           style={styles.settingsBtn}
@@ -163,7 +163,7 @@ export default function ClientPortalCard({ project, navigation }) {
         <View>
           <View style={styles.statusRow}>
             <View style={styles.liveDot} />
-            <Text style={styles.statusText}>Live</Text>
+            <Text style={styles.statusText}>{t('clientPortalCard.live')}</Text>
           </View>
 
           <View style={styles.clientInfo}>
@@ -174,12 +174,12 @@ export default function ClientPortalCard({ project, navigation }) {
           <View style={styles.actions}>
             <TouchableOpacity style={styles.actionBtn} onPress={handleCopyLink}>
               <Ionicons name="copy-outline" size={16} color="#3B82F6" />
-              <Text style={styles.actionText}>Copy Link</Text>
+              <Text style={styles.actionText}>{t('clientPortalCard.copyLink')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.actionBtn} onPress={handleShareLink}>
               <Ionicons name="share-outline" size={16} color="#3B82F6" />
-              <Text style={styles.actionText}>Share</Text>
+              <Text style={styles.actionText}>{t('clientPortalCard.share')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -187,7 +187,7 @@ export default function ClientPortalCard({ project, navigation }) {
               onPress={() => navigation?.navigate('ClientVisibility', { projectId: project.id })}
             >
               <Ionicons name="eye-outline" size={16} color="#3B82F6" />
-              <Text style={styles.actionText}>Visibility</Text>
+              <Text style={styles.actionText}>{t('clientPortalCard.visibility')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -198,14 +198,14 @@ export default function ClientPortalCard({ project, navigation }) {
             style={styles.input}
             value={clientName}
             onChangeText={setClientName}
-            placeholder="Client name"
+            placeholder={t('clientPortalCard.clientNamePlaceholder')}
             placeholderTextColor="#9CA3AF"
           />
           <TextInput
             style={styles.input}
             value={clientEmail}
             onChangeText={setClientEmail}
-            placeholder="Client email"
+            placeholder={t('clientPortalCard.clientEmailPlaceholder')}
             placeholderTextColor="#9CA3AF"
             keyboardType="email-address"
             autoCapitalize="none"
@@ -214,13 +214,13 @@ export default function ClientPortalCard({ project, navigation }) {
             style={styles.input}
             value={clientPhone}
             onChangeText={setClientPhone}
-            placeholder="Client phone (optional)"
+            placeholder={t('clientPortalCard.clientPhonePlaceholder')}
             placeholderTextColor="#9CA3AF"
             keyboardType="phone-pad"
           />
           <View style={styles.formActions}>
             <TouchableOpacity onPress={() => setShowShareForm(false)}>
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={styles.cancelText}>{t('common:buttons.cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.shareBtn, sharing && { opacity: 0.5 }]}
@@ -230,7 +230,7 @@ export default function ClientPortalCard({ project, navigation }) {
               {sharing ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.shareBtnText}>Share</Text>
+                <Text style={styles.shareBtnText}>{t('clientPortalCard.share')}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -242,7 +242,7 @@ export default function ClientPortalCard({ project, navigation }) {
           onPress={() => setShowShareForm(true)}
         >
           <Ionicons name="share-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
-          <Text style={styles.shareBtnText}>Share with Client</Text>
+          <Text style={styles.shareBtnText}>{t('clientPortalCard.shareWithClient')}</Text>
         </TouchableOpacity>
       )}
     </View>

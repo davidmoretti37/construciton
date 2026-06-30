@@ -22,6 +22,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { statusLabel } from '../utils/statusLabel';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 import { Ionicons } from '@expo/vector-icons';
@@ -95,13 +96,13 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
     const gmailUrl = `googlegmail:///co?to=${toEmail}&subject=${encodedSubject}&body=${encodedBody}`;
 
     Alert.alert(
-      'Send Invitation',
-      'Choose how to send the invite email',
+      t('invite.sendInvitation', 'Send Invitation'),
+      t('invite.chooseSendMethod', 'Choose how to send the invite email'),
       [
         {
           text: 'Gmail',
           onPress: () => Linking.openURL(gmailUrl).catch(() => {
-            Alert.alert('Gmail not found', 'Gmail app is not installed. Opening default mail instead.');
+            Alert.alert(t('invite.gmailNotFound', 'Gmail not found'), t('invite.gmailNotInstalled', 'Gmail app is not installed. Opening default mail instead.'));
             Linking.openURL(mailtoUrl).catch(() => {});
           }),
         },
@@ -109,7 +110,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
           text: 'Apple Mail',
           onPress: () => Linking.openURL(mailtoUrl).catch(() => {}),
         },
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('actions.cancel', 'Cancel'), style: 'cancel' },
       ]
     );
   };
@@ -401,7 +402,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
       // Convert visits to task-like objects so the calendar can render them
       const visitTasks = (visitsResult.data || []).map(v => ({
         id: `visit-${v.id}`,
-        description: v.service_locations?.name || 'Visit',
+        description: v.service_locations?.name || t('schedule.visit', 'Visit'),
         start_date: v.scheduled_date,
         end_date: v.scheduled_date,
         status: v.status === 'completed' ? 'completed' : 'pending',
@@ -409,7 +410,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
         latitude: v.service_locations?.latitude,
         longitude: v.service_locations?.longitude,
         address: v.service_locations?.address,
-        projects: { name: v.service_plans?.name || 'Service', working_days: [0, 1, 2, 3, 4, 5, 6] },
+        projects: { name: v.service_plans?.name || t('schedule.service', 'Service'), working_days: [0, 1, 2, 3, 4, 5, 6] },
       }));
 
       const allTasks = [...tasks, ...visitTasks];
@@ -480,7 +481,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
       }
     } catch (error) {
       console.error('Error loading day detail:', error);
-      Alert.alert('Error', 'Failed to load schedule details. Pull down to refresh.');
+      Alert.alert(t('errors.error', 'Error'), t('errors.loadScheduleFailed', 'Failed to load schedule details. Pull down to refresh.'));
     }
   };
 
@@ -820,7 +821,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
       const groupedByProject = {};
       reports.forEach(report => {
         const projectId = report.project_id;
-        const projectName = report.projects?.name || report.service_plans?.name || 'Unknown Project';
+        const projectName = report.projects?.name || report.service_plans?.name || t('reports.unknownProject', 'Unknown Project');
         if (!groupedByProject[projectId]) {
           groupedByProject[projectId] = {
             projectName,
@@ -1035,13 +1036,13 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
         setShowAddModal(false);
 
         // Let user pick Gmail or Apple Mail
-        const businessName = profile?.business_name || 'our company';
-        const workerGreeting = workerName ? `Hi ${workerName},` : 'Hi,';
+        const businessName = profile?.business_name || t('invite.ourCompany', 'our company');
+        const workerGreeting = workerName ? t('invite.greetingNamed', 'Hi {{name}},', { name: workerName }) : t('invite.greeting', 'Hi,');
         const inviteLink = `https://construciton-production.up.railway.app/invite?email=${encodeURIComponent(workerEmail)}&role=worker`;
         openEmailPicker(
           workerEmail,
-          `You're invited to join ${businessName} on Sylk`,
-          `${workerGreeting}\n\nYou've been invited to join ${businessName} as a Worker on Sylk — the construction management app.\n\nTap here to get started:\n${inviteLink}\n\nLooking forward to working with you!\n\n— ${profile?.business_name || 'Your team'}`,
+          t('invite.emailSubject', "You're invited to join {{businessName}} on Sylk", { businessName }),
+          t('invite.emailBody', "{{greeting}}\n\nYou've been invited to join {{businessName}} as a Worker on Sylk — the construction management app.\n\nTap here to get started:\n{{link}}\n\nLooking forward to working with you!\n\n— {{signature}}", { greeting: workerGreeting, businessName, link: inviteLink, signature: profile?.business_name || t('invite.yourTeam', 'Your team') }),
         );
       } else {
         Alert.alert(t('errors.error', 'Error'), t('errors.saveFailed'));
@@ -1248,7 +1249,8 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
   };
 
   const getStatusLabel = (status) => {
-    return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown';
+    if (!status) return t('status.unknown', 'Unknown');
+    return statusLabel(status);
   };
 
   const isWorkerActive = (workerId) => {
@@ -1337,7 +1339,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                   { fontSize: 12 },
                   activeTab === 'team' && { ...styles.activeTabText, color: accentColor }
                 ]}>
-                  Team
+                  {t('tabs.team', 'Team')}
                 </Text>
               </TouchableOpacity>
             )}
@@ -1411,7 +1413,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                     hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                   >
                     <Ionicons name="add" size={16} color={Colors.primaryBlue} />
-                    <Text style={[styles.inlineActionText, { color: Colors.primaryBlue }]}>Event</Text>
+                    <Text style={[styles.inlineActionText, { color: Colors.primaryBlue }]}>{t('schedule.event', 'Event')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.inlineActionButton, { borderColor: Colors.warningOrange, backgroundColor: Colors.warningOrange + '10' }]}
@@ -1422,7 +1424,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                     hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                   >
                     <Ionicons name="add" size={16} color={Colors.warningOrange} />
-                    <Text style={[styles.inlineActionText, { color: Colors.warningOrange }]}>Task</Text>
+                    <Text style={[styles.inlineActionText, { color: Colors.warningOrange }]}>{t('schedule.taskLabel', 'Task')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1519,7 +1521,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
               {!scheduleLoading && (
                 <View style={styles.scheduleCategory}>
                   <Text style={[styles.categoryLabel, { color: Colors.warningOrange }]}>
-                    Tasks
+                    {t('schedule.tasks', 'Tasks')}
                   </Text>
 
                   {scheduleTasks.length === 0 ? (
@@ -1536,7 +1538,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                     // Group tasks by project with collapsible dropdowns
                     Object.entries(
                       scheduleTasks.reduce((acc, task) => {
-                        const projectName = task.projects?.name || 'Unknown Project';
+                        const projectName = task.projects?.name || t('reports.unknownProject', 'Unknown Project');
                         if (!acc[projectName]) {
                           acc[projectName] = [];
                         }
@@ -1700,7 +1702,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                       <View style={styles.scheduleCardHeader}>
                         <View style={styles.scheduleCardTitleRow}>
                           <Text style={[styles.scheduleCardProject, { color: Colors.primaryText }]}>
-                            {schedule.projects?.name || 'Unknown Project'}
+                            {schedule.projects?.name || t('reports.unknownProject', 'Unknown Project')}
                           </Text>
                           {schedule.start_time && (
                             <Text style={[styles.scheduleCardTime, { color: Colors.secondaryText }]}>
@@ -1909,37 +1911,37 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                             {stepsCount > 0 && (
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.successGreen + '15', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
                                 <Ionicons name="checkmark-circle" size={12} color={Colors.successGreen} />
-                                <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.successGreen }}>{stepsCount} {stepsCount === 1 ? 'task' : 'tasks'}</Text>
+                                <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.successGreen }}>{stepsCount} {stepsCount === 1 ? t('reports.task', 'task') : t('reports.tasks', 'tasks')}</Text>
                               </View>
                             )}
                             {manpowerCount > 0 && (
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.primaryBlue + '15', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
                                 <Ionicons name="people" size={12} color={Colors.primaryBlue} />
-                                <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.primaryBlue }}>{manpowerCount} crew</Text>
+                                <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.primaryBlue }}>{manpowerCount} {t('reports.crew', 'crew')}</Text>
                               </View>
                             )}
                             {materialsCount > 0 && (
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F59E0B' + '15', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
                                 <Ionicons name="cube" size={12} color="#F59E0B" />
-                                <Text style={{ fontSize: 11, fontWeight: '600', color: '#F59E0B' }}>{materialsCount} materials</Text>
+                                <Text style={{ fontSize: 11, fontWeight: '600', color: '#F59E0B' }}>{materialsCount} {t('reports.materials', 'materials')}</Text>
                               </View>
                             )}
                             {equipmentCount > 0 && (
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#6366F1' + '15', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
                                 <Ionicons name="construct" size={12} color="#6366F1" />
-                                <Text style={{ fontSize: 11, fontWeight: '600', color: '#6366F1' }}>{equipmentCount} equip.</Text>
+                                <Text style={{ fontSize: 11, fontWeight: '600', color: '#6366F1' }}>{equipmentCount} {t('reports.equipAbbrev', 'equip.')}</Text>
                               </View>
                             )}
                             {delaysCount > 0 && (
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EF4444' + '15', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
                                 <Ionicons name="warning" size={12} color="#EF4444" />
-                                <Text style={{ fontSize: 11, fontWeight: '600', color: '#EF4444' }}>{delaysCount} {delaysCount === 1 ? 'delay' : 'delays'}</Text>
+                                <Text style={{ fontSize: 11, fontWeight: '600', color: '#EF4444' }}>{delaysCount} {delaysCount === 1 ? t('reports.delay', 'delay') : t('reports.delays', 'delays')}</Text>
                               </View>
                             )}
                             {tagsCount > 0 && (
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.lightBackground, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
                                 <Ionicons name="pricetag" size={12} color={Colors.secondaryText} />
-                                <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.secondaryText }}>{tagsCount} {tagsCount === 1 ? 'tag' : 'tags'}</Text>
+                                <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.secondaryText }}>{tagsCount} {tagsCount === 1 ? t('reports.tag', 'tag') : t('reports.tags', 'tags')}</Text>
                               </View>
                             )}
                           </View>
@@ -2689,10 +2691,10 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                 setIsEditingDetail(false);
               }}>
                 <Text style={[styles.modalCancelText, { color: Colors.primaryBlue }]}>
-                  {isEditingDetail ? 'Cancel' : 'Close'}
+                  {isEditingDetail ? t('actions.cancel', 'Cancel') : t('workerDetails.close', 'Close')}
                 </Text>
               </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Worker Details</Text>
+              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>{t('workerDetails.title', 'Worker Details')}</Text>
               <TouchableOpacity
                 onPress={() => {
                   if (isEditingDetail) {
@@ -2711,7 +2713,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                   <ActivityIndicator size="small" color={Colors.primaryBlue} />
                 ) : (
                   <Text style={[styles.modalSaveText, { color: Colors.primaryBlue }]}>
-                    {isEditingDetail ? 'Save' : 'Edit'}
+                    {isEditingDetail ? t('actions.save', 'Save') : t('workerDetails.edit', 'Edit')}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -2771,13 +2773,13 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                           <Ionicons name="mail" size={16} color={Colors.successGreen} />
                         </View>
                         <View style={styles.infoContent}>
-                          <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Email</Text>
+                          <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>{t('contact.email', 'Email')}</Text>
                           {isEditingDetail ? (
                             <TextInput
                               style={[styles.infoInput, { color: Colors.primaryText, borderColor: Colors.border }]}
                               value={formEmail}
                               onChangeText={setFormEmail}
-                              placeholder="worker@example.com"
+                              placeholder={t('form.emailPlaceholder')}
                               placeholderTextColor={Colors.secondaryText}
                               keyboardType="email-address"
                               autoCapitalize="none"
@@ -2824,13 +2826,13 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                           <Ionicons name="call" size={16} color={Colors.primaryBlue} />
                         </View>
                         <View style={styles.infoContent}>
-                          <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Phone</Text>
+                          <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>{t('contact.phone', 'Phone')}</Text>
                           {isEditingDetail ? (
                             <TextInput
                               style={[styles.infoInput, { color: Colors.primaryText, borderColor: Colors.border }]}
                               value={formPhone}
                               onChangeText={setFormPhone}
-                              placeholder="(555) 123-4567"
+                              placeholder={t('form.phonePlaceholder')}
                               placeholderTextColor={Colors.secondaryText}
                               keyboardType="phone-pad"
                             />
@@ -2850,12 +2852,12 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                           <Ionicons name="hammer" size={16} color={Colors.warningOrange} />
                         </View>
                         <View style={styles.infoContent}>
-                          <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Trade</Text>
+                          <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>{t('workerDetails.trade', 'Trade')}</Text>
                           <TextInput
                             style={[styles.infoInput, { color: Colors.primaryText, borderColor: Colors.border }]}
                             value={formTrade}
                             onChangeText={setFormTrade}
-                            placeholder="Carpenter, Electrician, etc."
+                            placeholder={t('form.rolePlaceholder')}
                             placeholderTextColor={Colors.secondaryText}
                           />
                         </View>
@@ -2870,7 +2872,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                     <View style={styles.paymentHeader}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
                         <Ionicons name="cash" size={22} color={Colors.secondaryText} />
-                        <Text style={[styles.paymentHeaderText, { color: Colors.primaryText }]}>Payment Information</Text>
+                        <Text style={[styles.paymentHeaderText, { color: Colors.primaryText }]}>{t('workerDetails.paymentInformation', 'Payment Information')}</Text>
                       </View>
                       <TouchableOpacity
                         onPress={() => {
@@ -2885,9 +2887,9 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                     <View style={styles.paymentBody}>
                       <View style={[styles.paymentTypeBadge, { backgroundColor: Colors.lightGray }]}>
                         <Text style={[styles.paymentTypeBadgeText, { color: Colors.secondaryText }]}>
-                          {selectedWorker.payment_type === 'hourly' ? 'HOURLY RATE' :
-                           selectedWorker.payment_type === 'daily' ? 'DAILY RATE' :
-                           selectedWorker.payment_type === 'weekly' ? 'WEEKLY SALARY' : 'PROJECT RATE'}
+                          {selectedWorker.payment_type === 'hourly' ? t('workerDetails.hourlyRate', 'HOURLY RATE') :
+                           selectedWorker.payment_type === 'daily' ? t('workerDetails.dailyRate', 'DAILY RATE') :
+                           selectedWorker.payment_type === 'weekly' ? t('workerDetails.weeklySalary', 'WEEKLY SALARY') : t('workerDetails.projectRate', 'PROJECT RATE')}
                         </Text>
                       </View>
                       <View style={styles.paymentAmountRow}>
@@ -2899,9 +2901,9 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                            selectedWorker.project_rate}
                         </Text>
                         <Text style={[styles.paymentPer, { color: Colors.secondaryText }]}>
-                          /{selectedWorker.payment_type === 'hourly' ? 'hr' :
-                            selectedWorker.payment_type === 'daily' ? 'day' :
-                            selectedWorker.payment_type === 'weekly' ? 'wk' : 'project'}
+                          {selectedWorker.payment_type === 'hourly' ? t('workerDetails.perHour', '/hr') :
+                            selectedWorker.payment_type === 'daily' ? t('workerDetails.perDay', '/day') :
+                            selectedWorker.payment_type === 'weekly' ? t('workerDetails.perWeek', '/wk') : t('workerDetails.perProject', '/project')}
                         </Text>
                       </View>
                     </View>
@@ -2913,12 +2915,12 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                   <View style={[styles.activeStatusCard, { backgroundColor: Colors.successGreen }]}>
                     <View style={styles.activeStatusHeader}>
                       <Ionicons name="radio-button-on" size={16} color="#FFFFFF" />
-                      <Text style={styles.activeStatusTitle}>Currently On Site</Text>
+                      <Text style={styles.activeStatusTitle}>{t('workerDetails.currentlyOnSite', 'Currently On Site')}</Text>
                     </View>
                     <View style={styles.activeStatusBody}>
                       <Ionicons name="briefcase" size={18} color="#FFFFFF" />
                       <Text style={styles.activeStatusProject}>
-                        {activeClockIns[selectedWorker.id]?.projects?.name || activeClockIns[selectedWorker.id]?.service_plans?.name || 'Unknown Project'}
+                        {activeClockIns[selectedWorker.id]?.projects?.name || activeClockIns[selectedWorker.id]?.service_plans?.name || t('reports.unknownProject', 'Unknown Project')}
                       </Text>
                     </View>
                   </View>
@@ -2934,7 +2936,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                     }}
                   >
                     <Ionicons name="calendar-outline" size={20} color="#FFFFFF" />
-                    <Text style={styles.viewHistoryButtonText}>View Payment History</Text>
+                    <Text style={styles.viewHistoryButtonText}>{t('workerDetails.viewPaymentHistory', 'View Payment History')}</Text>
                   </TouchableOpacity>
                 )}
 
@@ -2943,7 +2945,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                   <View style={[styles.clockHistoryCard, { backgroundColor: Colors.white }]}>
                     <View style={styles.clockHistoryHeader}>
                       <Ionicons name="time-outline" size={22} color={Colors.secondaryText} />
-                      <Text style={[styles.clockHistoryTitle, { color: Colors.primaryText }]}>Recent Clock Records</Text>
+                      <Text style={[styles.clockHistoryTitle, { color: Colors.primaryText }]}>{t('workerDetails.recentClockRecords', 'Recent Clock Records')}</Text>
                     </View>
                     {selectedWorkerHistory.slice(0, 7).map((entry, index) => (
                       <View key={entry.id || index} style={[styles.clockHistoryEntry, { borderBottomColor: Colors.border }]}>
@@ -2952,12 +2954,12 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                             {formatClockDate(entry.clock_in)}
                           </Text>
                           <Text style={[styles.clockHistoryProject, { color: Colors.secondaryText }]}>
-                            {entry.projects?.name || entry.service_plans?.name || 'Unknown Project'}
+                            {entry.projects?.name || entry.service_plans?.name || t('reports.unknownProject', 'Unknown Project')}
                           </Text>
                         </View>
                         <View style={styles.clockHistoryRight}>
                           <Text style={[styles.clockHistoryTime, { color: Colors.secondaryText }]}>
-                            {formatClockTime(entry.clock_in)} - {entry.clock_out ? formatClockTime(entry.clock_out) : 'Active'}
+                            {formatClockTime(entry.clock_in)} - {entry.clock_out ? formatClockTime(entry.clock_out) : t('status.active', 'Active')}
                           </Text>
                           <Text style={[styles.clockHistoryHours, { color: Colors.primaryBlue }]}>
                             {formatHoursMinutes(entry.hoursWorked)}
@@ -2974,7 +2976,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                   onPress={() => handleDeleteWorker(selectedWorker)}
                 >
                   <Ionicons name="trash" size={20} color={Colors.errorRed} />
-                  <Text style={styles.deleteButtonText}>Delete Worker</Text>
+                  <Text style={styles.deleteButtonText}>{t('deleteWorker', 'Delete Worker')}</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -3054,7 +3056,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
               <Ionicons name="close" size={24} color={Colors.primaryText} />
             </TouchableOpacity>
             <Text style={[styles.calendarModalTitle, { color: Colors.primaryText }]}>
-              Select Date
+              {t('reports.selectDate', 'Select Date')}
             </Text>
             <View style={{ width: 40 }} />
           </View>
@@ -3082,14 +3084,14 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
               styles.allReportsButtonText,
               { color: showAllReports ? '#FFFFFF' : Colors.primaryText }
             ]}>
-              All Reports
+              {t('reports.allReports', 'All Reports')}
             </Text>
           </TouchableOpacity>
 
           {/* Calendar */}
           <View style={styles.calendarModalContent}>
             <Text style={[styles.calendarHint, { color: Colors.secondaryText }]}>
-              Tap a date or select two dates for a range
+              {t('reports.dateRangeHint', 'Tap a date or select two dates for a range')}
             </Text>
             <CustomCalendar
               onDateSelect={(dateString) => {
@@ -3146,10 +3148,10 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
             >
               <Text style={styles.applyButtonText}>
                 {reportsDateRangeStart && reportsDateRangeEnd && reportsDateRangeStart !== reportsDateRangeEnd
-                  ? 'Apply Range'
+                  ? t('reports.applyRange', 'Apply Range')
                   : reportsDateRangeStart
-                    ? 'Select Date'
-                    : 'Select a Date'}
+                    ? t('reports.selectDate', 'Select Date')
+                    : t('reports.selectADate', 'Select a Date')}
               </Text>
             </TouchableOpacity>
           </View>

@@ -235,7 +235,7 @@ export default function ConversationsSection({ projectId, clientPhone }) {
                     }}
                   >
                     <Ionicons name="copy-outline" size={14} color={Colors.primaryText} />
-                    <Text style={[styles.copyButtonText, { color: Colors.primaryText }]}>Copy all</Text>
+                    <Text style={[styles.copyButtonText, { color: Colors.primaryText }]}>{t('conversationsSection.copyAll')}</Text>
                   </TouchableOpacity>
                 </Animated.View>
               )}
@@ -250,7 +250,7 @@ export default function ConversationsSection({ projectId, clientPhone }) {
                 >
                   <View style={styles.copyButton}>
                     <Ionicons name="checkmark-circle" size={14} color="#34C759" />
-                    <Text style={[styles.copyButtonText, { color: '#34C759' }]}>Copied!</Text>
+                    <Text style={[styles.copyButtonText, { color: '#34C759' }]}>{t('conversationsSection.copied')}</Text>
                   </View>
                 </Animated.View>
               )}

@@ -37,7 +37,7 @@ export default function SubSettingsTab() {
   const Colors = isDark ? DarkColors : LightColors;
   const styles = makeStyles(Colors);
   const { user, profile } = useAuth();
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation('common');
 
   const [subOrg, setSubOrg] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -78,7 +78,7 @@ export default function SubSettingsTab() {
       await load();
       setEditing(false);
     } catch (e) {
-      Alert.alert('Save failed', e.message);
+      Alert.alert(t('subSettingsTab.saveFailed'), e.message);
     } finally {
       setSaving(false);
     }
@@ -94,12 +94,12 @@ export default function SubSettingsTab() {
 
   const handleLogout = () => {
     Alert.alert(
-      'Log out',
-      'Are you sure you want to log out?',
+      t('subSettingsTab.logout'),
+      t('subSettingsTab.logoutConfirmMessage'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
         {
-          text: 'Log out',
+          text: t('subSettingsTab.logout'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -126,7 +126,7 @@ export default function SubSettingsTab() {
 
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
-      <Text style={styles.headerTitle}>Settings</Text>
+      <Text style={styles.headerTitle}>{t('subSettingsTab.title')}</Text>
 
       {/* Profile card */}
       <View style={styles.profileCard}>
@@ -137,7 +137,7 @@ export default function SubSettingsTab() {
         </View>
         <View style={{ flex: 1, marginLeft: 14 }}>
           <Text style={styles.profileName} numberOfLines={1}>
-            {subOrg?.legal_name || 'My business'}
+            {subOrg?.legal_name || t('subSettingsTab.defaultBusinessName')}
           </Text>
           <Text style={styles.profileMeta} numberOfLines={1}>
             {user?.email}
@@ -147,21 +147,21 @@ export default function SubSettingsTab() {
 
       {/* Business info */}
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Business info</Text>
+        <Text style={styles.sectionTitle}>{t('subSettingsTab.businessInfo')}</Text>
         {!editing ? (
           <TouchableOpacity onPress={() => setEditing(true)}>
-            <Text style={styles.editLink}>Edit</Text>
+            <Text style={styles.editLink}>{t('common:buttons.edit')}</Text>
           </TouchableOpacity>
         ) : (
           <View style={{ flexDirection: 'row', gap: 16 }}>
             <TouchableOpacity onPress={() => { setEditing(false); load(); }}>
-              <Text style={[styles.editLink, { color: Colors.secondaryText }]}>Cancel</Text>
+              <Text style={[styles.editLink, { color: Colors.secondaryText }]}>{t('common:buttons.cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={handleSave} disabled={saving}>
               {saving ? (
                 <ActivityIndicator size="small" color={SUB_VIOLET} />
               ) : (
-                <Text style={[styles.editLink, { color: SUB_VIOLET }]}>Save</Text>
+                <Text style={[styles.editLink, { color: SUB_VIOLET }]}>{t('common:buttons.save')}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -169,19 +169,19 @@ export default function SubSettingsTab() {
       </View>
 
       <View style={styles.card}>
-        <Field label="Legal name" value={legalName} onChangeText={setLegalName} editing={editing} Colors={Colors} />
-        <Field label="DBA" value={dba} onChangeText={setDba} editing={editing} placeholder="Doing-business-as" Colors={Colors} />
-        <Field label="Phone" value={phone} onChangeText={setPhone} editing={editing} keyboardType="phone-pad" placeholder="(555) 555-5555" Colors={Colors} />
-        <Field label="Website" value={website} onChangeText={setWebsite} editing={editing} keyboardType="url" placeholder="https://..." Colors={Colors} last />
+        <Field label={t('subSettingsTab.legalName')} value={legalName} onChangeText={setLegalName} editing={editing} Colors={Colors} />
+        <Field label={t('subSettingsTab.dba')} value={dba} onChangeText={setDba} editing={editing} placeholder={t('subSettingsTab.dbaPlaceholder')} Colors={Colors} />
+        <Field label={t('subSettingsTab.phone')} value={phone} onChangeText={setPhone} editing={editing} keyboardType="phone-pad" placeholder="(555) 555-5555" Colors={Colors} />
+        <Field label={t('subSettingsTab.website')} value={website} onChangeText={setWebsite} editing={editing} keyboardType="url" placeholder="https://..." Colors={Colors} last />
       </View>
 
       {/* Appearance */}
-      <Text style={styles.sectionTitle}>Appearance</Text>
+      <Text style={styles.sectionTitle}>{t('subSettingsTab.appearance')}</Text>
       <View style={styles.card}>
         <View style={styles.row}>
           <View style={styles.rowLabelWrap}>
             <Ionicons name={isDark ? 'moon' : 'sunny'} size={20} color={SUB_VIOLET} />
-            <Text style={styles.rowLabel}>Dark mode</Text>
+            <Text style={styles.rowLabel}>{t('subSettingsTab.darkMode')}</Text>
           </View>
           <Switch
             value={isDark}
@@ -193,7 +193,7 @@ export default function SubSettingsTab() {
       </View>
 
       {/* Language */}
-      <Text style={styles.sectionTitle}>Language</Text>
+      <Text style={styles.sectionTitle}>{t('subSettingsTab.language')}</Text>
       <View style={styles.card}>
         {LANGUAGES.map((lang, idx) => {
           const active = i18n.language === lang.code;
@@ -212,16 +212,16 @@ export default function SubSettingsTab() {
       </View>
 
       {/* Account */}
-      <Text style={styles.sectionTitle}>Account</Text>
+      <Text style={styles.sectionTitle}>{t('subSettingsTab.account')}</Text>
       <View style={styles.card}>
         <View style={[styles.row, styles.rowDivider]}>
-          <Text style={[styles.rowLabel, { marginLeft: 0 }]}>Email</Text>
+          <Text style={[styles.rowLabel, { marginLeft: 0 }]}>{t('subSettingsTab.email')}</Text>
           <Text style={styles.rowValue} numberOfLines={1}>{user?.email}</Text>
         </View>
         <View style={styles.row}>
-          <Text style={[styles.rowLabel, { marginLeft: 0 }]}>Plan</Text>
+          <Text style={[styles.rowLabel, { marginLeft: 0 }]}>{t('subSettingsTab.plan')}</Text>
           <Text style={styles.rowValue}>
-            {profile?.subscription_tier === 'free' ? 'Free' : (profile?.subscription_tier || 'Free')}
+            {profile?.subscription_tier === 'free' ? t('subSettingsTab.planFree') : (profile?.subscription_tier || t('subSettingsTab.planFree'))}
           </Text>
         </View>
       </View>
@@ -233,10 +233,10 @@ export default function SubSettingsTab() {
         activeOpacity={0.7}
       >
         <Ionicons name="log-out-outline" size={20} color="#DC2626" />
-        <Text style={styles.logoutText}>Log out</Text>
+        <Text style={styles.logoutText}>{t('subSettingsTab.logout')}</Text>
       </TouchableOpacity>
 
-      <Text style={styles.footnote}>Sylk Sub Portal · v1</Text>
+      <Text style={styles.footnote}>{t('subSettingsTab.footnote')}</Text>
     </ScrollView>
   );
 }

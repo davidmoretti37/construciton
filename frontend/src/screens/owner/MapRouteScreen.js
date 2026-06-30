@@ -27,6 +27,7 @@ import MapView, { Marker, Polyline } from 'react-native-maps';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchOwnerLocations, optimizeRoute, decodePolyline } from '../../utils/storage/routeOptimization';
@@ -45,6 +46,7 @@ const STOP_COLORS = [
 ];
 
 export default function MapRouteScreen({ route: navRoute }) {
+  const { t } = useTranslation('owner');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const navigation = useNavigation();
@@ -211,7 +213,7 @@ export default function MapRouteScreen({ route: navRoute }) {
 
   const handleOptimize = useCallback(async () => {
     if (selectedStops.length < 2) {
-      Alert.alert('Need more stops', 'Add at least 2 stops to optimize a route.');
+      Alert.alert(t('mapRoute.needMoreStops'), t('mapRoute.addTwoStops'));
       return;
     }
 
@@ -256,7 +258,7 @@ export default function MapRouteScreen({ route: navRoute }) {
         }, 300);
       }
     } catch (e) {
-      Alert.alert('Optimization Failed', e.message);
+      Alert.alert(t('mapRoute.optimizationFailed'), e.message);
     } finally {
       setOptimizing(false);
     }
@@ -280,10 +282,10 @@ export default function MapRouteScreen({ route: navRoute }) {
     const appleMapsUrl = `maps://app?saddr=Current+Location&daddr=${appleMapsAddresses.join('&daddr=')}`;
 
     if (Platform.OS === 'ios') {
-      Alert.alert('Open Directions', `Navigate ${stops.length} stops`, [
+      Alert.alert(t('mapRoute.openDirections'), t('mapRoute.navigateStops', { count: stops.length }), [
         { text: 'Apple Maps', onPress: () => Linking.openURL(appleMapsUrl) },
         { text: 'Google Maps', onPress: () => Linking.openURL(googleMapsUrl) },
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
       ]);
     } else {
       Linking.openURL(googleMapsUrl);
@@ -323,7 +325,7 @@ export default function MapRouteScreen({ route: navRoute }) {
         <Ionicons name="navigate" size={18} color={Colors.primaryBlue} />
         <TextInput
           style={[styles.routeNameInput, { color: Colors.primaryText }]}
-          placeholder="Route name (optional)"
+          placeholder={t('mapRoute.routeNamePlaceholder')}
           placeholderTextColor={Colors.placeholderText}
           value={routeName}
           onChangeText={setRouteName}
@@ -335,10 +337,10 @@ export default function MapRouteScreen({ route: navRoute }) {
         <View style={styles.emptyStops}>
           <Ionicons name="location-outline" size={36} color={Colors.placeholderText} />
           <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-            No stops added yet
+            {t('mapRoute.noStopsYet')}
           </Text>
           <Text style={[styles.emptySubtext, { color: Colors.placeholderText }]}>
-            Tap "Add Stop" to select from your saved locations
+            {t('mapRoute.noStopsSubtext')}
           </Text>
         </View>
       ) : (
@@ -384,7 +386,7 @@ export default function MapRouteScreen({ route: navRoute }) {
         }}
       >
         <Ionicons name="add-circle-outline" size={20} color={Colors.primaryBlue} />
-        <Text style={[styles.addStopText, { color: Colors.primaryBlue }]}>Add Stop</Text>
+        <Text style={[styles.addStopText, { color: Colors.primaryBlue }]}>{t('mapRoute.addStop')}</Text>
       </TouchableOpacity>
 
       {/* Action buttons */}
@@ -401,7 +403,7 @@ export default function MapRouteScreen({ route: navRoute }) {
               ) : (
                 <>
                   <Ionicons name="flash" size={18} color="#fff" />
-                  <Text style={styles.optimizeBtnText}>Optimize</Text>
+                  <Text style={styles.optimizeBtnText}>{t('mapRoute.optimize')}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -412,7 +414,7 @@ export default function MapRouteScreen({ route: navRoute }) {
             onPress={handleStartNavigation}
           >
             <Ionicons name="navigate" size={18} color="#fff" />
-            <Text style={styles.saveBtnText}>Go</Text>
+            <Text style={styles.saveBtnText}>{t('mapRoute.go')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -436,7 +438,7 @@ export default function MapRouteScreen({ route: navRoute }) {
           <Ionicons name="search" size={16} color={Colors.placeholderText} />
           <TextInput
             style={[styles.searchInput, { color: Colors.primaryText }]}
-            placeholder="Search locations..."
+            placeholder={t('mapRoute.searchPlaceholder')}
             placeholderTextColor={Colors.placeholderText}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -461,7 +463,7 @@ export default function MapRouteScreen({ route: navRoute }) {
           </View>
           <View style={styles.locationInfo}>
             <Text style={[styles.locationName, { color: Colors.primaryText }]} numberOfLines={1}>
-              Add new address
+              {t('mapRoute.addNewAddress')}
             </Text>
             <Text style={[styles.locationAddress, { color: Colors.secondaryText }]} numberOfLines={2}>
               {geocodedResult.address}
@@ -475,7 +477,7 @@ export default function MapRouteScreen({ route: navRoute }) {
         <View style={styles.emptyStops}>
           <ActivityIndicator size="small" color={Colors.primaryBlue} />
           <Text style={[styles.emptyText, { color: Colors.secondaryText, marginTop: 8 }]}>
-            Looking up address...
+            {t('mapRoute.lookingUpAddress')}
           </Text>
         </View>
       )}
@@ -485,10 +487,10 @@ export default function MapRouteScreen({ route: navRoute }) {
         <View style={styles.emptyStops}>
           <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
             {searchQuery.trim().length > 0
-              ? 'Type a full address to add a new stop'
+              ? t('mapRoute.typeFullAddress')
               : savedLocations.length === 0
-                ? 'No saved locations. Add locations to your service plans first.'
-                : 'No matching locations'}
+                ? t('mapRoute.noSavedLocations')
+                : t('mapRoute.noMatchingLocations')}
           </Text>
         </View>
       ) : (
@@ -528,7 +530,7 @@ export default function MapRouteScreen({ route: navRoute }) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Map Route</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('mapRoute.title')}</Text>
         <View style={styles.headerBtn} />
       </SafeAreaView>
 
@@ -588,7 +590,7 @@ export default function MapRouteScreen({ route: navRoute }) {
           <View style={styles.routeInfoItem}>
             <Ionicons name="flag" size={16} color={Colors.primaryBlue} />
             <Text style={[styles.routeInfoText, { color: Colors.primaryText }]}>
-              {selectedStops.length} stops
+              {t('mapRoute.stopsCount', { count: selectedStops.length })}
             </Text>
           </View>
         </View>

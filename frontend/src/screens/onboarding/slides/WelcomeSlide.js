@@ -5,6 +5,7 @@
 
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -27,6 +28,8 @@ import { useBounceAnimation, useScaleAnimation, useEntranceAnimation } from './u
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function WelcomeSlide({ isActive = true, onGetStarted }) {
+  const { t } = useTranslation('onboarding');
+
   // Staggered entrance animations - bouncy and playful
   const logoAnim = useScaleAnimation(isActive, 0);           // Pop in with overshoot
   const headlineAnim = useBounceAnimation(isActive, 200);    // Bouncy text
@@ -89,7 +92,7 @@ export default function WelcomeSlide({ isActive = true, onGetStarted }) {
       <Animated.View style={[styles.titleContainer, headlineAnim]}>
         <MaskedView
           maskElement={
-            <Text style={styles.headline}>Build Smarter</Text>
+            <Text style={styles.headline}>{t('welcomeSlide.headline')}</Text>
           }
         >
           <LinearGradient
@@ -97,7 +100,7 @@ export default function WelcomeSlide({ isActive = true, onGetStarted }) {
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
           >
-            <Text style={[styles.headline, { opacity: 0 }]}>Build Smarter</Text>
+            <Text style={[styles.headline, { opacity: 0 }]}>{t('welcomeSlide.headline')}</Text>
           </LinearGradient>
         </MaskedView>
       </Animated.View>
@@ -105,7 +108,7 @@ export default function WelcomeSlide({ isActive = true, onGetStarted }) {
       {/* Subtitle */}
       <Animated.View style={[styles.subtitleContainer, subtitleAnim]}>
         <Text style={styles.subtitle}>
-          The AI-powered app for modern contractors
+          {t('welcomeSlide.subtitle')}
         </Text>
       </Animated.View>
 
@@ -116,15 +119,15 @@ export default function WelcomeSlide({ isActive = true, onGetStarted }) {
             <Ionicons key={i} name="star" size={14} color="#FBBF24" />
           ))}
         </View>
-        <Text style={styles.socialText}>4.9 Rating</Text>
+        <Text style={styles.socialText}>{t('welcomeSlide.rating')}</Text>
         <View style={styles.divider} />
-        <Text style={styles.socialText}>500+ Contractors</Text>
+        <Text style={styles.socialText}>{t('welcomeSlide.contractorCount')}</Text>
       </Animated.View>
 
       {/* CTA Button */}
       <Animated.View style={[styles.buttonContainer, buttonAnim]}>
         <ShimmerButton
-          title="Get Started"
+          title={t('welcomeSlide.getStarted')}
           onPress={onGetStarted}
         />
       </Animated.View>

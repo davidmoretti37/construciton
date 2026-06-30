@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -32,6 +33,7 @@ const FullscreenPhotoViewer = ({
   onClose,
   onIndexChange,
 }) => {
+  const { t } = useTranslation('common');
   const flatListRef = useRef(null);
   const [currentIndex, setCurrentIndex] = React.useState(initialIndex);
   const insets = useSafeAreaInsets();
@@ -141,7 +143,7 @@ const FullscreenPhotoViewer = ({
         {photos.length > 1 && currentIndex === initialIndex && (
           <View style={[styles.swipeHint, { bottom: insets.bottom + 30 }]}>
             <Ionicons name="swap-horizontal" size={20} color="rgba(255,255,255,0.6)" />
-            <Text style={styles.swipeHintText}>Swipe to navigate</Text>
+            <Text style={styles.swipeHintText}>{t('fullscreenPhotoViewer.swipeToNavigate')}</Text>
           </View>
         )}
       </View>

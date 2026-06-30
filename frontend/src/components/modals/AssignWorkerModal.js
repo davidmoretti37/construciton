@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -19,6 +20,7 @@ import { fetchWorkers, getWorkerAssignmentCounts } from '../../utils/storage/wor
 import { getCurrentUserContext } from '../../utils/storage/auth';
 
 export default function AssignWorkerModal({ visible, onClose, onSuccess }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const styles = createStyles(Colors);
@@ -73,7 +75,7 @@ export default function AssignWorkerModal({ visible, onClose, onSuccess }) {
       const currentUserId = user?.id;
 
       if (!currentUserId) {
-        Alert.alert('Error', 'User not authenticated');
+        Alert.alert(t('common:alerts.error'), t('assignWorkerModal.errorNotAuthenticated'));
         return;
       }
 
@@ -131,7 +133,7 @@ export default function AssignWorkerModal({ visible, onClose, onSuccess }) {
       }
     } catch (error) {
       console.error('Error loading data:', error);
-      Alert.alert('Error', 'Failed to load workers and projects');
+      Alert.alert(t('common:alerts.error'), t('assignWorkerModal.errorLoadFailed'));
     } finally {
       setLoading(false);
     }
@@ -139,7 +141,7 @@ export default function AssignWorkerModal({ visible, onClose, onSuccess }) {
 
   const handleAssign = async () => {
     if (!selectedWorkerId || !selectedProjectId) {
-      Alert.alert('Error', 'Please select both a worker and a project');
+      Alert.alert(t('common:alerts.error'), t('assignWorkerModal.errorSelectBoth'));
       return;
     }
 
@@ -155,7 +157,7 @@ export default function AssignWorkerModal({ visible, onClose, onSuccess }) {
         .single();
 
       if (existing) {
-        Alert.alert('Already Assigned', 'This worker is already assigned to this project');
+        Alert.alert(t('assignWorkerModal.alreadyAssignedTitle'), t('assignWorkerModal.alreadyAssignedMessage'));
         return;
       }
 
@@ -173,16 +175,16 @@ export default function AssignWorkerModal({ visible, onClose, onSuccess }) {
       const project = projects.find(p => p.id === selectedProjectId);
 
       Alert.alert(
-        'Success',
-        `${worker?.full_name || 'Worker'} assigned to ${project?.name || 'project'}`,
-        [{ text: 'OK', onPress: () => {
+        t('common:alerts.success'),
+        t('assignWorkerModal.successMessage', { workerName: worker?.full_name || t('assignWorkerModal.workerFallback'), projectName: project?.name || t('assignWorkerModal.projectFallback') }),
+        [{ text: t('assignWorkerModal.okButton'), onPress: () => {
           if (onSuccess) onSuccess();
           onClose();
         }}]
       );
     } catch (error) {
       console.error('Error assigning worker:', error);
-      Alert.alert('Error', 'Failed to assign worker to project');
+      Alert.alert(t('common:alerts.error'), t('assignWorkerModal.errorAssignFailed'));
     } finally {
       setAssigning(false);
     }
@@ -200,31 +202,31 @@ export default function AssignWorkerModal({ visible, onClose, onSuccess }) {
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <Ionicons name="close" size={28} color={Colors.text} />
           </TouchableOpacity>
-          <Text style={styles.title}>Assign Worker to Project</Text>
+          <Text style={styles.title}>{t('assignWorkerModal.title')}</Text>
           <View style={{ width: 28 }} />
         </View>
 
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={Colors.primaryBlue} />
-            <Text style={styles.loadingText}>Loading...</Text>
+            <Text style={styles.loadingText}>{t('common:status.loading')}</Text>
           </View>
         ) : workers.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="people-outline" size={64} color={Colors.textSecondary} />
-            <Text style={styles.emptyText}>No workers available</Text>
-            <Text style={styles.emptySubtext}>Ask your owner to add workers first</Text>
+            <Text style={styles.emptyText}>{t('assignWorkerModal.noWorkersAvailable')}</Text>
+            <Text style={styles.emptySubtext}>{t('assignWorkerModal.addWorkersFirst')}</Text>
           </View>
         ) : projects.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="folder-outline" size={64} color={Colors.textSecondary} />
-            <Text style={styles.emptyText}>No assigned projects</Text>
-            <Text style={styles.emptySubtext}>You're not assigned to any projects yet</Text>
+            <Text style={styles.emptyText}>{t('assignWorkerModal.noAssignedProjects')}</Text>
+            <Text style={styles.emptySubtext}>{t('assignWorkerModal.notAssignedToProjects')}</Text>
           </View>
         ) : (
           <ScrollView style={styles.content}>
             <View style={styles.section}>
-              <Text style={styles.label}>Select Worker:</Text>
+              <Text style={styles.label}>{t('assignWorkerModal.selectWorker')}</Text>
               <View style={styles.pickerContainer}>
                 <Picker
                   selectedValue={selectedWorkerId}
@@ -236,7 +238,7 @@ export default function AssignWorkerModal({ visible, onClose, onSuccess }) {
                     const isAssigned = assignedWorkerIds.has(worker.id);
                     const assignmentCount = worker.assignmentCount || 0;
                     const assignmentText = assignmentCount > 0 ? ` (${assignmentCount})` : '';
-                    const statusText = isAssigned ? ' ✓ Assigned' : '';
+                    const statusText = isAssigned ? ` ${t('assignWorkerModal.statusAssigned')}` : '';
                     const trade = worker.trade || '';
 
                     return (
@@ -254,7 +256,7 @@ export default function AssignWorkerModal({ visible, onClose, onSuccess }) {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.label}>Select Project:</Text>
+              <Text style={styles.label}>{t('assignWorkerModal.selectProject')}</Text>
               <View style={styles.pickerContainer}>
                 <Picker
                   selectedValue={selectedProjectId}
@@ -265,7 +267,7 @@ export default function AssignWorkerModal({ visible, onClose, onSuccess }) {
                   {projects.filter(p => p?.id && p?.name).map((project) => (
                     <Picker.Item
                       key={project.id}
-                      label={project.name || 'Unnamed Project'}
+                      label={project.name || t('assignWorkerModal.unnamedProject')}
                       value={project.id}
                       color="#000000"
                     />
@@ -283,7 +285,7 @@ export default function AssignWorkerModal({ visible, onClose, onSuccess }) {
               onPress={onClose}
               disabled={assigning}
             >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+              <Text style={styles.cancelButtonText}>{t('common:buttons.cancel')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -294,7 +296,7 @@ export default function AssignWorkerModal({ visible, onClose, onSuccess }) {
               {assigning ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.assignButtonText}>Assign</Text>
+                <Text style={styles.assignButtonText}>{t('assignWorkerModal.assignButton')}</Text>
               )}
             </TouchableOpacity>
           </View>

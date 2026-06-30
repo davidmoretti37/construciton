@@ -11,11 +11,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchDashboard } from '../../services/clientPortalApi';
 
 export default function ClientMessagesListScreen({ navigation }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const [loading, setLoading] = useState(true);
@@ -53,7 +55,7 @@ export default function ClientMessagesListScreen({ navigation }) {
           testID="clientMessagesList.headerTitle"
           accessibilityLabel="clientMessagesList.headerTitle"
           style={[styles.headerTitle, { color: Colors.primaryText }]}
-        >Messages</Text>
+        >{t('clientMessagesList.title')}</Text>
       </View>
 
       <ScrollView
@@ -63,8 +65,8 @@ export default function ClientMessagesListScreen({ navigation }) {
         {projects.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="chatbubbles-outline" size={64} color={Colors.secondaryText} />
-            <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>No conversations</Text>
-            <Text style={[styles.emptySubtext, { color: Colors.secondaryText }]}>Messages will appear when you have active projects</Text>
+            <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>{t('clientMessagesList.emptyTitle')}</Text>
+            <Text style={[styles.emptySubtext, { color: Colors.secondaryText }]}>{t('clientMessagesList.emptySubtext')}</Text>
           </View>
         ) : (
           projects.map((project, index) => (
@@ -85,7 +87,7 @@ export default function ClientMessagesListScreen({ navigation }) {
                   accessibilityLabel={`clientMessagesList.businessName.${index}`}
                   style={[styles.projectName, { color: Colors.primaryText }]}
                   numberOfLines={1}
-                >{businessName || 'Your Contractor'}</Text>
+                >{businessName || t('clientMessagesList.yourContractor')}</Text>
                 <Text
                   testID={`clientMessagesList.projectName.${index}`}
                   accessibilityLabel={`clientMessagesList.projectName.${index}`}

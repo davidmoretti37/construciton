@@ -23,6 +23,7 @@ import {
 } from 'react-native';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabase';
 import { API_URL as BACKEND_URL } from '../config/api';
 import { getColors, LightColors } from '../constants/theme';
@@ -50,6 +51,7 @@ const AddMenuSheet = ({
   onSelectIntegration,
   onOpenIntegrations,
 }) => {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const insets = useSafeAreaInsets();
@@ -105,25 +107,25 @@ const AddMenuSheet = ({
               <Row
                 styles={styles}
                 icon={<Ionicons name="camera-outline" size={22} color={Colors.primaryText} />}
-                label="Take photo"
+                label={t('addMenuSheet.takePhoto')}
                 onPress={wrap(onTakePhoto)}
               />
               <Row
                 styles={styles}
                 icon={<Ionicons name="image-outline" size={22} color={Colors.primaryText} />}
-                label="Choose photo"
+                label={t('addMenuSheet.choosePhoto')}
                 onPress={wrap(onChoosePhoto)}
               />
               <Row
                 styles={styles}
                 icon={<Ionicons name="document-attach-outline" size={22} color={Colors.primaryText} />}
-                label="Add document"
+                label={t('addMenuSheet.addDocument')}
                 onPress={wrap(onAddDocument)}
               />
 
               <View style={styles.divider} />
 
-              <Text style={styles.sectionLabel}>Integrations</Text>
+              <Text style={styles.sectionLabel}>{t('addMenuSheet.integrations')}</Text>
 
               {loading && (
                 <View style={styles.loadingRow}>
@@ -132,7 +134,7 @@ const AddMenuSheet = ({
               )}
 
               {!loading && integrations.length === 0 && (
-                <Text style={styles.emptyHint}>No integrations connected yet.</Text>
+                <Text style={styles.emptyHint}>{t('addMenuSheet.noIntegrations')}</Text>
               )}
 
               {!loading && integrations.map((integ) => (
@@ -140,7 +142,7 @@ const AddMenuSheet = ({
                   key={integ.type}
                   styles={styles}
                   icon={<IntegrationIcon icon={integ.icon} size={22} fallbackColor={Colors.primaryText} />}
-                  label={`Use ${integ.name}`}
+                  label={t('addMenuSheet.useIntegration', { name: integ.name })}
                   sublabel={integ.tagline || null}
                   onPress={wrap(() => onSelectIntegration?.(integ))}
                 />
@@ -149,7 +151,7 @@ const AddMenuSheet = ({
               <Row
                 styles={styles}
                 icon={<Ionicons name="add-circle-outline" size={22} color={Colors.primaryBlue} />}
-                label="Connect more"
+                label={t('addMenuSheet.connectMore')}
                 labelColor={Colors.primaryBlue}
                 onPress={wrap(onOpenIntegrations)}
               />

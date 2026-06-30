@@ -17,6 +17,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { useTheme } from '../../contexts/ThemeContext';
 import { LightColors, DarkColors } from '../../constants/theme';
 import * as api from '../../services/subPortalService';
+import { useTranslation } from 'react-i18next';
 
 const SUB_VIOLET = '#8B5CF6';
 
@@ -71,6 +72,7 @@ export default function SubDocumentsTab({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = isDark ? DarkColors : LightColors;
   const styles = makeStyles(Colors);
+  const { t } = useTranslation('common');
 
   const [subOrg, setSubOrg] = useState(null);
   const [docs, setDocs] = useState([]);
@@ -95,7 +97,7 @@ export default function SubDocumentsTab({ navigation }) {
         fileType: isPDF ? 'pdf' : isImage ? 'image' : 'document',
       });
     } catch (e) {
-      Alert.alert('Could not open', e.message || 'Try again.');
+      Alert.alert(t('subDocumentsTab.couldNotOpen'), e.message || t('subDocumentsTab.tryAgain'));
     } finally {
       setOpeningDocId(null);
     }
@@ -156,10 +158,10 @@ export default function SubDocumentsTab({ navigation }) {
     } catch (e) {
       const stuck = /Different document picking in progress|Await other document/.test(e?.message || '');
       Alert.alert(
-        stuck ? 'iOS picker is stuck' : 'Upload failed',
+        stuck ? t('subDocumentsTab.iosPickerStuck') : t('subDocumentsTab.uploadFailed'),
         stuck
-          ? 'iOS thinks a previous picker is still open. Reload the app to clear it.'
-          : (e.message || 'Unknown error'),
+          ? t('subDocumentsTab.iosPickerStuckMessage')
+          : (e.message || t('subDocumentsTab.unknownError')),
       );
     } finally {
       pickerBusyRef.current = false;
@@ -186,19 +188,19 @@ export default function SubDocumentsTab({ navigation }) {
     if (!compByType[d.doc_type]) compByType[d.doc_type] = d;
   }
   const presentCompliance = Object.keys(compByType);
-  const missingCompliance = complianceTypes.filter((t) => !presentCompliance.includes(t));
+  const missingCompliance = complianceTypes.filter((type) => !presentCompliance.includes(type));
 
   const projectFiles = docs
     .filter((d) => projectFileTypes.includes(d.doc_type))
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   const computeStatus = (d) => {
-    if (!d.expires_at) return { label: 'Active', color: '#10B981', bg: '#10B98115' };
+    if (!d.expires_at) return { label: t('subDocumentsTab.statusActive'), color: '#10B981', bg: '#10B98115' };
     const now = new Date();
     const days = Math.floor((new Date(d.expires_at) - now) / 86400000);
-    if (days < 0) return { label: `Expired ${Math.abs(days)}d ago`, color: '#DC2626', bg: '#DC262615' };
-    if (days <= 30) return { label: `Expires in ${days}d`, color: '#F59E0B', bg: '#F59E0B15' };
-    return { label: `Active`, color: '#10B981', bg: '#10B98115' };
+    if (days < 0) return { label: t('subDocumentsTab.statusExpired', { days: Math.abs(days) }), color: '#DC2626', bg: '#DC262615' };
+    if (days <= 30) return { label: t('subDocumentsTab.statusExpiresIn', { days }), color: '#F59E0B', bg: '#F59E0B15' };
+    return { label: t('subDocumentsTab.statusActive'), color: '#10B981', bg: '#10B98115' };
   };
 
   return (
@@ -208,51 +210,48 @@ export default function SubDocumentsTab({ navigation }) {
         <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={SUB_VIOLET} />
       }
     >
-      <Text style={styles.headerTitle}>Documents</Text>
-      <Text style={styles.headerSub}>
-        Your compliance vault. Upload once — visible to every contractor who hires you.
-        {'\n\n'}Project-specific files (signed contracts, invoices, photos) live inside each job under Jobs → tap a job.
-      </Text>
+      <Text style={styles.headerTitle}>{t('subDocumentsTab.title')}</Text>
+      <Text style={styles.headerSub}>{t('subDocumentsTab.headerSub')}</Text>
 
       {/* Compliance — On file */}
-      <Text style={styles.sectionTitle}>On file</Text>
+      <Text style={styles.sectionTitle}>{t('subDocumentsTab.onFile')}</Text>
       {presentCompliance.length === 0 ? (
         <View style={styles.emptyBlock}>
           <Ionicons name="folder-open-outline" size={26} color={Colors.secondaryText} />
-          <Text style={styles.emptyText}>No documents uploaded yet.</Text>
+          <Text style={styles.emptyText}>{t('subDocumentsTab.noDocumentsYet')}</Text>
         </View>
       ) : (
-        presentCompliance.map((t) => {
-          const d = compByType[t];
+        presentCompliance.map((type) => {
+          const d = compByType[type];
           const status = computeStatus(d);
           const isOpening = openingDocId === d.id;
           return (
             <TouchableOpacity
-              key={t}
+              key={type}
               style={styles.docCard}
               activeOpacity={0.7}
               onPress={() => onOpenDoc(d)}
               disabled={isOpening}
             >
               <View style={styles.docIconWrap}>
-                <Ionicons name={DOC_ICONS[t] || 'document-outline'} size={20} color={Colors.primaryText} />
+                <Ionicons name={DOC_ICONS[type] || 'document-outline'} size={20} color={Colors.primaryText} />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.docTitle} numberOfLines={1}>{DOC_TYPE_LABELS[t] || t}</Text>
+                <Text style={styles.docTitle} numberOfLines={1}>{DOC_TYPE_LABELS[type] || type}</Text>
                 <View style={[styles.statusPill, { backgroundColor: status.bg, marginTop: 4 }]}>
                   <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
                 </View>
               </View>
               <TouchableOpacity
                 style={styles.replaceBtn}
-                onPress={() => onUpload(t)}
-                disabled={uploadingType === t}
+                onPress={() => onUpload(type)}
+                disabled={uploadingType === type}
                 activeOpacity={0.7}
               >
-                {uploadingType === t ? (
+                {uploadingType === type ? (
                   <ActivityIndicator size="small" color={Colors.secondaryText} />
                 ) : (
-                  <Text style={styles.replaceBtnText}>Replace</Text>
+                  <Text style={styles.replaceBtnText}>{t('subDocumentsTab.replace')}</Text>
                 )}
               </TouchableOpacity>
             </TouchableOpacity>
@@ -263,20 +262,20 @@ export default function SubDocumentsTab({ navigation }) {
       {/* Compliance — Missing */}
       {missingCompliance.length > 0 && (
         <>
-          <Text style={styles.sectionTitle}>Add</Text>
-          {missingCompliance.map((t) => (
+          <Text style={styles.sectionTitle}>{t('common:buttons.add')}</Text>
+          {missingCompliance.map((type) => (
             <TouchableOpacity
-              key={t}
+              key={type}
               style={styles.addCard}
-              onPress={() => onUpload(t)}
-              disabled={uploadingType === t}
+              onPress={() => onUpload(type)}
+              disabled={uploadingType === type}
               activeOpacity={0.7}
             >
               <View style={[styles.docIconWrap, styles.addIconWrap]}>
-                <Ionicons name={DOC_ICONS[t] || 'add'} size={20} color={Colors.secondaryText} />
+                <Ionicons name={DOC_ICONS[type] || 'add'} size={20} color={Colors.secondaryText} />
               </View>
-              <Text style={styles.addCardLabel}>{DOC_TYPE_LABELS[t] || t}</Text>
-              {uploadingType === t ? (
+              <Text style={styles.addCardLabel}>{DOC_TYPE_LABELS[type] || type}</Text>
+              {uploadingType === type ? (
                 <ActivityIndicator size="small" color={SUB_VIOLET} />
               ) : (
                 <Ionicons name="add-circle" size={22} color={SUB_VIOLET} />

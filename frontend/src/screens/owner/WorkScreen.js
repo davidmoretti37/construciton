@@ -20,6 +20,7 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -36,6 +37,7 @@ const INACTIVE_RATIO = 1 - ACTIVE_RATIO;
 const SPRING_CONFIG = { damping: 18, stiffness: 180, mass: 0.8 };
 
 export default function WorkScreen() {
+  const { t } = useTranslation('owner');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const navigation = useNavigation();
@@ -83,7 +85,7 @@ export default function WorkScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <Text testID="work.title" accessibilityLabel="Work" style={[styles.headerTitle, { color: Colors.primaryText }]}>Work</Text>
+        <Text testID="work.title" accessibilityLabel="Work" style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('work.title')}</Text>
         <View style={styles.headerRight}>
           {activeSegment === 0 && (
             <TouchableOpacity
@@ -129,7 +131,7 @@ export default function WorkScreen() {
               { color: activeSegment === 0 ? '#1E40AF' : Colors.secondaryText },
               activeSegment === 0 && styles.pillTextActive,
             ]}>
-              Projects
+              {t('work.projectsTab')}
             </Animated.Text>
           </TouchableOpacity>
         </Animated.View>
@@ -152,7 +154,7 @@ export default function WorkScreen() {
               { color: activeSegment === 1 ? '#1E40AF' : Colors.secondaryText },
               activeSegment === 1 && styles.pillTextActive,
             ]}>
-              Services
+              {t('work.servicesTab')}
             </Animated.Text>
           </TouchableOpacity>
         </Animated.View>

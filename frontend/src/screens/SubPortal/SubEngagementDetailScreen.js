@@ -25,6 +25,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../contexts/ThemeContext';
 import { LightColors, DarkColors } from '../../constants/theme';
 import * as api from '../../services/subPortalService';
@@ -33,6 +34,7 @@ const SUB_VIOLET = '#8B5CF6';
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 export default function SubEngagementDetailScreen({ route, navigation }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = isDark ? DarkColors : LightColors;
   const styles = makeStyles(Colors);
@@ -143,11 +145,11 @@ export default function SubEngagementDetailScreen({ route, navigation }) {
       const isPDF = (att.file_mime || '').includes('pdf') || ext === 'pdf';
       navigation.navigate('DocumentViewer', {
         fileUrl: res.url,
-        fileName: att.file_name || 'Attachment',
+        fileName: att.file_name || t('subEngagementDetail.attachmentFallback'),
         fileType: isPDF ? 'pdf' : 'document',
       });
     } catch (err) {
-      Alert.alert('Could not open', err.message || 'Try again');
+      Alert.alert(t('subEngagementDetail.couldNotOpen'), err.message || t('subEngagementDetail.tryAgain'));
     } finally {
       setOpeningDocId(null);
     }
@@ -164,11 +166,11 @@ export default function SubEngagementDetailScreen({ route, navigation }) {
       const isImage = ['jpg','jpeg','png','gif','webp','heic'].includes(ext);
       navigation.navigate('DocumentViewer', {
         fileUrl: res.url,
-        fileName: doc.title || doc.file_name || 'Document',
+        fileName: doc.title || doc.file_name || t('subEngagementDetail.documentFallback'),
         fileType: isPDF ? 'pdf' : isImage ? 'image' : 'document',
       });
     } catch (err) {
-      Alert.alert('Could not open', err.message || 'Try again');
+      Alert.alert(t('subEngagementDetail.couldNotOpen'), err.message || t('subEngagementDetail.tryAgain'));
     } finally {
       setOpeningDocId(null);
     }
@@ -189,7 +191,7 @@ export default function SubEngagementDetailScreen({ route, navigation }) {
         fileType: isPDF ? 'pdf' : isImage ? 'image' : 'document',
       });
     } catch (err) {
-      Alert.alert('Could not open', err.message || 'Try again');
+      Alert.alert(t('subEngagementDetail.couldNotOpen'), err.message || t('subEngagementDetail.tryAgain'));
     } finally {
       setOpeningDocId(null);
     }
@@ -210,7 +212,7 @@ export default function SubEngagementDetailScreen({ route, navigation }) {
           t.id === task.id ? { ...t, status: newStatus } : t),
       });
     } catch (err) {
-      Alert.alert('Could not update task', err.message || 'Try again');
+      Alert.alert(t('subEngagementDetail.couldNotUpdateTask'), err.message || t('subEngagementDetail.tryAgain'));
     } finally {
       setUpdatingTaskId(null);
       togglingTaskRef.current = false;
@@ -231,17 +233,17 @@ export default function SubEngagementDetailScreen({ route, navigation }) {
     return (
       <SafeAreaView style={[styles.center, { backgroundColor: Colors.background }]}>
         <Ionicons name="alert-circle-outline" size={42} color={Colors.errorRed || '#DC2626'} />
-        <Text style={styles.errorTitle}>{error ? "Couldn't load this job" : 'Job not found'}</Text>
+        <Text style={styles.errorTitle}>{error ? t('subEngagementDetail.loadError') : t('subEngagementDetail.notFound')}</Text>
         <Text style={styles.errorBody}>
-          {error ? 'Something went wrong loading this job. Check your connection and try again.' : 'This engagement may have been cancelled.'}
+          {error ? t('subEngagementDetail.loadErrorBody') : t('subEngagementDetail.cancelledBody')}
         </Text>
         {error ? (
           <TouchableOpacity onPress={() => { setLoading(true); load(); }} style={[styles.primaryBtn, { paddingHorizontal: 32, marginTop: 20 }]}>
-            <Text style={styles.primaryBtnText}>Retry</Text>
+            <Text style={styles.primaryBtnText}>{t('common:buttons.retry')}</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.primaryBtn, { paddingHorizontal: 32, marginTop: 20 }]}>
-            <Text style={styles.primaryBtnText}>Go back</Text>
+            <Text style={styles.primaryBtnText}>{t('subEngagementDetail.goBack')}</Text>
           </TouchableOpacity>
         )}
       </SafeAreaView>
@@ -260,7 +262,7 @@ export default function SubEngagementDetailScreen({ route, navigation }) {
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle} numberOfLines={1}>{e.trade}</Text>
           <Text style={styles.headerSub} numberOfLines={1}>
-            {e.project?.name || 'Job'}
+            {e.project?.name || t('subEngagementDetail.jobFallback')}
           </Text>
         </View>
       </View>
@@ -276,10 +278,10 @@ export default function SubEngagementDetailScreen({ route, navigation }) {
             <Text style={styles.tradeChipText}>{e.trade}</Text>
           </View>
           <Text style={styles.projectName} numberOfLines={2}>
-            {e.project?.name || 'Project'}
+            {e.project?.name || t('subEngagementDetail.projectFallback')}
           </Text>
           {e.gc_business_name ? (
-            <Text style={styles.gcName}>For {e.gc_business_name}</Text>
+            <Text style={styles.gcName}>{t('subEngagementDetail.forGc', { name: e.gc_business_name })}</Text>
           ) : null}
 
           <View style={styles.statusRow}>
@@ -297,20 +299,20 @@ export default function SubEngagementDetailScreen({ route, navigation }) {
         </View>
 
         {/* Schedule */}
-        <Section title="Schedule" Colors={Colors}>
+        <Section title={t('subEngagementDetail.schedule')} Colors={Colors}>
           <View style={styles.scheduleCard}>
             <View style={styles.scheduleRow}>
               <View style={styles.scheduleLabelWrap}>
-                <Text style={styles.scheduleLabelTop}>Start</Text>
+                <Text style={styles.scheduleLabelTop}>{t('subEngagementDetail.start')}</Text>
                 <Text style={styles.scheduleDate}>
-                  {fmtDate(startDate) || <Text style={styles.scheduleDatePending}>To be set</Text>}
+                  {fmtDate(startDate) || <Text style={styles.scheduleDatePending}>{t('subEngagementDetail.toBeSet')}</Text>}
                 </Text>
               </View>
               <Ionicons name="arrow-forward" size={16} color={Colors.secondaryText} style={{ marginHorizontal: 14 }} />
               <View style={styles.scheduleLabelWrap}>
-                <Text style={styles.scheduleLabelTop}>End</Text>
+                <Text style={styles.scheduleLabelTop}>{t('subEngagementDetail.end')}</Text>
                 <Text style={styles.scheduleDate}>
-                  {fmtDate(endDate) || <Text style={styles.scheduleDatePending}>To be set</Text>}
+                  {fmtDate(endDate) || <Text style={styles.scheduleDatePending}>{t('subEngagementDetail.toBeSet')}</Text>}
                 </Text>
               </View>
             </View>
@@ -326,7 +328,7 @@ export default function SubEngagementDetailScreen({ route, navigation }) {
 
         {/* Scope */}
         {e.scope_summary ? (
-          <Section title="Scope of work" Colors={Colors}>
+          <Section title={t('subEngagementDetail.scopeOfWork')} Colors={Colors}>
             <View style={styles.rowCard}>
               <Text style={styles.scopeText}>{e.scope_summary}</Text>
             </View>
@@ -335,7 +337,7 @@ export default function SubEngagementDetailScreen({ route, navigation }) {
 
         {/* Tasks */}
         {tasks.length > 0 ? (
-          <Section title="Tasks" Colors={Colors}>
+          <Section title={t('subEngagementDetail.tasks')} Colors={Colors}>
             {tasks.map((t) => {
               const done = t.status === 'completed';
               const updating = updatingTaskId === t.id;
@@ -375,11 +377,11 @@ export default function SubEngagementDetailScreen({ route, navigation }) {
 
         {/* Job package */}
         {docTotal > 0 ? (
-          <Section title="Job package" Colors={Colors}>
+          <Section title={t('subEngagementDetail.jobPackage')} Colors={Colors}>
             {/* Photo gallery preview */}
             {photos.length > 0 ? (
               <View style={{ marginBottom: 12 }}>
-                <Text style={styles.subLabel}>Site photos</Text>
+                <Text style={styles.subLabel}>{t('subEngagementDetail.sitePhotos')}</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
                   {photos.map((p, idx) => (
                     <TouchableOpacity
@@ -403,7 +405,7 @@ export default function SubEngagementDetailScreen({ route, navigation }) {
             {/* Bid attachment docs */}
             {docs.length > 0 ? (
               <View style={{ marginBottom: 12 }}>
-                <Text style={styles.subLabel}>From contractor (bid)</Text>
+                <Text style={styles.subLabel}>{t('subEngagementDetail.fromContractorBid')}</Text>
                 {docs.map((a) => (
                   <DocRow
                     key={a.id}
@@ -421,12 +423,12 @@ export default function SubEngagementDetailScreen({ route, navigation }) {
             {/* Project documents */}
             {projectDocs.length > 0 ? (
               <View style={{ marginBottom: 12 }}>
-                <Text style={styles.subLabel}>From contractor (project)</Text>
+                <Text style={styles.subLabel}>{t('subEngagementDetail.fromContractorProject')}</Text>
                 {projectDocs.map((d) => (
                   <DocRow
                     key={d.id}
                     title={d.title || d.file_name}
-                    subtitle={d.is_important ? 'Important' : null}
+                    subtitle={d.is_important ? t('subEngagementDetail.important') : null}
                     important={d.is_important}
                     onPress={() => openProjectDoc(d)}
                     loading={openingDocId === d.id}
@@ -440,7 +442,7 @@ export default function SubEngagementDetailScreen({ route, navigation }) {
             {/* Sub deliverables */}
             {subDeliverables.length > 0 ? (
               <View>
-                <Text style={styles.subLabel}>My uploads</Text>
+                <Text style={styles.subLabel}>{t('subEngagementDetail.myUploads')}</Text>
                 {subDeliverables.map((d) => (
                   <DocRow
                     key={d.id}
@@ -459,11 +461,11 @@ export default function SubEngagementDetailScreen({ route, navigation }) {
 
         {/* Payment terms */}
         {e.payment_terms ? (
-          <Section title="Payment" Colors={Colors}>
+          <Section title={t('subEngagementDetail.payment')} Colors={Colors}>
             <View style={styles.rowCard}>
               <Text style={styles.paymentTermsText}>
                 {(e.payment_terms || '').replace(/_/g, ' ')}
-                {e.retention_pct ? `  ·  ${e.retention_pct}% retention` : ''}
+                {e.retention_pct ? t('subEngagementDetail.retention', { pct: e.retention_pct }) : ''}
               </Text>
               {e.payment_terms_notes ? (
                 <Text style={styles.paymentNotes}>{e.payment_terms_notes}</Text>
@@ -532,6 +534,7 @@ function Section({ title, children, Colors }) {
 }
 
 function DocRow({ title, subtitle, important, onPress, loading, Colors, styles }) {
+  const { t } = useTranslation('common');
   return (
     <TouchableOpacity style={styles.docRow} onPress={onPress} disabled={loading} activeOpacity={0.7}>
       <View style={styles.docIconWrap}>
@@ -542,7 +545,7 @@ function DocRow({ title, subtitle, important, onPress, loading, Colors, styles }
           <Text style={styles.docTitle} numberOfLines={1}>{title}</Text>
           {important ? (
             <View style={styles.importantBadge}>
-              <Text style={styles.importantBadgeText}>Important</Text>
+              <Text style={styles.importantBadgeText}>{t('subEngagementDetail.important')}</Text>
             </View>
           ) : null}
         </View>
